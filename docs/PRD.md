@@ -17,7 +17,7 @@ A VALORANT player who cares about their in-game appearance enough to plan purcha
    - **Performance:** the catalog is large (1500+ skins across years) — virtualized grid, lazy-loaded thumbnails, video plays on hover/open rather than autoplaying the whole grid.
 2. **Loadout builder** — pick a skin (and level, chroma, buddy) for every weapon slot to assemble a full "ideal loadout," save it, revisit and edit it. Buddies are shown attached to the weapon (overlaid at the strap/grip anchor point), not just listed separately, so a loadout actually looks like the finished product.
    - **Slots mirror the real game 1:1** — one skin per weapon (Classic through Odin, plus Melee/knife), matching how VALORANT actually lets you equip skins. A loadout can be partial; slots don't need to be filled to save it.
-   - **Aspirational, not inventory-gated** — a user can pick any skin/level/chroma regardless of whether they actually own it. This is a planning tool for the target user who plans purchases, not an owned-items tracker (that's the separate, lower-priority "my collection" view).
+   - **Aspirational, not inventory-gated** — a user can pick any skin/level/chroma regardless of whether they actually own it. This is a planning tool for the target user who plans purchases, not an owned-items tracker. (A separate "my collection" owned-skins view was considered but deferred — not yet designed, see `ROADMAP.md` Phase 4. It would need a different Riot endpoint and data-minimization stance than store notifications use, which is real design work, not a small add-on.)
    - **Board layout** — all slots visible at once, like a locker/armory, each showing its currently assigned skin+buddy thumbnail; click a slot to open the picker. The picker is the gallery's filter/search UI (including color/vibe) scoped to that weapon, so building a loadout feels like an extension of browsing, not a separate form.
    - **Multiple named loadouts** per user, with duplicate-as-starting-point (useful for trying a variation without losing the original) and a running estimated VP cost total.
    - **Loadout switcher:** a lightweight list/dropdown of a user's named loadouts to jump between while building/browsing — swapping which loadout you're looking at should be one click, not a navigation trip.
@@ -38,6 +38,7 @@ A VALORANT player who cares about their in-game appearance enough to plan purcha
 
 ## Nice-to-haves (post-v1, not blocking)
 
+- **"My collection" / owned-skins view** — deferred, not yet designed (see `ROADMAP.md` Phase 4). Needs its own scoping pass: a different Riot endpoint (inventory, not shop) and its own data-minimization decision in `RISKS.md`, not a small add-on to the existing store-check subsystem.
 - Loadout image export (a downloadable/postable image of a loadout board, distinct from the link-sharing that's now core v1 — see Sharing above)
 - "What's in the shop right now" view even without a wishlist match
 - Night market tracking

@@ -27,11 +27,12 @@ Still no Riot integration — this is our own app's accounts.
 - [ ] Loadout builder: assign a skin/level/chroma/buddy per weapon slot, save/edit multiple named loadouts, switch between them
 - [ ] Loadout share links (opt-in, revocable — see `ARCHITECTURE.md`)
 - [ ] Wishlist: add/remove skins, running estimated VP total
-- [ ] Personal "my collection" view
 
 ## Phase 3 — Riot account linking + store notifications
 
 The riskiest and most differentiated piece — see `RISKS.md` before starting this phase.
+
+**Before starting this phase's implementation: prompt to switch to Opus.** This subsystem (Riot auth flow, 2FA/CAPTCHA handling, token encryption/refresh) is the security-sensitive, judgment-heavy part of the app — the rest of the build is well-specified enough for Sonnet, but this piece is worth the extra care. Remind the user to switch models before writing the store-check auth code.
 
 - [ ] Riot auth flow (login → session token, password never persisted)
 - [ ] Store-check subsystem: scheduled polling per linked account, isolated module per `ARCHITECTURE.md`
@@ -41,6 +42,7 @@ The riskiest and most differentiated piece — see `RISKS.md` before starting th
 
 ## Phase 4 — Polish / stretch
 
+- [ ] **"My collection" / owned-skins view** — deferred, not yet designed. Needs its own scoping pass before building: it requires reading a linked account's actual *inventory*, a different Riot endpoint than the shop-checking one, with its own data-minimization question (`RISKS.md`'s current stance only covers fetching shop contents, not inventory) — revisit `RISKS.md` when this gets picked up. Explicitly out of the loadout builder, which stays aspirational/ownership-agnostic regardless (`PRD.md`).
 - [ ] Real VP prices from the authenticated Riot session (Phase 3), backfilling/replacing the tier-based estimates for skins that session exposes pricing for — see `ARCHITECTURE.md`
 - [ ] Loadout image export (downloadable/postable image, distinct from the link-sharing already in Phase 1/2)
 - [ ] Vibe-based onboarding + "match my vibe" loadout suggestions (see `PRD.md`)
