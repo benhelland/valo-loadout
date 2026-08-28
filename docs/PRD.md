@@ -20,14 +20,25 @@ A VALORANT player who cares about their in-game appearance enough to plan purcha
    - **Aspirational, not inventory-gated** — a user can pick any skin/level/chroma regardless of whether they actually own it. This is a planning tool for the target user who plans purchases, not an owned-items tracker (that's the separate, lower-priority "my collection" view).
    - **Board layout** — all slots visible at once, like a locker/armory, each showing its currently assigned skin+buddy thumbnail; click a slot to open the picker. The picker is the gallery's filter/search UI (including color/vibe) scoped to that weapon, so building a loadout feels like an extension of browsing, not a separate form.
    - **Multiple named loadouts** per user, with duplicate-as-starting-point (useful for trying a variation without losing the original) and a running VP cost total.
+   - **Loadout switcher:** a lightweight list/dropdown of a user's named loadouts to jump between while building/browsing — swapping which loadout you're looking at should be one click, not a navigation trip.
    - **Personality/vibe as the through-line:** the point of the color/vibe filters isn't just search convenience — it's so a user can deliberately build a loadout that matches an aesthetic they identify with ("dark and sleek," "neon and loud") rather than picking skins one-off. See the vibe-based onboarding idea below.
-3. **Wishlist** — a lighter-weight "skins I want" list, independent of a committed loadout, with running VP cost so a user can see what a wishlist would cost to complete.
-4. **Store notifications** — link a Riot account; when a wishlisted skin appears in that account's daily shop, notify the user. This is the feature that makes the wishlist actually useful instead of just a list.
-5. **Account linking** — connect a Riot account for the notification feature. Must be clearly opt-in, with plain-language disclosure of what this does and the (small but real) risk profile — see `RISKS.md`.
+3. **Sharing** — send a link, no account or app install needed on the recipient's end, no integrated social graph (no comments/likes/follows/discovery feed — link-only distribution).
+   - **Whole-loadout links:** opt-in per loadout (a "make shareable" toggle) — loadouts are private by default, not publicly viewable just by existing. The link is live (reflects the loadout's current state, not a frozen snapshot at share time) and can be revoked/regenerated to kill an old link.
+   - **Skin-combo links:** share one specific skin + level + chroma + buddy combination — e.g. "check out this skin with this buddy on it." Stateless: nothing is saved to generate one, the link just encodes the catalog IDs directly, so it's instant and needs no revocation (there's nothing user-owned in it).
+   - **Shared page:** read-only, viewable without logging in, reuses the same board/detail visuals as the app itself, carries the required "not affiliated with Riot" disclosure, and a "build your own" link back into the app.
+4. **Wishlist** — a lighter-weight "skins I want" list, independent of a committed loadout, with running VP cost so a user can see what a wishlist would cost to complete.
+5. **Store notifications** — link a Riot account; when a wishlisted skin appears in that account's daily shop, notify the user. This is the feature that makes the wishlist actually useful instead of just a list.
+   - **Channel (v1): Discord webhook only.** Fits the audience (this space already lives in Discord — see competitive landscape below) and needs no email infra. Email/push are deferred, not designed away — see `ARCHITECTURE.md`.
+   - **Batched, not per-item:** one notification per shop reset ("3 of your wishlist skins are in today's shop," with thumbnails), not a ping per matching skin.
+   - **No duplicate notifications** for the same daily rotation, even if the app happens to poll that account more than once before the next reset.
+   - **"Last seen" stat, for any tracked skin, not just wishlist matches** — "last seen 47 days ago" / "seen 3 times since you linked your account," shown on a skin's detail page once an account is linked. A lightweight payoff from the same daily poll, and a reason to link an account beyond just notifications.
+6. **Account linking** — connect a Riot account for the notification feature. Must be clearly opt-in, with plain-language disclosure of what this does and the (small but real) risk profile — see `RISKS.md`.
+   - **Handles 2FA:** many Riot accounts have email-code two-factor enabled; the linking flow needs a code-entry step, not just a password box, or it silently fails to link a large fraction of real accounts.
+   - **Honest failure states:** if Riot's login puts an account behind a CAPTCHA challenge (a real possibility for an unofficial auth flow — see `RISKS.md`), the user needs a clear "this account can't be linked right now" message, not a silent retry loop or a generic error.
 
 ## Nice-to-haves (post-v1, not blocking)
 
-- Loadout sharing (public link / image export)
+- Loadout image export (a downloadable/postable image of a loadout board, distinct from the link-sharing that's now core v1 — see Sharing above)
 - "What's in the shop right now" view even without a wishlist match
 - Night market tracking
 - Bundle browsing alongside individual skins

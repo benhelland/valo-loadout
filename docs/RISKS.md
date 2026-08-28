@@ -13,6 +13,8 @@ This project made a deliberate, informed choice to build store notifications on 
 - Poll conservatively (see `ARCHITECTURE.md` cadence notes). The behavior most likely to draw attention is aggressive/synchronized polling across many accounts, not the existence of the integration itself.
 - Don't build anything that writes to or modifies an account (equip skins, spend VP) — this project reads shop state only. Read-only meaningfully lowers both the technical and reputational risk.
 
+**Known limitation, not a bug to "fix":** Riot's auth endpoint can return a CAPTCHA challenge on some accounts or after repeated attempts, which this unofficial flow cannot solve. Some accounts simply won't be linkable this way, sometimes intermittently. Handle this as an honest status (`captcha_blocked`) surfaced to the user, not something to work around with retries — retrying into a CAPTCHA wall is exactly the aggressive-polling pattern that risks drawing attention (see above).
+
 ## Credential handling risk
 
 - Never persist a user's raw Riot password. Use it only transiently during the auth handshake to obtain a session token/cookie, then discard it.
