@@ -98,12 +98,14 @@ export async function syncWeaponsAndSkins() {
             create: {
               id: chroma.uuid,
               skinId: skin.uuid,
+              displayName: chroma.displayName,
               displayIconUrl: chroma.displayIcon,
               fullRenderUrl: chroma.fullRender,
               swatchUrl: chroma.swatch,
               videoUrl: chroma.streamedVideo,
             },
             update: {
+              displayName: chroma.displayName,
               displayIconUrl: chroma.displayIcon,
               fullRenderUrl: chroma.fullRender,
               swatchUrl: chroma.swatch,

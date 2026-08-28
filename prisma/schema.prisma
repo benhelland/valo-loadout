@@ -133,6 +133,7 @@ model SkinChroma {
   id             String  @id // uuid from valorant-api.com
   skinId         String
   skin           Skin    @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  displayName    String?
   displayIconUrl String?
   fullRenderUrl  String?
   swatchUrl      String? // confirmed often null on the default chroma - fall back to fullRenderUrl/displayIconUrl
