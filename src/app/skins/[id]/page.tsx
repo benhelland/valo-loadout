@@ -22,7 +22,7 @@ export default async function SkinDetailPage({ params }: PageProps<"/skins/[id]"
       </Link>
 
       <div className="mt-4 grid lg:grid-cols-[3fr_2fr] gap-8">
-        <SkinPreview skin={skin} buddies={buddies} />
+        <SkinPreview key={skin.id} skin={skin} buddies={buddies} />
 
         <div>
           <div className="flex items-center gap-2">

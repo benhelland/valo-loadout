@@ -41,7 +41,8 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
         label: activeLevel ? `Level ${activeLevel.levelIndex}` : skin.displayName,
       };
 
-  const buddy = buddies.find((b) => b.id === buddyId);
+  const isMelee = skin.weapon?.category === "Melee";
+  const buddy = isMelee ? undefined : buddies.find((b) => b.id === buddyId);
   const anchor = getBuddyAnchor(skin.weapon?.displayName);
 
   function selectLevel(id: string) {
@@ -60,6 +61,7 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
           <video
             key={media.videoUrl}
             src={media.videoUrl}
+            poster={media.imageUrl ?? undefined}
             autoPlay
             muted
             loop
@@ -150,23 +152,25 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
         </div>
       ) : null}
 
-      <div className="mt-4">
-        <label className="flex flex-col gap-1 text-xs text-muted max-w-xs">
-          Preview with buddy
-          <select
-            value={buddyId}
-            onChange={(e) => setBuddyId(e.target.value)}
-            className="rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground"
-          >
-            <option value="">None</option>
-            {buddies.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      {isMelee ? null : (
+        <div className="mt-4">
+          <label className="flex flex-col gap-1 text-xs text-muted max-w-xs">
+            Preview with buddy
+            <select
+              value={buddyId}
+              onChange={(e) => setBuddyId(e.target.value)}
+              className="rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="">None</option>
+              {buddies.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
     </div>
   );
 }
