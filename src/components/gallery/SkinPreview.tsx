@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { getBuddyAnchor } from "@/lib/buddyAnchors";
+import { BuddyPreview } from "@/components/gallery/BuddyPreview";
 import type { Prisma, Buddy } from "@/generated/prisma/client";
 
 type SkinDetail = Prisma.SkinGetPayload<{
@@ -24,7 +24,6 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
   const defaultLevel = skin.levels[0];
   const [selectedLevelId, setSelectedLevelId] = useState<string | null>(defaultLevel?.id ?? null);
   const [selectedChromaId, setSelectedChromaId] = useState<string | null>(null);
-  const [buddyId, setBuddyId] = useState<string>("");
 
   const activeChroma = skin.chromas.find((c) => c.id === selectedChromaId);
   const activeLevel = skin.levels.find((l) => l.id === selectedLevelId);
@@ -42,8 +41,11 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
       };
 
   const isMelee = skin.weapon?.category === "Melee";
-  const buddy = isMelee ? undefined : buddies.find((b) => b.id === buddyId);
-  const anchor = getBuddyAnchor(skin.weapon?.displayName);
+  // Always a flat render, never the video - a buddy overlay only makes sense
+  // against a static image. See src/components/gallery/BuddyPreview.tsx.
+  const stillImageUrl = activeChroma
+    ? (activeChroma.fullRenderUrl ?? activeChroma.displayIconUrl ?? skin.displayIconUrl)
+    : skin.displayIconUrl;
 
   function selectLevel(id: string) {
     setSelectedLevelId(id);
@@ -79,26 +81,6 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
             className="object-contain p-8"
             priority
           />
-        ) : null}
-
-        {buddy?.displayIconUrl ? (
-          <div
-            className="absolute pointer-events-none"
-            style={{
-              left: `${anchor.xPct}%`,
-              top: `${anchor.yPct}%`,
-              width: `${anchor.scalePct}%`,
-              transform: "translate(-50%, -50%)",
-            }}
-          >
-            <Image
-              src={buddy.displayIconUrl}
-              alt={buddy.displayName}
-              width={100}
-              height={100}
-              className="w-full h-auto drop-shadow-lg"
-            />
-          </div>
         ) : null}
       </div>
 
@@ -153,23 +135,12 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
       ) : null}
 
       {isMelee ? null : (
-        <div className="mt-4">
-          <label className="flex flex-col gap-1 text-xs text-muted max-w-xs">
-            Preview with buddy
-            <select
-              value={buddyId}
-              onChange={(e) => setBuddyId(e.target.value)}
-              className="rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground"
-            >
-              <option value="">None</option>
-              {buddies.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <BuddyPreview
+          weaponDisplayName={skin.weapon?.displayName}
+          stillImageUrl={stillImageUrl}
+          skinDisplayName={skin.displayName}
+          buddies={buddies}
+        />
       )}
     </div>
   );

@@ -9,7 +9,7 @@ export interface BuddyAnchor {
   scalePct: number;
 }
 
-const DEFAULT_ANCHOR: BuddyAnchor = { xPct: 82, yPct: 62, scalePct: 30 };
+const DEFAULT_ANCHOR: BuddyAnchor = { xPct: 60, yPct: 78, scalePct: 20 };
 
 const WEAPON_ANCHOR_OVERRIDES: Record<string, Partial<BuddyAnchor>> = {
   // Keyed by weapon displayName - fill in as anchors get visually tuned.
