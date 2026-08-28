@@ -36,9 +36,13 @@ None of this is required — swap freely if there's a stack preference once buil
 
 - `users` — id, email, auth info, created_at
 - `linked_riot_accounts` — id, user_id, encrypted session token/cookie (never raw password), last_synced_at, status (active/expired/error)
-- `skins` — id (from valorant-api.com), weapon, name, tier/rarity, collection, display_icon_url, video_url (nullable), release_date — synced, not user-editable
+- `skins` — id (from valorant-api.com), weapon, name, tier/rarity, collection, display_icon_url, video_url (nullable), release_date, color_family (extracted, base skin's default appearance) — synced, not user-editable
+- `skin_levels` — id, skin_id, level_index, display_icon_url, video_url (nullable) — a skin's upgrade tiers, needed for the detail-page level selector
+- `skin_chromas` — id, skin_id, display_icon_url, swatch_color, color_family (extracted, per-chroma — a color filter match can come from any chroma, not just the default), video_url (nullable) — color variants, needed for the detail-page swatch swap
+- `skin_vibe_tags` — skin_id, tag (e.g. "dark", "sleek", "futuristic") — many-to-many, AI-assigned at sync time (see below); a skin can carry several tags
+- `buddies` — id (from valorant-api.com), name, display_icon_url — synced, not user-editable
 - `loadouts` — id, user_id, name, created_at
-- `loadout_items` — loadout_id, weapon_slot, skin_id, chroma_id, buddy_id
+- `loadout_items` — loadout_id, weapon_slot, skin_id, level_id, chroma_id, buddy_id
 - `wishlist_items` — user_id, skin_id, added_at
 - `shop_sightings` — linked_riot_account_id, skin_id, seen_at (log of what's shown up in a user's shop, both for notification-triggering and so a user can see history)
 - `notifications_sent` — id, user_id, skin_id, channel, sent_at (dedupe so the same sighting doesn't notify twice)
@@ -55,6 +59,18 @@ This is the part that carries actual risk (see `RISKS.md`) and deserves care:
 ## Skin/animation assets
 
 valorant-api.com is unofficial and its exact schema should be re-verified when this is actually built (don't hardcode field names from a description — hit the live API/docs). What's known going in: it covers weapons, skins, chromas, buddies, cards, bundles, agents, with image assets per item, and some skin tiers expose hosted video/animation clips. Cache/mirror what's needed (at minimum image and video URLs, keyed by skin id) rather than hitting valorant-api.com on every page load — it's a shared community resource, be a good citizen of it.
+
+**No 3D model data exists in this or any other legitimate source.** A true drag/rotate 3D inspect view was considered and explicitly declined for that reason — see `RISKS.md`. Presentation stays 2D/video: high-res images, animation clips where available, zoom/transition polish.
+
+**Buddy-on-weapon rendering:** buddies attach as a 2D overlay at a per-weapon anchor point (roughly where the strap/grip is), not a separate rendering pipeline. This means each weapon needs a calibrated anchor coordinate (and maybe scale) stored somewhere — likely a small static config (`weapon_id -> {x, y, scale}`) rather than a DB table, since it's a design constant per weapon, not user data.
+
+**Gallery performance:** the catalog is large enough (1500+ skins across years, plus levels/chromas as separate rows) that the gallery grid needs virtualization and lazy-loaded images from day one, not as a later optimization. Video should not autoplay across an entire grid of results — load/play on hover or on opening the detail view only, both for user bandwidth and so we're not hammering valorant-api.com's CDN.
+
+**Color and vibe tagging pipeline (runs as part of the sync job, per new skin/chroma only — not re-run on unchanged items):**
+
+- **Color:** extract a dominant-color bucket (red/blue/black/white/gold/multicolor/etc.) from each skin's and each chroma's display image via a standard color-quantization pass (e.g. k-means over image pixels). Deterministic, no external API, cheap to (re)run.
+- **Vibe:** send each skin's showcase image to a vision-capable model once at sync time, asking it to assign vibe tags from a fixed vocabulary (not freeform, so filters stay consistent — e.g. a controlled list like dark/sleek/futuristic/elegant/aggressive/cute/retro/neon/anime/nature/gold/minimal). Store the result in `skin_vibe_tags`; never re-tag on every request. This is an ingest-time cost (one call per new skin, maybe a few hundred/year at Riot's release cadence), not a runtime one.
+- Both are best-effort classification, not ground truth — fine for a browse/filter feature, not something any other feature should depend on for correctness.
 
 ## Security notes
 

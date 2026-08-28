@@ -27,6 +27,10 @@ This is a free, unofficial, community-run service — not a Riot product, not a 
 - Keep the sync job tolerant of schema drift (don't hard-fail the whole app if one field goes missing).
 - If it becomes unavailable long-term, the fallback is Riot's actual public developer API for whatever it does cover (agents, maps, etc.) plus manually-sourced skin data — a real cost, but not a project-ending one, because the gallery is decoupled from the account/notification pieces.
 
+## 3D weapon viewer (considered, declined)
+
+A drag/rotate 3D inspect view (like the in-game inspect) was proposed and explicitly declined as a v1 or near-term goal. No legitimate data source — including valorant-api.com — exposes 3D models; the only way to get them is extracting/ripping assets from the game client, which means redistributing Riot's actual copyrighted 3D/texture assets to every site visitor. That's a materially larger and different kind of risk than the store-notification tradeoff above (which reuses endpoints via a user's own authenticated session rather than extracting and hosting Riot's assets ourselves). If this gets revisited, treat it as a fresh decision requiring the same explicit-tradeoff treatment as store notifications got, not a default yes. See `PRD.md` out-of-scope list.
+
 ## Legal / branding
 
 - Not affiliated with or endorsed by Riot Games. Say so visibly in the UI once there is one.
