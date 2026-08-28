@@ -15,6 +15,9 @@ const HUE_FAMILIES: { name: string; hue: number }[] = [
   { name: "pink", hue: 320 },
 ];
 
+// Every possible value extractColorFamily() can return - for building filter UI.
+export const COLOR_FAMILIES = ["black", "white", "gray", "multicolor", ...HUE_FAMILIES.map((f) => f.name)];
+
 function hueDistance(a: number, b: number): number {
   const diff = Math.abs(a - b) % 360;
   return diff > 180 ? 360 - diff : diff;

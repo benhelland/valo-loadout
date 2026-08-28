@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname),
   },
+  images: {
+    // We link valorant-api.com's CDN directly rather than re-hosting their
+    // assets ourselves - see docs/ARCHITECTURE.md.
+    remotePatterns: [
+      { protocol: "https", hostname: "media.valorant-api.com" },
+    ],
+  },
 };
 
 export default nextConfig;
