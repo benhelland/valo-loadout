@@ -6,7 +6,7 @@ Phased so the riskiest, least-necessary-first piece (Riot account linking) comes
 
 - [x] Market research on existing tools
 - [x] `CLAUDE.md` / `PRD.md` / `ARCHITECTURE.md` / `RISKS.md` written
-- [ ] Confirm valorant-api.com's actual schema (skin fields, video availability) before designing the gallery UI around it
+- [x] Confirm valorant-api.com's actual schema — see `ARCHITECTURE.md`. Two gaps found and resolved: no price data (static tier-based estimate) and no release date (our own `first_seen_in_sync_at`)
 - [x] Lock in stack choice — see `ARCHITECTURE.md`
 
 ## Phase 1 — Skin gallery (no accounts, no auth)
@@ -26,7 +26,7 @@ Still no Riot integration — this is our own app's accounts.
 - [ ] User auth (our own accounts, not Riot's)
 - [ ] Loadout builder: assign a skin/level/chroma/buddy per weapon slot, save/edit multiple named loadouts, switch between them
 - [ ] Loadout share links (opt-in, revocable — see `ARCHITECTURE.md`)
-- [ ] Wishlist: add/remove skins, running VP total
+- [ ] Wishlist: add/remove skins, running estimated VP total
 - [ ] Personal "my collection" view
 
 ## Phase 3 — Riot account linking + store notifications
@@ -41,6 +41,7 @@ The riskiest and most differentiated piece — see `RISKS.md` before starting th
 
 ## Phase 4 — Polish / stretch
 
+- [ ] Real VP prices from the authenticated Riot session (Phase 3), backfilling/replacing the tier-based estimates for skins that session exposes pricing for — see `ARCHITECTURE.md`
 - [ ] Loadout image export (downloadable/postable image, distinct from the link-sharing already in Phase 1/2)
 - [ ] Vibe-based onboarding + "match my vibe" loadout suggestions (see `PRD.md`)
 - [ ] Night market tracking
