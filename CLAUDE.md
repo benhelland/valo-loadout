@@ -6,7 +6,7 @@ Guidance for Claude (Claude Code / Cowork) when working in this repo. Read this 
 
 **valo-loadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin/animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
 
-**Status: pre-code / scoping.** Nothing has been scaffolded yet. See `docs/` for the current thinking. Do not assume any framework, package, or file structure beyond what's written down in these docs — propose changes to the docs themselves before writing code that contradicts them.
+**Status: Phase 1 in progress** (sync job + skin gallery — see `docs/ROADMAP.md`). The project is scaffolded: Next.js + TypeScript + Tailwind, Prisma schema written and matching `docs/ARCHITECTURE.md`. See `docs/` for the full thinking. Do not assume any framework, package, or file structure beyond what's written down in these docs — propose changes to the docs themselves before writing code that contradicts them.
 
 ## Read these before building anything
 
@@ -30,7 +30,17 @@ Guidance for Claude (Claude Code / Cowork) when working in this repo. Read this 
 
 ## Working conventions
 
-(To be filled in once the stack is chosen and scaffolded — see `docs/ARCHITECTURE.md` for the current proposal. Update this section with real commands — dev server, test runner, lint, build — as soon as they exist, so future sessions don't have to rediscover them.)
+- `npm run dev` — dev server (Turbopack)
+- `npm run build` — production build (also type-checks)
+- `npm run lint` — ESLint
+- `npx tsc --noEmit` — type-check only
+- `npx prisma generate` — regenerate the Prisma client after any `prisma/schema.prisma` change (output goes to `src/generated/prisma`, gitignored — import from `@/generated/prisma/client`, not the bare `@/generated/prisma` path, since there's no barrel file)
+- `npx prisma migrate dev` — create/apply a migration in dev (needs a real `DIRECT_URL` in `.env.local` — see below)
+- No test runner yet — add one when there's real logic worth testing (the sync job, pricing lookup, etc.), not before
+
+**Local setup:** copy `.env.example` to `.env.local` and fill in real values. `DATABASE_URL` (pooled) and `DIRECT_URL` (direct) both need a real Neon project — the CLI (`prisma migrate`, `prisma studio`) uses `DIRECT_URL` via `prisma.config.ts`, the app itself uses the pooled `DATABASE_URL` via `src/lib/db.ts`. Nothing in this repo works end-to-end without a real Neon database provisioned — that's on the user to create (free tier), not something to fake or stub around.
+
+**Repo root has a stray, unrelated `package-lock.json` one level up** (from other projects sharing the parent `projects/` folder) — `next.config.ts` pins `turbopack.root` to avoid Turbopack getting confused by it. Don't remove that config.
 
 ## Open questions to resolve before/while building
 

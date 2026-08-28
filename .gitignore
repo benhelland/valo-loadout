@@ -30,3 +30,9 @@ Thumbs.db
 *.tsbuildinfo
 .turbo/
 coverage/
+next-env.d.ts
+
+# vercel
+.vercel
+
+/src/generated/prisma

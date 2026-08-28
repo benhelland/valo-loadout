@@ -1,0 +1,290 @@
+// Prisma schema for valo-loadout.
+// Mirrors the data model documented in docs/ARCHITECTURE.md - keep both in sync.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Auth (Auth.js / NextAuth, Discord OAuth only, JWT sessions - no Session table needed) ---
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String?  @unique
+  image     String?
+  createdAt DateTime @default(now())
+
+  accounts           Account[]
+  loadouts           Loadout[]
+  wishlistItems      WishlistItem[]
+  linkedRiotAccounts LinkedRiotAccount[]
+  notificationsSent  NotificationSent[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// --- Content layer (synced from valorant-api.com, not user-editable) ---
+
+model Weapon {
+  id             String @id // uuid from valorant-api.com
+  displayName    String
+  category       String?
+  displayIconUrl String?
+
+  skins        Skin[]
+  loadoutItems LoadoutItem[]
+
+  @@map("weapons")
+}
+
+model ContentTier {
+  id             String  @id
+  displayName    String
+  devName        String
+  rank           Int
+  highlightColor String?
+  displayIconUrl String?
+
+  skins Skin[]
+
+  @@map("content_tiers")
+}
+
+model Theme {
+  id             String  @id
+  displayName    String
+  displayIconUrl String?
+
+  skins Skin[]
+
+  @@map("themes")
+}
+
+model Skin {
+  id                String   @id // uuid from valorant-api.com
+  weaponId          String?
+  weapon            Weapon?  @relation(fields: [weaponId], references: [id])
+  displayName       String
+  contentTierId     String?
+  contentTier       ContentTier? @relation(fields: [contentTierId], references: [id])
+  themeId           String?
+  theme             Theme?   @relation(fields: [themeId], references: [id])
+  displayIconUrl    String?
+  colorFamily       String? // extracted from the base/first chroma's image at sync time
+  firstSeenInSyncAt DateTime @default(now())
+  // No price/release-date columns: valorant-api.com exposes neither.
+  // Price is looked up from a static tier-price table at read time (see src/lib/pricing.ts).
+
+  levels            SkinLevel[]
+  chromas           SkinChroma[]
+  vibeTags          SkinVibeTag[]
+  loadoutItems      LoadoutItem[]
+  wishlistItems     WishlistItem[]
+  sightingStats     SkinSightingStat[]
+  notificationsSent NotificationSent[]
+
+  @@index([weaponId])
+  @@index([contentTierId])
+  @@index([themeId])
+  @@map("skins")
+}
+
+model SkinLevel {
+  id             String  @id // uuid from valorant-api.com
+  skinId         String
+  skin           Skin    @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  levelIndex     Int
+  displayIconUrl String? // confirmed nullable on some levels
+  videoUrl       String? // confirmed nullable on most levels
+  levelItem      String? // raw API enum, e.g. "EEquippableSkinLevelItem::SoundEffects"
+
+  loadoutItems LoadoutItem[]
+
+  @@index([skinId])
+  @@map("skin_levels")
+}
+
+model SkinChroma {
+  id             String  @id // uuid from valorant-api.com
+  skinId         String
+  skin           Skin    @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  displayIconUrl String?
+  fullRenderUrl  String?
+  swatchUrl      String? // confirmed often null on the default chroma - fall back to fullRenderUrl/displayIconUrl
+  colorFamily    String? // extracted per-chroma
+  videoUrl       String?
+
+  loadoutItems LoadoutItem[]
+
+  @@index([skinId])
+  @@map("skin_chromas")
+}
+
+model SkinVibeTag {
+  skinId String
+  skin   Skin   @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  tag    String // from a fixed vocabulary, AI-assigned at sync time - see docs/ARCHITECTURE.md
+
+  @@id([skinId, tag])
+  @@index([tag])
+  @@map("skin_vibe_tags")
+}
+
+model Buddy {
+  id             String  @id // uuid from valorant-api.com
+  displayName    String
+  displayIconUrl String?
+
+  levels       BuddyLevel[]
+  loadoutItems LoadoutItem[]
+
+  @@map("buddies")
+}
+
+model BuddyLevel {
+  id             String  @id // uuid from valorant-api.com
+  buddyId        String
+  buddy          Buddy   @relation(fields: [buddyId], references: [id], onDelete: Cascade)
+  charmLevel     Int
+  displayIconUrl String?
+
+  @@index([buddyId])
+  @@map("buddy_levels")
+}
+
+// --- App layer (our own accounts, loadouts, wishlist) ---
+
+model Loadout {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  isShareable Boolean  @default(false) // opt-in - private by default
+  shareSlug   String?  @unique // unguessable, separate from the internal id; regenerated on revoke
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items LoadoutItem[]
+
+  @@index([userId])
+  @@map("loadouts")
+}
+
+model LoadoutItem {
+  id        String      @id @default(cuid())
+  loadoutId String
+  loadout   Loadout     @relation(fields: [loadoutId], references: [id], onDelete: Cascade)
+  weaponId  String // the "slot" - one item per weapon per loadout, mirrors the real game
+  weapon    Weapon      @relation(fields: [weaponId], references: [id])
+  skinId    String
+  skin      Skin        @relation(fields: [skinId], references: [id])
+  levelId   String?
+  level     SkinLevel?  @relation(fields: [levelId], references: [id])
+  chromaId  String?
+  chroma    SkinChroma? @relation(fields: [chromaId], references: [id])
+  buddyId   String?
+  buddy     Buddy?      @relation(fields: [buddyId], references: [id])
+
+  @@unique([loadoutId, weaponId])
+  @@index([skinId])
+  @@map("loadout_items")
+}
+
+model WishlistItem {
+  id      String   @id @default(cuid())
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skinId  String
+  skin    Skin     @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  addedAt DateTime @default(now())
+
+  @@unique([userId, skinId])
+  @@index([userId])
+  @@map("wishlist_items")
+}
+
+// --- Store-check subsystem (isolated - see docs/ARCHITECTURE.md and docs/RISKS.md) ---
+
+enum LinkedAccountStatus {
+  ACTIVE
+  EXPIRED
+  ERROR
+  CAPTCHA_BLOCKED
+}
+
+model LinkedRiotAccount {
+  id                    String              @id @default(cuid())
+  userId                String
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  encryptedSessionToken String // AES-256-GCM ciphertext - never the raw password
+  region                String? // resolved shard/region (PAS token) - the shop endpoint is region-specific
+  status                LinkedAccountStatus @default(ACTIVE)
+  discordWebhookUrl     String?
+  lastSyncedAt          DateTime?
+  nextPollAt            DateTime? // derived from the account's own shop reset time, not a blind interval
+  createdAt             DateTime            @default(now())
+
+  sightingStats SkinSightingStat[]
+
+  @@index([nextPollAt])
+  @@index([userId])
+  @@map("linked_riot_accounts")
+}
+
+model SkinSightingStat {
+  linkedRiotAccountId String
+  linkedRiotAccount   LinkedRiotAccount @relation(fields: [linkedRiotAccountId], references: [id], onDelete: Cascade)
+  skinId              String
+  skin                Skin              @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  firstSeenAt         DateTime          @default(now())
+  lastSeenAt          DateTime          @default(now())
+  timesSeen           Int               @default(1)
+  // Upserted on every poll for every skin observed that day - bounded by catalog size, not time.
+  // Powers "last seen N days ago" / "seen N times since you signed up." No raw daily log table.
+
+  @@id([linkedRiotAccountId, skinId])
+  @@map("skin_sighting_stats")
+}
+
+enum NotificationChannel {
+  DISCORD_WEBHOOK
+}
+
+model NotificationSent {
+  id        String              @id @default(cuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skinId    String
+  skin      Skin                @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  channel   NotificationChannel
+  sentAt    DateTime            @default(now())
+  // Dedupe: check for an existing row since the account's last reset before sending.
+
+  @@index([userId, skinId, sentAt])
+  @@map("notifications_sent")
+}
