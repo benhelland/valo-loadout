@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { valorantApi, stripEnumPrefix } from "@/lib/valorant-api";
 import { runBatched } from "@/lib/batch";
 import { extractColorFamily } from "@/lib/color";
+import { tagSkinVibe } from "@/lib/vibeTagging";
 
 export async function syncWeaponsAndSkins() {
   const weapons = await valorantApi.getWeapons();
@@ -51,6 +52,20 @@ export async function syncWeaponsAndSkins() {
         const colorFamily = await extractColorFamily(skinRow.displayIconUrl);
         if (colorFamily) {
           await prisma.skin.update({ where: { id: skinRow.id }, data: { colorFamily } });
+        }
+      }
+
+      // Vibe tagging: ingest-time only, never re-run once a skin has tags.
+      if (skinRow.displayIconUrl) {
+        const existingTagCount = await prisma.skinVibeTag.count({ where: { skinId: skinRow.id } });
+        if (existingTagCount === 0) {
+          const tags = await tagSkinVibe(skinRow.displayIconUrl);
+          if (tags && tags.length > 0) {
+            await prisma.skinVibeTag.createMany({
+              data: tags.map((tag) => ({ skinId: skinRow.id, tag })),
+              skipDuplicates: true,
+            });
+          }
         }
       }
 

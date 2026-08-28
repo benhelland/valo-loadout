@@ -13,8 +13,9 @@ Phased so the riskiest, least-necessary-first piece (Riot account linking) comes
 
 The whole "cool UI to look at all skins ever, all the animations" half of the idea, shippable entirely from valorant-api.com with zero account risk. Also doubles as the proving ground for the content-sync pipeline Phase 2+ will reuse.
 
-- [ ] Sync job pulling skins/chromas/buddies from valorant-api.com into our DB
-- [ ] Color-family + AI vibe-tagging pass as part of the sync job (see `ARCHITECTURE.md`)
+- [x] Sync job pulling skins/chromas/buddies from valorant-api.com into our DB — verified against the real Neon DB (5 tiers, 456 themes, 884 buddies, 20 weapons, 1405 skins, 2677 levels, 2921 chromas)
+- [x] Color-family pass as part of the sync job — verified (1358/1405 skins, 2921/2921 chromas colored)
+- [~] AI vibe-tagging pass — code written (`src/lib/vibeTagging.ts`, Haiku 4.5, structured output, fixed vocabulary), type-checks clean, **but untested against the live API**. Needs a real `ANTHROPIC_API_KEY` (separate Developer-API billing, not the user's Claude subscription — console.anthropic.com, pay-as-you-go). **Prompt the user to set this up** next time this comes up, so the vibe-tagging path actually gets verified before Phase 1 is called done. Estimated cost: ~$1-3 one-time backfill for the existing ~1400 skins, pennies/year after.
 - [ ] Gallery UI: browse/filter by weapon, tier, collection, color, vibe; skin detail view with image + animation playback, level/chroma selectors, inline buddy preview
 - [ ] Stateless skin-combo share links (`/combo/:encoded`) — no accounts needed, just catalog data, so this can ship in this phase
 - [ ] Deployed and usable as a standalone thing, even before any other feature exists
