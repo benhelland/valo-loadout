@@ -34,7 +34,7 @@ Guidance for Claude (Claude Code / Cowork) when working in this repo. Read this 
 
 ## Open questions to resolve before/while building
 
-- Final framework choice (a proposal is in `docs/ARCHITECTURE.md`, not yet locked in)
-- Notification channel(s): email, web push, Discord webhook, or a choice of several?
-- Hosting target
 - Whether skin "animation" playback means the hosted showcase video clips valorant-api.com exposes for some tiers, or something more produced (custom-captured/rendered) — start with what the API gives us for free, treat anything fancier as a stretch goal
+- Exact Vercel Hobby-tier cron granularity (affects whether the store-check poll trigger uses Vercel Cron directly or a GitHub Actions workflow as a free fallback — see `docs/ARCHITECTURE.md`)
+
+Resolved: stack is locked in (`docs/ARCHITECTURE.md`) — Next.js + TypeScript + Tailwind, Postgres via Neon + Prisma, Auth.js with Discord OAuth, Vercel hosting, Discord webhook notifications.

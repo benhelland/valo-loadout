@@ -7,7 +7,7 @@ Phased so the riskiest, least-necessary-first piece (Riot account linking) comes
 - [x] Market research on existing tools
 - [x] `CLAUDE.md` / `PRD.md` / `ARCHITECTURE.md` / `RISKS.md` written
 - [ ] Confirm valorant-api.com's actual schema (skin fields, video availability) before designing the gallery UI around it
-- [ ] Lock in stack choice (or confirm the `ARCHITECTURE.md` proposal)
+- [x] Lock in stack choice — see `ARCHITECTURE.md`
 
 ## Phase 1 — Skin gallery (no accounts, no auth)
 

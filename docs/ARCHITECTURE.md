@@ -1,6 +1,6 @@
-# Architecture (proposed — not locked in)
+# Architecture
 
-This is a starting proposal to build from, not a final decision. Revisit before scaffolding if requirements change.
+The stack below is locked in (decided 2026-08-28, optimized for near-$0 cost at personal-project scale). Data model and subsystem design remain sketches to refine as building starts.
 
 ## High-level shape
 
@@ -21,16 +21,30 @@ Three subsystems that should stay loosely coupled:
 2. **App layer** — accounts, loadouts, wishlists. Standard CRUD web app. Doesn't need to know anything about Riot's internal APIs.
 3. **Store-check subsystem** — the one part of this app that touches Riot's unofficial/internal endpoints. Keep this isolated (own module, own error boundaries) so the rest of the app degrades gracefully if this piece breaks or has to be disabled. See `RISKS.md` for why this isolation matters.
 
-## Proposed stack
+## Tech stack
 
-- **Frontend:** Next.js (React) + TypeScript + Tailwind. Reasoning: strong support for the kind of image/video-heavy, animation-forward UI this needs, good SSR/ISR story for the mostly-static skin gallery, one deploy target with the backend.
-- **Backend:** Next.js API routes / route handlers to start — no need for a separate service until the store-check subsystem's polling needs outgrow serverless request/response (see below).
-- **Database:** Postgres (e.g. via Supabase, Neon, or Railway) with Prisma as the ORM.
-- **Background jobs / polling:** the store-check subsystem needs something that runs on a schedule independent of user requests. The shop only resets once a day per account, so the target is one poll per account per day, timed to that account's own reset (see `next_poll_at` below) — not a routine multi-times-daily schedule. A serverless cron (Vercel Cron, or a small dedicated worker process) checking for accounts whose `next_poll_at` has passed, then triggering a queued job per account, is the likely shape. Avoid polling synchronously inside a user's page load.
-- **Hosting:** Vercel for the app; DB hosted separately (see above). Revisit if the background-worker needs outgrow serverless.
-- **Notifications:** v1 ships Discord webhook only (one webhook URL per user, cheap, fits where this app's audience already lives). Email and web push are deferred to post-v1 — the dispatch step should still be written behind a small `channel` abstraction (per `notifications_sent.channel`) so adding a second channel later doesn't touch the detection/dedup logic.
+Every piece below was picked to run on a free tier at this project's scale, with exactly one paid line item (vibe-tagging LLM calls, ingest-time only — a few dollars a year at most).
 
-None of this is required — swap freely if there's a stack preference once building starts. The one piece worth keeping regardless of stack: the store-check subsystem stays isolated from the app/content layers.
+| Concern | Choice | Why |
+|---|---|---|
+| **Language** | TypeScript, everywhere (frontend, API routes, sync/job scripts) | One language across the whole app — no context-switching, shared types between frontend and backend. |
+| **Frontend framework** | Next.js (React) | Strong fit for an image/video-heavy, animation-forward UI; good SSR/ISR story for the mostly-static skin gallery; one deploy target with the backend. |
+| **Styling** | Tailwind CSS | Fast to build a polished, consistent UI without hand-rolling a design system. |
+| **Backend** | Next.js API routes / route handlers | No separate service needed — the store-check subsystem is I/O-bound (a few HTTP calls per account per day), well within serverless function limits. |
+| **Database** | Postgres via **Neon** | Serverless Postgres that scales to zero — no compute charge while idle, which fits bursty personal-project traffic. Free tier. |
+| **ORM** | Prisma | Type-safe queries/migrations matching the TypeScript-everywhere choice; keeps the data model in `ARCHITECTURE.md` translatable directly into schema. |
+| **Auth (our own accounts)** | Auth.js (NextAuth), **Discord OAuth only** | No password handling of our own to build or secure; fits the audience (already on Discord for notifications); sessions stored in the same Neon DB — no extra service. Free. |
+| **Hosting** | Vercel (Hobby tier) | Free at this scale; pairs naturally with Next.js; one deploy target for frontend + API routes. |
+| **Background job trigger** | Vercel Cron, falling back to a free GitHub Actions scheduled workflow hitting a protected API route if Vercel's free-tier cron granularity is too coarse for "check every 15-30 min for accounts whose `next_poll_at` has passed" (verify the actual Hobby-tier limit when building — don't assume) | Either way: $0. The route itself does the real work (query due accounts, poll Riot, upsert `skin_sighting_stats`, dispatch notifications) — the trigger is just what wakes it up. |
+| **Images/video** | Direct URLs to valorant-api.com's CDN, rendered through Next.js's built-in image optimization/caching | We never re-host or mirror their assets ourselves — no S3/R2/object-storage bill, and it's the "good citizen" behavior `RISKS.md` already commits to. |
+| **Color extraction** | A JS color-quantization library, run server-side during the sync job | Pure compute, no external API, no cost beyond the sync job's own runtime. |
+| **Vibe tagging** | A vision-capable LLM API call, ingest-time only (new skins/chromas, not re-run on unchanged items) | The one real recurring cost in the stack — small, because it only runs at Riot's release cadence (a few hundred calls/year), not per request. |
+| **Notification dispatch** | Plain outbound HTTP POST to a Discord webhook URL | No service, no SDK needed, free and effectively unlimited at this volume. Written behind a small `channel` abstraction (per `notifications_sent.channel`) so email/push can be added post-v1 without touching detection/dedup logic. |
+| **Secrets/encryption** | Env vars (`.env.local`, never committed) + Node's built-in `crypto` (AES-256-GCM) for encrypting linked-account tokens at rest, keyed by `RIOT_TOKEN_ENCRYPTION_KEY` | No separate secrets-management service needed at this scale; matches the non-negotiables in `CLAUDE.md`. |
+
+**Why one relational database and not a combination (Postgres + Mongo, or + Redis):** every table in this app has real structure and real relationships that need enforcing (a `loadout_item` must point at a `skin` that exists; gallery filtering means combining several facets — weapon, tier, color, vibe — in one query). That's exactly the workload relational databases are built for, and the data volume here (~15-20k catalog rows, user data scaling with actual usage) never approaches the point where NoSQL's tradeoffs (schema flexibility for wildly varying documents, horizontal write scaling) would pay for themselves. A second datastore would mean paying for and operating two services instead of one, for a data shape that doesn't need the split — directly working against the cost goal. Revisit only if a real bottleneck shows up (e.g. Postgres + Next.js ISR caching genuinely can't keep the gallery fast), not preemptively.
+
+The one piece worth keeping regardless of any future stack changes: the store-check subsystem stays isolated from the app/content layers (see below).
 
 ## Data model (sketch)
 
