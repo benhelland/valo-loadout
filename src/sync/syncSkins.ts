@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { valorantApi, stripEnumPrefix } from "@/lib/valorant-api";
 import { runBatched } from "@/lib/batch";
+import { extractColorFamily } from "@/lib/color";
 
 export async function syncWeaponsAndSkins() {
   const weapons = await valorantApi.getWeapons();
@@ -23,7 +24,7 @@ export async function syncWeaponsAndSkins() {
     });
 
     await runBatched(weapon.skins, 10, async (skin) => {
-      await prisma.skin.upsert({
+      const skinRow = await prisma.skin.upsert({
         where: { id: skin.uuid },
         create: {
           id: skin.uuid,
@@ -43,6 +44,15 @@ export async function syncWeaponsAndSkins() {
           // firstSeenInSyncAt intentionally omitted - never touched on update.
         },
       });
+
+      // Color extraction only runs for skins that don't have one yet - not
+      // re-run on unchanged items (see docs/ARCHITECTURE.md).
+      if (skinRow.colorFamily === null && skinRow.displayIconUrl) {
+        const colorFamily = await extractColorFamily(skinRow.displayIconUrl);
+        if (colorFamily) {
+          await prisma.skin.update({ where: { id: skinRow.id }, data: { colorFamily } });
+        }
+      }
 
       await Promise.all(
         skin.levels.map((level, i) =>
@@ -67,8 +77,8 @@ export async function syncWeaponsAndSkins() {
       );
 
       await Promise.all(
-        skin.chromas.map((chroma) =>
-          prisma.skinChroma.upsert({
+        skin.chromas.map(async (chroma) => {
+          const chromaRow = await prisma.skinChroma.upsert({
             where: { id: chroma.uuid },
             create: {
               id: chroma.uuid,
@@ -84,8 +94,20 @@ export async function syncWeaponsAndSkins() {
               swatchUrl: chroma.swatch,
               videoUrl: chroma.streamedVideo,
             },
-          }),
-        ),
+          });
+
+          if (chromaRow.colorFamily === null) {
+            // Fall back through swatch -> fullRender -> displayIcon, since
+            // swatch is frequently null on the default chroma variant.
+            const imageUrl = chromaRow.swatchUrl ?? chromaRow.fullRenderUrl ?? chromaRow.displayIconUrl;
+            if (imageUrl) {
+              const colorFamily = await extractColorFamily(imageUrl);
+              if (colorFamily) {
+                await prisma.skinChroma.update({ where: { id: chromaRow.id }, data: { colorFamily } });
+              }
+            }
+          }
+        }),
       );
 
       skinCount++;
