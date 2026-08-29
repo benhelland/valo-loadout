@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { encodeCombo } from "@/lib/comboLink";
 import { setLoadoutItem } from "@/actions/loadouts";
+import { DraggableBuddyBadge } from "@/components/gallery/DraggableBuddyBadge";
 import type { Prisma, Buddy } from "@/generated/prisma/client";
 
 type SkinDetail = Prisma.SkinGetPayload<{
@@ -41,6 +42,7 @@ export function SkinPreview({
 }: SkinPreviewProps) {
   const router = useRouter();
   const [isSaving, startSaving] = useTransition();
+  const mediaRef = useRef<HTMLDivElement>(null);
   const defaultLevel = skin.levels[0];
   const [selectedLevelId, setSelectedLevelId] = useState<string | null>(initialLevelId ?? defaultLevel?.id ?? null);
   const [selectedChromaId, setSelectedChromaId] = useState<string | null>(initialChromaId ?? null);
@@ -161,7 +163,7 @@ export function SkinPreview({
           </div>
         ) : null}
 
-        <div className="relative border border-border bg-surface overflow-hidden aspect-video lg:aspect-auto lg:h-[640px]">
+        <div ref={mediaRef} className="relative border border-border bg-surface overflow-hidden aspect-video lg:aspect-auto lg:h-[640px]">
           {showVideo && videoUrl ? (
             <video
               key={videoUrl}
@@ -195,21 +197,20 @@ export function SkinPreview({
 
           {/* Buddy badge - a corner icon, not a composite onto the weapon
               itself. Mirrors how Riot's own store/inventory UI pairs a buddy
-              with a skin (a badge, never glued onto the gun render). Anchored
-              to the frame corner rather than any point on the weapon, so it
-              works identically over video or a still image, with no
-              per-weapon tuning - see docs/ARCHITECTURE.md "Buddy pairing".
-              Top-right, not bottom - at this size a bottom placement would
-              sit on top of the video's native control bar on hover. */}
+              with a skin (a badge, never glued onto the gun render) - see
+              docs/ARCHITECTURE.md "Buddy pairing". Moveable/resizable within
+              this frame while on the Image tab; snaps to the default
+              top-right position/size and stops being interactive on the
+              Animation tab, both because dragging over playing video is a
+              distraction and because a bottom placement at a user-picked
+              size could end up sitting on the video's native control bar. */}
           {buddy?.displayIconUrl ? (
-            <div
-              title={buddy.displayName}
-              className="absolute top-4 right-4 h-24 w-24 rounded-full border-2 border-accent/60 bg-black/60 p-2.5 shadow-lg backdrop-blur-sm"
-            >
-              <div className="relative h-full w-full">
-                <Image src={buddy.displayIconUrl} alt={buddy.displayName} fill sizes="96px" className="object-contain" />
-              </div>
-            </div>
+            <DraggableBuddyBadge
+              containerRef={mediaRef}
+              displayIconUrl={buddy.displayIconUrl}
+              displayName={buddy.displayName}
+              locked={showVideo}
+            />
           ) : null}
         </div>
 
