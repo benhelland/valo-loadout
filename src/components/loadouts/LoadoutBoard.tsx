@@ -197,27 +197,31 @@ function WeaponTile({
     }
   }
 
+  const isMelee = weapon.category === "Melee";
+
   return (
     <div className="group relative">
       <button onClick={handleTileClick} className="clip-notch-sm block w-full border border-border bg-surface text-left hover:border-accent/50 transition-colors">
         <div className="flex">
-          <div className="relative h-[76px] flex-1 bg-black/20">
+          <div className="relative h-[108px] flex-1 bg-black/20">
             {item?.skin.displayIconUrl ? (
-              <Image src={item.skin.displayIconUrl} alt={item.skin.displayName} fill sizes="220px" className="object-contain p-1.5" />
+              <Image src={item.skin.displayIconUrl} alt={item.skin.displayName} fill sizes="260px" className="object-contain p-0.5" />
             ) : weapon.displayIconUrl ? (
-              <Image src={weapon.displayIconUrl} alt={weapon.displayName} fill sizes="220px" className="object-contain p-3 opacity-30" />
+              <Image src={weapon.displayIconUrl} alt={weapon.displayName} fill sizes="260px" className="object-contain p-1.5 opacity-30" />
             ) : null}
           </div>
-          <div className="flex w-12 flex-shrink-0 items-center justify-center border-l border-border">
-            {item?.buddy?.displayIconUrl ? (
-              <div className="relative h-7 w-7">
-                <Image src={item.buddy.displayIconUrl} alt={item.buddy.displayName} fill sizes="28px" className="object-contain" />
-              </div>
-            ) : null}
-          </div>
+          {isMelee ? null : (
+            <div className="flex w-10 flex-shrink-0 items-center justify-center border-l border-border">
+              {item?.buddy?.displayIconUrl ? (
+                <div className="relative h-9 w-9">
+                  <Image src={item.buddy.displayIconUrl} alt={item.buddy.displayName} fill sizes="36px" className="object-contain" />
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
         <p className="border-t border-border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground truncate">
-          {weapon.displayName}
+          {item ? item.skin.displayName : weapon.displayName}
         </p>
       </button>
 
