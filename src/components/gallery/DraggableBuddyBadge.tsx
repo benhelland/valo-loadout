@@ -175,11 +175,13 @@ export function DraggableBuddyBadge({ containerRef, displayIconUrl, displayName,
           className="absolute bottom-0 right-0 flex h-6 w-6 translate-x-1/3 translate-y-1/3 items-center justify-center rounded-full border border-white/50 bg-accent text-white cursor-nwse-resize transition-opacity duration-700"
           style={{ opacity: showChrome ? 1 : 0, pointerEvents: showChrome ? "auto" : "none" }}
         >
-          {/* Diagonal double-arrow - reads as "resize" much more clearly
-              than a plain dot did. */}
+          {/* Diagonal double-arrow, oriented along the same NW-SE diagonal
+              as the nwse-resize cursor and the handle's own bottom-right
+              corner position - reads as "resize" much more clearly than a
+              plain dot did. */}
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 3l-7 7M21 3v5M21 3h-5" />
-            <path d="M3 21l7-7M3 21v-5M3 21h5" />
+            <path d="M3 3l7 7M3 3v5M3 3h5" />
+            <path d="M21 21l-7-7M21 21v-5M21 21h-5" />
           </svg>
         </div>
       )}
