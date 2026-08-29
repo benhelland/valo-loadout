@@ -77,7 +77,17 @@ export function SkinPreview({
     : hasMultipleLevels
       ? (activeLevel?.displayIconUrl ?? defaultChroma?.fullRenderUrl ?? defaultChroma?.displayIconUrl ?? skin.displayIconUrl)
       : (defaultChroma?.fullRenderUrl ?? activeLevel?.displayIconUrl ?? defaultChroma?.displayIconUrl ?? skin.displayIconUrl);
-  const videoUrl = activeChroma ? activeChroma.videoUrl : (activeLevel?.videoUrl ?? defaultChroma?.videoUrl ?? null);
+  // A selected chroma without its own video (confirmed real: some skins'
+  // base/default chroma has no dedicated clip - the per-level videos
+  // already cover that color, so a chroma-specific one is never provided
+  // upstream) still falls through to the active level's video rather than
+  // showing no animation at all.
+  const videoUrl = activeChroma
+    ? (activeChroma.videoUrl ?? activeLevel?.videoUrl ?? defaultChroma?.videoUrl ?? null)
+    : (activeLevel?.videoUrl ?? defaultChroma?.videoUrl ?? null);
+  // Shown visibly under the media, not just as alt text - the chroma's own
+  // name (e.g. "Byteshift Outlaw (Variant 2 Red)") is the only way to tell
+  // which color variant you're actually looking at.
   const label = activeChroma?.displayName ?? (activeLevel ? `Level ${activeLevel.levelIndex}` : skin.displayName);
   const hasVideo = Boolean(videoUrl);
 
@@ -202,6 +212,8 @@ export function SkinPreview({
             </div>
           ) : null}
         </div>
+
+        <p className="mt-2 text-xs uppercase tracking-wide text-muted">Now showing: {label}</p>
       </div>
 
       {/* Sidebar - skin info up top, then the interactive controls, all in

@@ -88,7 +88,18 @@ export async function listSkins(filters: GalleryFilters) {
       orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: { weapon: true, contentTier: true, theme: true },
+      include: {
+        weapon: true,
+        contentTier: true,
+        theme: true,
+        // Bounded to 1 row each - a cheap fallback source for SkinCard's
+        // image when the skin's own top-level displayIconUrl is null
+        // (confirmed: 47 real skins). Preference is the highest level's
+        // icon (levelIndex desc) of the base chroma (chromaIndex 0), since
+        // that's the base/default look at its most complete.
+        levels: { orderBy: { levelIndex: "desc" }, take: 1 },
+        chromas: { orderBy: { chromaIndex: "asc" }, take: 1 },
+      },
     }),
     prisma.skin.count({ where }),
   ]);
@@ -104,7 +115,7 @@ export async function getSkinDetail(id: string) {
       contentTier: true,
       theme: true,
       levels: { orderBy: { levelIndex: "asc" } },
-      chromas: true,
+      chromas: { orderBy: { chromaIndex: "asc" } },
       vibeTags: true,
     },
   });

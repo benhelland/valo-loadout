@@ -1,7 +1,7 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { COLOR_FAMILIES } from "@/lib/colorFamilies";
 import { SearchAutocomplete } from "@/components/gallery/SearchAutocomplete";
 import type { Weapon, ContentTier, Theme } from "@/generated/prisma/client";
@@ -54,6 +54,10 @@ export function FilterBar({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // Owned here, not resynced from props after mount - see the comment in
+  // SearchAutocomplete.tsx for why that resync approach caused typing to
+  // occasionally clobber itself.
+  const [searchText, setSearchText] = useState(current.search ?? "");
 
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -68,7 +72,8 @@ export function FilterBar({
       <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted min-w-[200px] flex-1">
         Search
         <SearchAutocomplete
-          defaultValue={current.search}
+          value={searchText}
+          onChange={setSearchText}
           onDebouncedChange={(value) => updateParam("search", value)}
           weaponId={lockedWeaponId}
           resultHrefBase={resultHrefBase}
@@ -140,12 +145,18 @@ export function FilterBar({
         Has animation
       </label>
 
-      <Link
+      {/* A plain <a>, not next/link's <Link> - forces a real full-page
+          navigation so every control (the now-locally-owned search text,
+          and the uncontrolled selects) resets to its true default, with no
+          question of whether client-side state survives a soft transition.
+          Clear is a deliberate, infrequent action, not something that needs
+          to feel instant the way typing does. */}
+      <a
         href={clearHref}
         className="text-[11px] font-semibold uppercase tracking-wider text-muted hover:text-foreground pb-2.5"
       >
         Clear
-      </Link>
+      </a>
     </div>
   );
 }

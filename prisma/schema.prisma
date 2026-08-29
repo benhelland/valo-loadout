@@ -133,6 +133,7 @@ model SkinChroma {
   id             String  @id // uuid from valorant-api.com
   skinId         String
   skin           Skin    @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  chromaIndex    Int     @default(0) // position in the API's own chromas[] array - the base/default chroma is always index 0, recolors follow. Without this, chroma order from a query is unspecified and the "default" chroma can't be reliably identified (confirmed bug: some skins' first-returned row was actually a recolor).
   displayName    String?
   displayIconUrl String?
   fullRenderUrl  String?

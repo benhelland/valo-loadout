@@ -92,12 +92,21 @@ export async function syncWeaponsAndSkins() {
       );
 
       await Promise.all(
-        skin.chromas.map(async (chroma) => {
+        skin.chromas.map(async (chroma, chromaIndex) => {
+          // chromaIndex preserves the API's own array order - index 0 is
+          // always the base/default chroma, recolors follow. Without this,
+          // a query with no explicit orderBy returns chromas in unspecified
+          // order, and code that assumes "chromas[0] is the default" (the
+          // gallery fallback image, the detail page's initial view) can
+          // pick a recolor instead - confirmed bug, e.g. Evori Dreamwings
+          // Vandal's first-returned chroma was "Variant 2 Pink", not the
+          // base color.
           const chromaRow = await prisma.skinChroma.upsert({
             where: { id: chroma.uuid },
             create: {
               id: chroma.uuid,
               skinId: skin.uuid,
+              chromaIndex,
               displayName: chroma.displayName,
               displayIconUrl: chroma.displayIcon,
               fullRenderUrl: chroma.fullRender,
@@ -105,6 +114,7 @@ export async function syncWeaponsAndSkins() {
               videoUrl: chroma.streamedVideo,
             },
             update: {
+              chromaIndex,
               displayName: chroma.displayName,
               displayIconUrl: chroma.displayIcon,
               fullRenderUrl: chroma.fullRender,

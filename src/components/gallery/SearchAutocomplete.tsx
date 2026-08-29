@@ -6,10 +6,17 @@ import Link from "next/link";
 import { searchSkinsAutocomplete, type SkinSuggestion } from "@/actions/search";
 
 interface SearchAutocompleteProps {
-  defaultValue?: string;
-  // Called (debounced) as the user types, to drive the main filtered grid -
-  // separate from the dropdown below, which is a faster, smaller lookup for
-  // jumping straight to one skin.
+  // Fully controlled - the parent (FilterBar) owns the text. This component
+  // never reads back a "current" value from the URL/props after mount: an
+  // earlier version tried to resync from a `defaultValue` prop that
+  // round-tripped through a debounced URL update, which raced against fast
+  // typing (an older debounced response could land after a newer one and
+  // clobber text the user had already typed further ahead of). Being fully
+  // controlled by the parent, with no resync logic here at all, removes
+  // that race entirely.
+  value: string;
+  onChange: (value: string) => void;
+  // Called (debounced) as the user types, to drive the main filtered grid.
   onDebouncedChange: (value: string) => void;
   // Scopes suggestions to one weapon - set by the loadout picker.
   weaponId?: string;
@@ -20,47 +27,23 @@ interface SearchAutocompleteProps {
 }
 
 export function SearchAutocomplete({
-  defaultValue,
+  value,
+  onChange,
   onDebouncedChange,
   weaponId,
   resultHrefBase,
   debounceMs = 300,
 }: SearchAutocompleteProps) {
-  const [text, setText] = useState(defaultValue ?? "");
   const [suggestions, setSuggestions] = useState<SkinSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestIdRef = useRef(0);
-  // Tracks the last value *we* pushed via onDebouncedChange, so the resync
-  // check below can tell "the URL changed because we typed" apart from "the
-  // URL changed externally" (Clear link, browser back/forward, a direct URL
-  // edit). State, not a ref: this project's lint rules forbid reading/
-  // writing refs during render, and this needs to be read during render.
-  const [lastPushed, setLastPushed] = useState(defaultValue ?? "");
 
-  // Resync from an external change only. Adjusting state during render
-  // (not in an effect) is the supported pattern for this - see
-  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes.
-  // Naively resyncing on *every* defaultValue change would clobber an
-  // in-flight keystroke: our own debounced update round-trips back down as
-  // a new defaultValue prop, which can arrive after the user has already
-  // typed further ahead of that slower round trip. Skipping when
-  // defaultValue matches what we last pushed avoids that.
-  if ((defaultValue ?? "") !== lastPushed && (defaultValue ?? "") !== text) {
-    setLastPushed(defaultValue ?? "");
-    setText(defaultValue ?? "");
-  }
-
-  function pushValue(value: string) {
-    setLastPushed(value);
-    onDebouncedChange(value);
-  }
-
-  function runDebounced(value: string) {
+  function runDebounced(nextValue: string) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      pushValue(value);
-      const trimmed = value.trim();
+      onDebouncedChange(nextValue);
+      const trimmed = nextValue.trim();
       if (trimmed.length < 2) {
         setSuggestions([]);
         return;
@@ -72,16 +55,16 @@ export function SearchAutocomplete({
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const value = e.target.value;
-    setText(value);
+    const nextValue = e.target.value;
+    onChange(nextValue);
     setIsOpen(true);
-    runDebounced(value);
+    runDebounced(nextValue);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      pushValue(text);
+      onDebouncedChange(value);
       setIsOpen(false);
     } else if (e.key === "Escape") {
       setIsOpen(false);
@@ -92,7 +75,7 @@ export function SearchAutocomplete({
     <div className="relative">
       <input
         type="text"
-        value={text}
+        value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onFocus={() => setIsOpen(true)}

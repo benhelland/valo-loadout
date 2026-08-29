@@ -5,7 +5,7 @@ import { estimatePriceVp } from "@/lib/pricing";
 import type { Prisma } from "@/generated/prisma/client";
 
 type SkinWithRelations = Prisma.SkinGetPayload<{
-  include: { weapon: true; contentTier: true; theme: true };
+  include: { weapon: true; contentTier: true; theme: true; levels: true; chromas: true };
 }>;
 
 interface SkinCardProps {
@@ -20,15 +20,21 @@ export function SkinCard({ skin, hrefBase = "/skins" }: SkinCardProps) {
   const price = estimatePriceVp(skin.contentTier?.devName);
   const tierColor = tierColorToCss(skin.contentTier?.highlightColor);
 
+  // The skin's own displayIconUrl is null for some real skins (confirmed:
+  // 47). Fall back to the highest level we have of the base chroma - the
+  // query only fetches one of each (see src/queries/gallery.ts), ordered so
+  // levels[0] is the highest level and chromas[0] is the base/default one.
+  const imageUrl = skin.displayIconUrl ?? skin.levels[0]?.displayIconUrl ?? skin.chromas[0]?.fullRenderUrl ?? skin.chromas[0]?.displayIconUrl;
+
   return (
     <Link
       href={`${hrefBase}/${skin.id}`}
       className="clip-notch-sm group block border border-border bg-surface hover:bg-surface-hover hover:border-accent/50 transition-colors"
     >
       <div className="relative aspect-[4/3] bg-black/20">
-        {skin.displayIconUrl ? (
+        {imageUrl ? (
           <Image
-            src={skin.displayIconUrl}
+            src={imageUrl}
             alt={skin.displayName}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
