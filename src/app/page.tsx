@@ -40,9 +40,11 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">All Skins</h1>
-        <p className="text-sm text-muted mt-1">{total.toLocaleString()} skins across every weapon and knife</p>
+      <div className="mb-6 flex items-baseline gap-4 border-l-4 border-accent pl-4">
+        <h1 className="font-display text-5xl uppercase tracking-wide leading-none">All Skins</h1>
+        <p className="text-sm uppercase tracking-wide text-muted">
+          {total.toLocaleString()} skins across every weapon and knife
+        </p>
       </div>
 
       <FilterBar

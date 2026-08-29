@@ -18,23 +18,23 @@ export function Pagination({ page, pageCount, searchParams }: PaginationProps) {
   if (pageCount <= 1) return null;
 
   return (
-    <nav className="flex items-center justify-center gap-4 py-8 text-sm">
+    <nav className="flex items-center justify-center gap-6 py-8 text-sm font-semibold uppercase tracking-widest">
       {page > 1 ? (
-        <a href={buildHref(searchParams, page - 1)} className="text-muted hover:text-foreground">
+        <a href={buildHref(searchParams, page - 1)} className="text-muted hover:text-accent transition-colors">
           ← Previous
         </a>
       ) : (
-        <span className="text-muted/40">← Previous</span>
+        <span className="text-muted/30">← Previous</span>
       )}
-      <span className="text-muted">
-        Page {page} of {pageCount}
+      <span className="text-foreground">
+        Page {page} <span className="text-muted">of {pageCount}</span>
       </span>
       {page < pageCount ? (
-        <a href={buildHref(searchParams, page + 1)} className="text-muted hover:text-foreground">
+        <a href={buildHref(searchParams, page + 1)} className="text-muted hover:text-accent transition-colors">
           Next →
         </a>
       ) : (
-        <span className="text-muted/40">Next →</span>
+        <span className="text-muted/30">Next →</span>
       )}
     </nav>
   );

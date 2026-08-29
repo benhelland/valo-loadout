@@ -15,7 +15,7 @@ export function SkinCard({ skin }: { skin: SkinWithRelations }) {
   return (
     <Link
       href={`/skins/${skin.id}`}
-      className="group block rounded-lg border border-border bg-surface overflow-hidden hover:bg-surface-hover hover:border-accent/40 transition-colors"
+      className="clip-notch-sm group block border border-border bg-surface hover:bg-surface-hover hover:border-accent/50 transition-colors"
     >
       <div className="relative aspect-[4/3] bg-black/20">
         {skin.displayIconUrl ? (
@@ -29,7 +29,7 @@ export function SkinCard({ skin }: { skin: SkinWithRelations }) {
         ) : null}
         {skin.contentTier ? (
           <div
-            className="absolute top-2 right-2 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm"
+            className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm"
             style={{ backgroundColor: tierColor ?? "rgba(0,0,0,0.4)" }}
           >
             {skin.contentTier.displayIconUrl ? (
@@ -43,11 +43,11 @@ export function SkinCard({ skin }: { skin: SkinWithRelations }) {
           </div>
         ) : null}
       </div>
-      <div className="p-3">
-        <p className="text-sm font-medium truncate">{skin.displayName}</p>
-        <div className="mt-1 flex items-center justify-between text-xs text-muted">
+      <div className="p-3 border-t border-border">
+        <p className="text-sm font-semibold truncate">{skin.displayName}</p>
+        <div className="mt-1 flex items-center justify-between text-xs uppercase tracking-wide text-muted">
           <span className="truncate">{skin.weapon?.displayName ?? "—"}</span>
-          {price !== null ? <span>{price.toLocaleString()} VP</span> : null}
+          {price !== null ? <span className="text-foreground/80">{price.toLocaleString()} VP</span> : null}
         </div>
       </div>
     </Link>

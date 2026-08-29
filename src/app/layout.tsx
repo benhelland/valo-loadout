@@ -1,16 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bebas_Neue, Rajdhani } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Display font for big headers - the closest free stand-in for the VALORANT
+// client's condensed "Tungsten" typeface.
+const bebasNeue = Bebas_Neue({
+  variable: "--font-bebas",
   subsets: ["latin"],
+  weight: "400",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// UI/body font - a squared-off, tactical-feeling grotesque in the spirit of
+// the client's "DIN Next" body copy.
+const rajdhani = Rajdhani({
+  variable: "--font-rajdhani",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -22,16 +28,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${bebasNeue.variable} ${rajdhani.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <header className="border-b border-border">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <Link href="/" className="text-lg font-semibold tracking-tight">
+        <header className="border-b-2 border-accent/30 bg-surface/80 backdrop-blur">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <Link href="/" className="font-display text-3xl uppercase tracking-wide leading-none">
               valo<span className="text-accent">loadout</span>
             </Link>
-            <nav className="flex items-center gap-6 text-sm text-muted">
-              <Link href="/" className="hover:text-foreground transition-colors">
+            <nav className="flex items-center gap-8 text-sm font-semibold uppercase tracking-widest text-muted">
+              <Link
+                href="/"
+                className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
+              >
                 Gallery
               </Link>
             </nav>

@@ -23,16 +23,16 @@ export function FilterBar({ weapons, tiers, themes, vibeTags, current }: FilterB
   return (
     <form
       method="get"
-      className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4"
+      className="flex flex-wrap items-end gap-4 border border-border border-t-2 border-t-accent bg-surface p-5"
     >
-      <label className="flex flex-col gap-1 text-xs text-muted min-w-[160px] flex-1">
+      <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted min-w-[160px] flex-1">
         Search
         <input
           type="text"
           name="search"
           defaultValue={current.search}
           placeholder="Skin name..."
-          className="rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground"
+          className="rounded-none border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none transition-colors"
         />
       </label>
 
@@ -83,24 +83,27 @@ export function FilterBar({ weapons, tiers, themes, vibeTags, current }: FilterB
         <option value="alphabetical">Alphabetical</option>
       </Select>
 
-      <label className="flex items-center gap-2 text-xs text-muted pb-1.5">
+      <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted pb-2">
         <input
           type="checkbox"
           name="hasAnimation"
           value="1"
           defaultChecked={current.hasAnimation === "1"}
-          className="rounded border-border"
+          className="rounded-none border-border accent-accent"
         />
         Has animation
       </label>
 
       <button
         type="submit"
-        className="rounded bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+        className="clip-notch-sm bg-accent px-6 py-2 text-sm font-bold uppercase tracking-widest text-white hover:bg-accent-dark transition-colors"
       >
         Apply
       </button>
-      <Link href="/" className="text-xs text-muted hover:text-foreground pb-1.5">
+      <Link
+        href="/"
+        className="text-[11px] font-semibold uppercase tracking-wider text-muted hover:text-foreground pb-2.5"
+      >
         Clear
       </Link>
     </form>
@@ -121,12 +124,12 @@ function Select({
   includeBlank?: boolean;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-muted">
+    <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
       {label}
       <select
         name={name}
         defaultValue={current ?? ""}
-        className="rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground min-w-[130px]"
+        className="rounded-none border border-border bg-background px-3 py-2 text-sm text-foreground min-w-[130px] focus:border-accent focus:outline-none transition-colors"
       >
         {includeBlank ? <option value="">All</option> : null}
         {children}
