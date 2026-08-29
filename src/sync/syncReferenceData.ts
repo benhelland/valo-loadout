@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { valorantApi } from "@/lib/valorant-api";
 import { runBatched } from "@/lib/batch";
+import { extractColorFamily } from "@/lib/color";
 
 export async function syncContentTiers() {
   const tiers = await valorantApi.getContentTiers();
@@ -44,11 +45,21 @@ export async function syncThemes() {
 export async function syncBuddies() {
   const buddies = await valorantApi.getBuddies();
   await runBatched(buddies, 10, async (buddy) => {
-    await prisma.buddy.upsert({
+    const buddyRow = await prisma.buddy.upsert({
       where: { id: buddy.uuid },
       create: { id: buddy.uuid, displayName: buddy.displayName, displayIconUrl: buddy.displayIcon },
       update: { displayName: buddy.displayName, displayIconUrl: buddy.displayIcon },
     });
+
+    // Same ingest-time-only rule as skins/chromas: only extract for buddies
+    // that don't have a color yet, never re-run on unchanged rows.
+    if (buddyRow.colorFamily === null && buddyRow.displayIconUrl) {
+      const colorFamily = await extractColorFamily(buddyRow.displayIconUrl);
+      if (colorFamily) {
+        await prisma.buddy.update({ where: { id: buddyRow.id }, data: { colorFamily } });
+      }
+    }
+
     for (const level of buddy.levels) {
       await prisma.buddyLevel.upsert({
         where: { id: level.uuid },

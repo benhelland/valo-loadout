@@ -35,6 +35,21 @@ function classifyHsl([h, s, l]: [number, number, number]): string {
 
 const SWATCH_PRIORITY = ["Vibrant", "DarkVibrant", "LightVibrant", "Muted", "DarkMuted", "LightMuted"] as const;
 
+// KNOWN LIMITATION (diagnosed, not fixed - see below): this picks by
+// vibrancy priority and ignores how much of the image each swatch actually
+// covers. On buddy icons - which are ~75% transparent and all hang from an
+// identical brass keychain clasp - a swatch representing a single pixel of
+// that clasp can win over the charm's own color, which covers many more.
+// Result: 456 of 884 buddies (52%) classify as "orange", including the
+// pale-blue Snowfall snow globe.
+//
+// A population-weighted variant (optionally cropping the clasp off the top)
+// was built and measured against a hand-labelled sample and did NOT come out
+// better - it fixed some cases and regressed others, scoring the same 2-3/6
+// as this does. Left alone rather than churning the algorithm and re-running
+// extraction across the whole catalog on an unvalidated hunch. Worth
+// revisiting with a proper labelled set if the color filter's quality
+// becomes a real complaint.
 function extractFamilyFromPalette(palette: Palette): string | null {
   const swatches = SWATCH_PRIORITY.map((key) => palette[key]).filter((s): s is Swatch => s !== null);
   if (swatches.length === 0) return null;
@@ -57,3 +72,4 @@ export async function extractColorFamily(imageUrl: string): Promise<string | nul
     return null;
   }
 }
+

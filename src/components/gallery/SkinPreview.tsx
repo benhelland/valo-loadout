@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { encodeCombo } from "@/lib/comboLink";
 import { setLoadoutItem } from "@/actions/loadouts";
 import { DraggableBuddyBadge } from "@/components/gallery/DraggableBuddyBadge";
@@ -41,6 +42,7 @@ export function SkinPreview({
   children,
 }: SkinPreviewProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isSaving, startSaving] = useTransition();
   const mediaRef = useRef<HTMLDivElement>(null);
   const defaultLevel = skin.levels[0];
@@ -117,6 +119,22 @@ export function SkinPreview({
       });
       router.push(`/loadouts/${loadoutContext.loadoutId}`);
     });
+  }
+
+  // Sends the user to the buddy gallery in "pick" mode, carrying the
+  // current level/chroma selection so returning with a chosen buddy doesn't
+  // silently reset them (that state is client-only otherwise). Works from
+  // both the plain skin page and the loadout assign page, since the return
+  // path is just wherever we currently are.
+  function buildBuddyPickerHref(): string {
+    const returnParams = new URLSearchParams();
+    if (selectedLevelId) returnParams.set("levelId", selectedLevelId);
+    if (selectedChromaId) returnParams.set("chromaId", selectedChromaId);
+    const returnTo = returnParams.toString() ? `${pathname}?${returnParams.toString()}` : pathname;
+
+    const pickerParams = new URLSearchParams({ returnTo });
+    if (selectedBuddyId) pickerParams.set("currentBuddyId", selectedBuddyId);
+    return `/buddies?${pickerParams.toString()}`;
   }
 
   async function copyShareLink() {
@@ -290,6 +308,17 @@ export function SkinPreview({
                 ))}
               </select>
             </label>
+            {/* The dropdown is fine when you know the buddy's name; this is
+                the path for "show me what's available" - the full buddy
+                gallery with search and color filtering, which comes back
+                here with the pick applied and the rest of the selection
+                intact (see buildBuddyPickerHref). */}
+            <Link
+              href={buildBuddyPickerHref()}
+              className="mt-2 inline-block text-[11px] font-semibold uppercase tracking-wider text-muted hover:text-accent transition-colors"
+            >
+              Browse all buddies →
+            </Link>
           </div>
         )}
 

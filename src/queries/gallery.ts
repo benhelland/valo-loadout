@@ -2,8 +2,9 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { VIBE_TAGS } from "@/lib/vibeTagging";
 import { fuzzyScore } from "@/lib/fuzzyMatch";
+import { DEFAULT_SKIN_PAGE_SIZE } from "@/lib/pageSize";
 
-export const PAGE_SIZE = 48;
+export const PAGE_SIZE = DEFAULT_SKIN_PAGE_SIZE;
 
 export type SortOption = "newest" | "price" | "alphabetical" | "rarity";
 
@@ -17,6 +18,9 @@ export interface GalleryFilters {
   search?: string;
   sort?: SortOption;
   page?: number;
+  // Callers must pass an already-validated value (see resolvePageSize in
+  // src/lib/pageSize.ts) - this is never used to sanitise raw input.
+  pageSize?: number;
 }
 
 // Bounded to 1 row each - a cheap fallback source for SkinCard's image when
@@ -111,6 +115,7 @@ function buildOrderBy(sort: SortOption | undefined): Prisma.SkinOrderByWithRelat
 
 export async function listSkins(filters: GalleryFilters) {
   const page = Math.max(1, filters.page ?? 1);
+  const pageSize = filters.pageSize ?? PAGE_SIZE;
   const trimmedSearch = filters.search?.trim();
 
   if (trimmedSearch && trimmedSearch.length >= 2) {
@@ -132,8 +137,8 @@ export async function listSkins(filters: GalleryFilters) {
       .sort((a, b) => b.score - a.score || compareBySort(a.skin, b.skin, filters.sort));
 
     const total = ranked.length;
-    const skins = ranked.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => r.skin);
-    return { skins, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+    const skins = ranked.slice((page - 1) * pageSize, page * pageSize).map((r) => r.skin);
+    return { skins, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
   // Normal path: no search text, so SQL does filtering, sorting, and
@@ -145,14 +150,14 @@ export async function listSkins(filters: GalleryFilters) {
     prisma.skin.findMany({
       where,
       orderBy,
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       include: listInclude,
     }),
     prisma.skin.count({ where }),
   ]);
 
-  return { skins, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  return { skins, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
 export async function getSkinDetail(id: string) {

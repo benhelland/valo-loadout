@@ -161,6 +161,7 @@ model Buddy {
   id             String  @id // uuid from valorant-api.com
   displayName    String
   displayIconUrl String?
+  colorFamily    String? // extracted from displayIconUrl at sync time, same pipeline as skins/chromas - powers the buddy gallery's color filter so a buddy can be matched to a skin's palette
 
   levels       BuddyLevel[]
   loadoutItems LoadoutItem[]

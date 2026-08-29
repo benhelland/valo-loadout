@@ -24,6 +24,12 @@ interface SearchAutocompleteProps {
   // "{pickerBasePath}/skins" in the loadout picker.
   resultHrefBase: string;
   debounceMs?: number;
+  // Turns off the predictive dropdown entirely, leaving just the debounced
+  // text input. Used by the buddy gallery: buddies have no detail page for
+  // a suggestion to link to, so the grid's own live filtering is the whole
+  // feature there.
+  disableSuggestions?: boolean;
+  placeholder?: string;
 }
 
 export function SearchAutocomplete({
@@ -33,6 +39,8 @@ export function SearchAutocomplete({
   weaponId,
   resultHrefBase,
   debounceMs = 300,
+  disableSuggestions = false,
+  placeholder = "Skin name...",
 }: SearchAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<SkinSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -43,6 +51,7 @@ export function SearchAutocomplete({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       onDebouncedChange(nextValue);
+      if (disableSuggestions) return;
       const trimmed = nextValue.trim();
       if (trimmed.length < 2) {
         setSuggestions([]);
@@ -82,7 +91,7 @@ export function SearchAutocomplete({
         // Delay closing so a click on a suggestion registers before the
         // dropdown unmounts.
         onBlur={() => setTimeout(() => setIsOpen(false), 150)}
-        placeholder="Skin name..."
+        placeholder={placeholder}
         autoComplete="off"
         className="w-full rounded-none border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none transition-colors"
       />
