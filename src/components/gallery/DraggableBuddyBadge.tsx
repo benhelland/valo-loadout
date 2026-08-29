@@ -153,10 +153,14 @@ export function DraggableBuddyBadge({ containerRef, displayIconUrl, displayName,
       {/* Chrome - the circular backing, border, and shadow. Fades
           independently of the buddy icon itself, which stays fully visible
           throughout. Dragging (on this div or the resize grip below) still
-          works even while faded - the fade is purely visual. */}
+          works even while faded - the fade is purely visual. No transition
+          while locked (Animation tab) - it should snap to solid instantly,
+          not visibly fade in, when the tab is switched. */}
       <div
         aria-hidden
-        className="absolute inset-0 rounded-full border-2 border-accent/60 bg-black/60 shadow-lg backdrop-blur-sm transition-opacity duration-700"
+        className={`absolute inset-0 rounded-full border-2 border-accent/60 bg-black/60 shadow-lg backdrop-blur-sm ${
+          locked ? "" : "transition-opacity duration-700"
+        }`}
         style={{ opacity: showChrome ? 1 : 0 }}
       />
 
@@ -168,9 +172,16 @@ export function DraggableBuddyBadge({ containerRef, displayIconUrl, displayName,
         <div
           onPointerDown={(e) => startDrag("resize", e)}
           title="Resize"
-          className="absolute bottom-0 right-0 h-4 w-4 translate-x-1/3 translate-y-1/3 cursor-nwse-resize rounded-full border border-white/50 bg-accent transition-opacity duration-700"
+          className="absolute bottom-0 right-0 flex h-6 w-6 translate-x-1/3 translate-y-1/3 items-center justify-center rounded-full border border-white/50 bg-accent text-white cursor-nwse-resize transition-opacity duration-700"
           style={{ opacity: showChrome ? 1 : 0, pointerEvents: showChrome ? "auto" : "none" }}
-        />
+        >
+          {/* Diagonal double-arrow - reads as "resize" much more clearly
+              than a plain dot did. */}
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 3l-7 7M21 3v5M21 3h-5" />
+            <path d="M3 21l7-7M3 21v-5M3 21h5" />
+          </svg>
+        </div>
       )}
     </div>
   );
