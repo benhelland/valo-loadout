@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { BuddyPreview } from "@/components/gallery/BuddyPreview";
+import { encodeCombo } from "@/lib/comboLink";
 import type { Prisma, Buddy } from "@/generated/prisma/client";
 
 type SkinDetail = Prisma.SkinGetPayload<{
@@ -12,6 +13,11 @@ type SkinDetail = Prisma.SkinGetPayload<{
 interface SkinPreviewProps {
   skin: SkinDetail;
   buddies: Buddy[];
+  // Pre-selects this exact level/chroma/buddy combo - set when arriving via a
+  // /combo/:encoded share link. Absent on the normal gallery detail page.
+  initialLevelId?: string | null;
+  initialChromaId?: string | null;
+  initialBuddyId?: string | null;
 }
 
 interface Media {
@@ -20,10 +26,12 @@ interface Media {
   label: string;
 }
 
-export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
+export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, initialBuddyId }: SkinPreviewProps) {
   const defaultLevel = skin.levels[0];
-  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(defaultLevel?.id ?? null);
-  const [selectedChromaId, setSelectedChromaId] = useState<string | null>(null);
+  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(initialLevelId ?? defaultLevel?.id ?? null);
+  const [selectedChromaId, setSelectedChromaId] = useState<string | null>(initialChromaId ?? null);
+  const [selectedBuddyId, setSelectedBuddyId] = useState<string>(initialBuddyId ?? "");
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const activeChroma = skin.chromas.find((c) => c.id === selectedChromaId);
   const activeLevel = skin.levels.find((l) => l.id === selectedLevelId);
@@ -56,6 +64,23 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
     setSelectedChromaId(id);
   }
 
+  async function copyShareLink() {
+    const encoded = encodeCombo({
+      skinId: skin.id,
+      levelId: selectedLevelId,
+      chromaId: selectedChromaId,
+      buddyId: selectedBuddyId || null,
+    });
+    const url = `${window.location.origin}/combo/${encoded}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1500);
+    } catch {
+      window.prompt("Copy this link:", url);
+    }
+  }
+
   return (
     <div>
       <div className="relative aspect-video rounded-lg border border-border bg-surface overflow-hidden">
@@ -82,6 +107,15 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
             priority
           />
         ) : null}
+      </div>
+
+      <div className="mt-3 flex justify-end">
+        <button
+          onClick={copyShareLink}
+          className="rounded border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground hover:border-foreground/30 transition-colors"
+        >
+          {linkCopied ? "Copied!" : "Copy share link"}
+        </button>
       </div>
 
       {skin.levels.length > 0 ? (
@@ -140,6 +174,8 @@ export function SkinPreview({ skin, buddies }: SkinPreviewProps) {
           stillImageUrl={stillImageUrl}
           skinDisplayName={skin.displayName}
           buddies={buddies}
+          buddyId={selectedBuddyId}
+          onBuddyChange={setSelectedBuddyId}
         />
       )}
     </div>

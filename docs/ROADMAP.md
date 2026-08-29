@@ -17,7 +17,7 @@ The whole "cool UI to look at all skins ever, all the animations" half of the id
 - [x] Color-family pass as part of the sync job — verified (1358/1405 skins, 2921/2921 chromas colored)
 - [~] AI vibe-tagging pass — code written (`src/lib/vibeTagging.ts`, Haiku 4.5, structured output, fixed vocabulary), type-checks clean, **but untested against the live API**. Needs a real `ANTHROPIC_API_KEY` (separate Developer-API billing, not the user's Claude subscription — console.anthropic.com, pay-as-you-go). **Prompt the user to set this up** next time this comes up, so the vibe-tagging path actually gets verified before Phase 1 is called done. Estimated cost: ~$1-3 one-time backfill for the existing ~1400 skins, pennies/year after.
 - [x] Gallery UI: browse/filter by weapon, tier, collection, color, vibe, animation, search; sort; pagination; skin detail view with image + video playback, level/chroma selectors, inline buddy preview — verified in the browser end to end, no console errors
-- [ ] Stateless skin-combo share links (`/combo/:encoded`) — no accounts needed, just catalog data, so this can ship in this phase
+- [x] Stateless skin-combo share links (`/combo/:encoded`) — verified in the browser: encode/decode round-trips a skin+level+chroma+buddy selection through a base64url-packed path segment, garbled/tampered tokens fail closed to 404, no DB row involved
 - [ ] Deployed and usable as a standalone thing, even before any other feature exists
 
 ## Phase 2 — Accounts, loadouts, wishlist

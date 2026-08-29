@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import { getBuddyAnchor } from "@/lib/buddyAnchors";
 import type { Buddy } from "@/generated/prisma/client";
@@ -10,14 +9,17 @@ interface BuddyPreviewProps {
   stillImageUrl: string | null;
   skinDisplayName: string;
   buddies: Buddy[];
+  // Controlled by the parent (SkinPreview) so the current buddy selection can
+  // be read back out when building a /combo/:encoded share link.
+  buddyId: string;
+  onBuddyChange: (id: string) => void;
 }
 
 // Composites a buddy charm onto the skin's flat render - a 2D sticker-on-a-photo
 // approximation, not a true render (no 3D model data exists - see docs/RISKS.md).
 // Deliberately never runs against video: a fixed-percentage anchor point only
 // makes sense against a static image, not a moving gameplay frame.
-export function BuddyPreview({ weaponDisplayName, stillImageUrl, skinDisplayName, buddies }: BuddyPreviewProps) {
-  const [buddyId, setBuddyId] = useState<string>("");
+export function BuddyPreview({ weaponDisplayName, stillImageUrl, skinDisplayName, buddies, buddyId, onBuddyChange }: BuddyPreviewProps) {
   const buddy = buddies.find((b) => b.id === buddyId);
   const anchor = getBuddyAnchor(weaponDisplayName);
 
@@ -27,7 +29,7 @@ export function BuddyPreview({ weaponDisplayName, stillImageUrl, skinDisplayName
         Preview with buddy
         <select
           value={buddyId}
-          onChange={(e) => setBuddyId(e.target.value)}
+          onChange={(e) => onBuddyChange(e.target.value)}
           className="rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground"
         >
           <option value="">None</option>
