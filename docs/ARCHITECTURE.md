@@ -101,6 +101,10 @@ Schema confirmed against the live API on 2026-08-28 (`weapons`, `weapons/skins`,
 
 **Gallery performance:** the catalog is large enough (1500+ skins across years, plus levels/chromas as separate rows) that the gallery grid needs virtualization and lazy-loaded images from day one, not as a later optimization. Video should not autoplay across an entire grid of results — load/play on hover or on opening the detail view only, both for user bandwidth and so we're not hammering valorant-api.com's CDN.
 
+**Filter bar:** every control applies its filter immediately on change (`FilterBar.tsx`, a client component using `router.replace` on the current path+params — no Apply button). State still lives entirely in the URL, so results stay server-rendered/shareable/bookmarkable; only the controls themselves needed to become client-interactive, not the results grid. Any filter change resets `page` back to 1. The search field pairs that same debounced auto-apply with a separate predictive dropdown (`SearchAutocomplete.tsx` + the `searchSkinsAutocomplete` server action in `src/actions/search.ts`) — a small, fast, unpaginated lookup for jumping straight to one skin, distinct from the (slower, full-catalog) filtered grid the same typed text also drives. Reused as-is by the loadout picker, scoped to the locked weapon via an optional `weaponId` param on both.
+
+**Default sort is rarity (highest first), not newest:** `firstSeenInSyncAt` is only meaningful for skins added after this project started syncing (see the release-date gap noted above) — nearly the entire backfilled catalog shares one timestamp, so "newest" wasn't actually a meaningful default order. Rarity-first also doubles as a better first impression for a gallery whose whole point is showing skins off.
+
 **Color and vibe tagging pipeline (runs as part of the sync job, per new skin/chroma only — not re-run on unchanged items):**
 
 - **Color:** extract a dominant-color bucket (red/blue/black/white/gold/multicolor/etc.) from each skin's and each chroma's display image via a standard color-quantization pass (e.g. k-means over image pixels). Deterministic, no external API, cheap to (re)run.

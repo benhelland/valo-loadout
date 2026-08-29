@@ -39,7 +39,7 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
   ]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-6 flex items-baseline gap-4 border-l-4 border-accent pl-4">
         <h1 className="font-display text-5xl uppercase tracking-wide leading-none">All Skins</h1>
         <p className="text-sm uppercase tracking-wide text-muted">
@@ -58,7 +58,7 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
       {skins.length === 0 ? (
         <p className="text-center text-muted py-16">No skins match those filters.</p>
       ) : (
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           {skins.map((skin) => (
             <SkinCard key={skin.id} skin={skin} />
           ))}

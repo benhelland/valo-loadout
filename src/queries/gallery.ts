@@ -63,11 +63,17 @@ function buildOrderBy(sort: SortOption | undefined): Prisma.SkinOrderByWithRelat
     // just in opposite directions (cheapest-first vs. rarest-first).
     case "price":
       return [{ contentTier: { rank: "asc" } }, { displayName: "asc" }];
-    case "rarity":
-      return [{ contentTier: { rank: "desc" } }, { displayName: "asc" }];
     case "newest":
-    default:
       return [{ firstSeenInSyncAt: "desc" }];
+    case "rarity":
+    default:
+      // Default, not "newest": firstSeenInSyncAt is only meaningful for
+      // skins added after this project started syncing (documented gap in
+      // ARCHITECTURE.md) - almost the entire current catalog shares one
+      // backfill timestamp, so "newest" isn't actually a meaningful default
+      // order yet. Rarity-first also just makes a better first impression
+      // for a gallery whose whole point is showing skins off.
+      return [{ contentTier: { rank: "desc" } }, { displayName: "asc" }];
   }
 }
 

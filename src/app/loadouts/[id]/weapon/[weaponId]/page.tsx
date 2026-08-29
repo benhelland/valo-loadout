@@ -55,7 +55,7 @@ export default async function LoadoutWeaponPickerPage({
   const basePath = `/loadouts/${id}/weapon/${weaponId}`;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-8">
       <Link href={`/loadouts/${id}`} className="text-xs font-semibold uppercase tracking-widest text-muted hover:text-accent transition-colors">
         ← Back to {loadout.name}
       </Link>
@@ -70,17 +70,19 @@ export default async function LoadoutWeaponPickerPage({
       <FilterBar
         weapons={[]}
         hideWeaponFilter
+        lockedWeaponId={weaponId}
         tiers={filterOptions.tiers}
         themes={filterOptions.themes}
         vibeTags={filterOptions.vibeTags}
         current={flatParams}
         clearHref={basePath}
+        resultHrefBase={`${basePath}/skins`}
       />
 
       {skins.length === 0 ? (
         <p className="text-center text-muted py-16">No skins match those filters.</p>
       ) : (
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           {skins.map((skin) => (
             <SkinCard key={skin.id} skin={skin} hrefBase={`${basePath}/skins`} />
           ))}

@@ -50,7 +50,7 @@ export function LoadoutListClient({ loadouts }: { loadouts: LoadoutSummary[] }) 
           No loadouts yet - create one above to start assigning skins per weapon.
         </p>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {loadouts.map((loadout) => (
             <LoadoutCard key={loadout.id} loadout={loadout} />
           ))}

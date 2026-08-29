@@ -1,22 +1,11 @@
 import { Vibrant } from "node-vibrant/node";
 import type { Palette, Swatch } from "@vibrant/color";
+import { HUE_FAMILY_DEGREES } from "@/lib/colorFamilies";
 
 // Best-effort dominant-color bucketing for gallery filtering - not ground
 // truth. See docs/ARCHITECTURE.md "Color and vibe tagging pipeline".
 
-const HUE_FAMILIES: { name: string; hue: number }[] = [
-  { name: "red", hue: 0 },
-  { name: "orange", hue: 30 },
-  { name: "gold", hue: 50 },
-  { name: "green", hue: 120 },
-  { name: "cyan", hue: 185 },
-  { name: "blue", hue: 225 },
-  { name: "purple", hue: 270 },
-  { name: "pink", hue: 320 },
-];
-
-// Every possible value extractColorFamily() can return - for building filter UI.
-export const COLOR_FAMILIES = ["black", "white", "gray", "multicolor", ...HUE_FAMILIES.map((f) => f.name)];
+const HUE_FAMILIES: { name: string; hue: number }[] = Object.entries(HUE_FAMILY_DEGREES).map(([name, hue]) => ({ name, hue }));
 
 function hueDistance(a: number, b: number): number {
   const diff = Math.abs(a - b) % 360;

@@ -64,7 +64,7 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
   const itemsByWeapon = new Map(loadout.items.map((item) => [item.weaponId, item]));
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-8">
       <Link href="/loadouts" className="text-xs font-semibold uppercase tracking-widest text-muted hover:text-accent transition-colors">
         ← All loadouts
       </Link>
@@ -129,7 +129,7 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8">
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-10">
         {BOARD_COLUMN_GROUPS.map((categoriesInColumn, colIndex) => (
           <div key={colIndex} className="flex flex-col gap-8">
             {categoriesInColumn.map((category) => {
