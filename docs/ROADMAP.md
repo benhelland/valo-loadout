@@ -24,8 +24,8 @@ The whole "cool UI to look at all skins ever, all the animations" half of the id
 
 Still no Riot integration — this is our own app's accounts.
 
-- [ ] User auth (our own accounts, not Riot's)
-- [ ] Loadout builder: assign a skin/level/chroma/buddy per weapon slot, save/edit multiple named loadouts, switch between them
+- [~] **Loadout builder built ahead of real auth, against a mock user** — explicit user call: build the feature first, wire up Discord OAuth after. `src/lib/auth.ts`'s `getCurrentUserId()` upserts a single hardcoded dev user and is the *only* place that reads "who's logged in" — swapping in a real Auth.js session is a one-function change. Board layout (all weapon slots visible, grouped Sidearms→Melee like the real buy menu), picker reuses the gallery's own filter/search UI scoped to one weapon (`/loadouts/[id]/weapon/[weaponId]`), assignment reuses the skin detail page verbatim with an added "Add to Loadout" action (`/loadouts/[id]/weapon/[weaponId]/skins/[skinId]`) — matches `PRD.md`'s "feels like an extension of browsing, not a separate form". Multiple named loadouts, switcher dropdown, duplicate, rename, delete, running estimated VP total — all built and verified end-to-end in the browser (create → assign → clear → duplicate → switch → delete, mobile stacking, console clean). Buddies show as the same corner badge as the skin detail page, not composited onto the weapon (`PRD.md`/`ARCHITECTURE.md` corrected to match). **Not done: real user auth** — still needed before this is usable by anyone but the mock dev user.
+- [ ] User auth (our own accounts, not Riot's) — swap `getCurrentUserId()` over to a real Auth.js + Discord OAuth session
 - [ ] Loadout share links (opt-in, revocable — see `ARCHITECTURE.md`)
 - [ ] Wishlist: add/remove skins, running estimated VP total
 

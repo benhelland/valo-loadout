@@ -6,7 +6,7 @@ Guidance for Claude (Claude Code / Cowork) when working in this repo. Read this 
 
 **valo-loadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin/animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
 
-**Status: Phase 1 in progress** (sync job + skin gallery — see `docs/ROADMAP.md`). The project is scaffolded: Next.js + TypeScript + Tailwind, Prisma schema written and matching `docs/ARCHITECTURE.md`. See `docs/` for the full thinking. Do not assume any framework, package, or file structure beyond what's written down in these docs — propose changes to the docs themselves before writing code that contradicts them.
+**Status: Phase 1 done except deployment; Phase 2 loadout builder in progress** (see `docs/ROADMAP.md`). Phase 1 (sync job + skin gallery) is built and verified; deploying it was explicitly deferred until Phase 2 is further along. The loadout builder is built and working against a **mock user** (`src/lib/auth.ts`'s `getCurrentUserId()`) — real auth (Auth.js + Discord OAuth) hasn't been built yet, on explicit call: feature first, accounts after. Every loadout query/action goes through that one function, so swapping in a real session later is a one-function change. The project is scaffolded: Next.js + TypeScript + Tailwind, Prisma schema written and matching `docs/ARCHITECTURE.md`. See `docs/` for the full thinking. Do not assume any framework, package, or file structure beyond what's written down in these docs — propose changes to the docs themselves before writing code that contradicts them.
 
 ## Read these before building anything
 

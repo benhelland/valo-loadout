@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { encodeCombo } from "@/lib/comboLink";
+import { setLoadoutItem } from "@/actions/loadouts";
 import type { Prisma, Buddy } from "@/generated/prisma/client";
 
 type SkinDetail = Prisma.SkinGetPayload<{
@@ -17,13 +19,28 @@ interface SkinPreviewProps {
   initialLevelId?: string | null;
   initialChromaId?: string | null;
   initialBuddyId?: string | null;
+  // Present only when reached via the loadout builder's picker
+  // (/loadouts/[id]/weapon/[weaponId]/skins/[skinId]) - adds an "Add to
+  // Loadout" action that saves the current level/chroma/buddy selection
+  // into that weapon slot and returns to the board.
+  loadoutContext?: { loadoutId: string; weaponId: string; loadoutName: string };
   // The static info panel (tier/name/stats/vibe tags), server-rendered by
   // SkinDetailView and dropped into the top of the sidebar here - see that
   // component for why it's structured this way.
   children: React.ReactNode;
 }
 
-export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, initialBuddyId, children }: SkinPreviewProps) {
+export function SkinPreview({
+  skin,
+  buddies,
+  initialLevelId,
+  initialChromaId,
+  initialBuddyId,
+  loadoutContext,
+  children,
+}: SkinPreviewProps) {
+  const router = useRouter();
+  const [isSaving, startSaving] = useTransition();
   const defaultLevel = skin.levels[0];
   const [selectedLevelId, setSelectedLevelId] = useState<string | null>(initialLevelId ?? defaultLevel?.id ?? null);
   const [selectedChromaId, setSelectedChromaId] = useState<string | null>(initialChromaId ?? null);
@@ -73,6 +90,21 @@ export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, in
 
   function selectChroma(id: string) {
     setSelectedChromaId(id);
+  }
+
+  function addToLoadout() {
+    if (!loadoutContext) return;
+    startSaving(async () => {
+      await setLoadoutItem({
+        loadoutId: loadoutContext.loadoutId,
+        weaponId: loadoutContext.weaponId,
+        skinId: skin.id,
+        levelId: selectedLevelId,
+        chromaId: selectedChromaId,
+        buddyId: selectedBuddyId || null,
+      });
+      router.push(`/loadouts/${loadoutContext.loadoutId}`);
+    });
   }
 
   async function copyShareLink() {
@@ -247,6 +279,16 @@ export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, in
             </label>
           </div>
         )}
+
+        {loadoutContext ? (
+          <button
+            onClick={addToLoadout}
+            disabled={isSaving}
+            className="clip-notch-sm mt-6 w-full bg-accent py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-accent-dark transition-colors disabled:opacity-50"
+          >
+            {isSaving ? "Saving..." : `Add to ${loadoutContext.loadoutName}`}
+          </button>
+        ) : null}
 
         <button
           onClick={copyShareLink}

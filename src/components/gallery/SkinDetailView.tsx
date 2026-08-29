@@ -17,6 +17,7 @@ interface SkinDetailViewProps {
   initialLevelId?: string | null;
   initialChromaId?: string | null;
   initialBuddyId?: string | null;
+  loadoutContext?: { loadoutId: string; weaponId: string; loadoutName: string };
   backHref?: string;
   backLabel?: string;
 }
@@ -35,6 +36,7 @@ export function SkinDetailView({
   initialLevelId,
   initialChromaId,
   initialBuddyId,
+  loadoutContext,
   backHref = "/",
   backLabel = "← Back to gallery",
 }: SkinDetailViewProps) {
@@ -58,6 +60,7 @@ export function SkinDetailView({
           initialLevelId={initialLevelId}
           initialChromaId={initialChromaId}
           initialBuddyId={initialBuddyId}
+          loadoutContext={loadoutContext}
         >
           <div className="flex items-center gap-2">
             {skin.contentTier?.displayIconUrl ? (

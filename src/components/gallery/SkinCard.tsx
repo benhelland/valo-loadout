@@ -8,13 +8,21 @@ type SkinWithRelations = Prisma.SkinGetPayload<{
   include: { weapon: true; contentTier: true; theme: true };
 }>;
 
-export function SkinCard({ skin }: { skin: SkinWithRelations }) {
+interface SkinCardProps {
+  skin: SkinWithRelations;
+  // Where clicking the card links to - defaults to the normal skin detail
+  // page. The loadout picker overrides this to route into its own
+  // assign-to-slot flow instead (see /loadouts/[id]/weapon/[weaponId]).
+  hrefBase?: string;
+}
+
+export function SkinCard({ skin, hrefBase = "/skins" }: SkinCardProps) {
   const price = estimatePriceVp(skin.contentTier?.devName);
   const tierColor = tierColorToCss(skin.contentTier?.highlightColor);
 
   return (
     <Link
-      href={`/skins/${skin.id}`}
+      href={`${hrefBase}/${skin.id}`}
       className="clip-notch-sm group block border border-border bg-surface hover:bg-surface-hover hover:border-accent/50 transition-colors"
     >
       <div className="relative aspect-[4/3] bg-black/20">

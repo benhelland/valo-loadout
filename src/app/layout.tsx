@@ -43,6 +43,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               >
                 Gallery
               </Link>
+              <Link
+                href="/loadouts"
+                className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
+              >
+                Loadouts
+              </Link>
             </nav>
           </div>
         </header>

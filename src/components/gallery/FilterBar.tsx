@@ -17,9 +17,16 @@ interface FilterBarProps {
     search?: string;
     sort?: string;
   };
+  // Hides the weapon dropdown - used by the loadout picker, where the
+  // weapon is already locked by the slot you clicked into, not a free
+  // filter choice.
+  hideWeaponFilter?: boolean;
+  // Overrides the "Clear" link target - the loadout picker needs it to
+  // clear back to its own scoped URL, not the main gallery.
+  clearHref?: string;
 }
 
-export function FilterBar({ weapons, tiers, themes, vibeTags, current }: FilterBarProps) {
+export function FilterBar({ weapons, tiers, themes, vibeTags, current, hideWeaponFilter, clearHref = "/" }: FilterBarProps) {
   return (
     <form
       method="get"
@@ -36,13 +43,15 @@ export function FilterBar({ weapons, tiers, themes, vibeTags, current }: FilterB
         />
       </label>
 
-      <Select name="weaponId" label="Weapon" current={current.weaponId}>
-        {weapons.map((w) => (
-          <option key={w.id} value={w.id}>
-            {w.displayName}
-          </option>
-        ))}
-      </Select>
+      {hideWeaponFilter ? null : (
+        <Select name="weaponId" label="Weapon" current={current.weaponId}>
+          {weapons.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.displayName}
+            </option>
+          ))}
+        </Select>
+      )}
 
       <Select name="tierId" label="Tier" current={current.tierId}>
         {tiers.map((t) => (
@@ -101,7 +110,7 @@ export function FilterBar({ weapons, tiers, themes, vibeTags, current }: FilterB
         Apply
       </button>
       <Link
-        href="/"
+        href={clearHref}
         className="text-[11px] font-semibold uppercase tracking-wider text-muted hover:text-foreground pb-2.5"
       >
         Clear

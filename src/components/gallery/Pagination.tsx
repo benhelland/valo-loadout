@@ -2,25 +2,28 @@ interface PaginationProps {
   page: number;
   pageCount: number;
   searchParams: Record<string, string | undefined>;
+  // Where page links point - defaults to the main gallery. The loadout
+  // picker overrides this to stay within its own scoped weapon URL.
+  basePath?: string;
 }
 
-function buildHref(searchParams: Record<string, string | undefined>, page: number) {
+function buildHref(basePath: string, searchParams: Record<string, string | undefined>, page: number) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(searchParams)) {
     if (value && key !== "page") params.set(key, value);
   }
   if (page > 1) params.set("page", String(page));
   const qs = params.toString();
-  return qs ? `/?${qs}` : "/";
+  return qs ? `${basePath}?${qs}` : basePath;
 }
 
-export function Pagination({ page, pageCount, searchParams }: PaginationProps) {
+export function Pagination({ page, pageCount, searchParams, basePath = "/" }: PaginationProps) {
   if (pageCount <= 1) return null;
 
   return (
     <nav className="flex items-center justify-center gap-6 py-8 text-sm font-semibold uppercase tracking-widest">
       {page > 1 ? (
-        <a href={buildHref(searchParams, page - 1)} className="text-muted hover:text-accent transition-colors">
+        <a href={buildHref(basePath, searchParams, page - 1)} className="text-muted hover:text-accent transition-colors">
           ← Previous
         </a>
       ) : (
@@ -30,7 +33,7 @@ export function Pagination({ page, pageCount, searchParams }: PaginationProps) {
         Page {page} <span className="text-muted">of {pageCount}</span>
       </span>
       {page < pageCount ? (
-        <a href={buildHref(searchParams, page + 1)} className="text-muted hover:text-accent transition-colors">
+        <a href={buildHref(basePath, searchParams, page + 1)} className="text-muted hover:text-accent transition-colors">
           Next →
         </a>
       ) : (

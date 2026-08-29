@@ -46,6 +46,10 @@ Every piece below was picked to run on a free tier at this project's scale, with
 
 The one piece worth keeping regardless of any future stack changes: the store-check subsystem stays isolated from the app/content layers (see below).
 
+**Interim mock auth:** the loadout builder was built before Auth.js/Discord OAuth, on explicit call — build the feature, wire up real accounts after. `src/lib/auth.ts`'s `getCurrentUserId()` upserts one hardcoded dev `User` row and is the only place any loadout query/action reads "who's logged in" (every one calls it instead of touching a session), so swapping in a real Auth.js session is a one-function change, not a hunt through the codebase. Nothing about the `loadouts`/`loadout_items` schema below assumes mock auth - it's exactly the real shape.
+
+**Loadout builder implementation:** matches `PRD.md`'s "board layout" and "picker is the gallery's filter/search UI scoped to that weapon" directly - the picker (`/loadouts/[id]/weapon/[weaponId]`) reuses `FilterBar`/`SkinCard`/`Pagination` from the gallery itself (weapon filter hidden since it's locked by the slot), and assigning a skin (`/loadouts/[id]/weapon/[weaponId]/skins/[skinId]`) reuses the skin detail page verbatim (`SkinDetailView`/`SkinPreview`) with an added `loadoutContext` prop that surfaces an "Add to Loadout" action alongside the existing "Copy share link" one. Net-new code is mostly the board itself and the mutations, not a parallel picker/detail UI.
+
 ## Data model (sketch)
 
 - `users` — id, email, auth info, created_at
