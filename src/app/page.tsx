@@ -3,6 +3,7 @@ import { SkinCard } from "@/components/gallery/SkinCard";
 import { FilterBar } from "@/components/gallery/FilterBar";
 import { GalleryTabs } from "@/components/gallery/GalleryTabs";
 import { Pagination } from "@/components/gallery/Pagination";
+import { SKIN_PAGE_SIZES, DEFAULT_SKIN_PAGE_SIZE, resolvePageSize } from "@/lib/pageSize";
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -20,7 +21,10 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
     search: first(sp.search),
     sort: first(sp.sort),
     page: first(sp.page),
+    pageSize: first(sp.pageSize),
   };
+
+  const pageSize = resolvePageSize(flatParams.pageSize, SKIN_PAGE_SIZES, DEFAULT_SKIN_PAGE_SIZE);
 
   const filters = {
     weaponId: flatParams.weaponId,
@@ -32,6 +36,7 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
     search: flatParams.search,
     sort: flatParams.sort as SortOption | undefined,
     page: flatParams.page ? Number(flatParams.page) : 1,
+    pageSize,
   };
 
   const [{ skins, total, page, pageCount }, filterOptions] = await Promise.all([
@@ -68,7 +73,13 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
         </div>
       )}
 
-      <Pagination page={page} pageCount={pageCount} searchParams={flatParams} />
+      <Pagination
+        page={page}
+        pageCount={pageCount}
+        searchParams={flatParams}
+        pageSizeOptions={SKIN_PAGE_SIZES}
+        pageSize={pageSize}
+      />
     </div>
   );
 }
