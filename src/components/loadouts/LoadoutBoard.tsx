@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { clearLoadoutItem, deleteLoadout, duplicateLoadout, renameLoadout } from "@/actions/loadouts";
-import { estimatePriceVp } from "@/lib/pricing";
-import { CATEGORY_LABELS, CATEGORY_ORDER } from "@/lib/weaponOrder";
+import { encodeCombo } from "@/lib/comboLink";
+import { BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
 import type { getLoadout, listAllWeapons, listLoadoutSummaries } from "@/queries/loadouts";
 
 type Loadout = NonNullable<Awaited<ReturnType<typeof getLoadout>>>;
@@ -20,26 +20,18 @@ interface LoadoutBoardProps {
   allLoadouts: LoadoutSummary[];
 }
 
-// Mirrors the real client's Collection screen: a category tab bar, then a
-// row of weapons within that category, then one large focused view of
-// whichever weapon is selected - not a grid of all 20 slots at once (that
-// was tried first; verified against the actual game before rebuilding this
-// - see docs/PRD.md "Board layout").
+// Matches the reference loadout-chart layout supplied directly: a 4-column
+// grid grouped by category (Sidearms | SMGs+Shotguns | Rifles+Melee |
+// Snipers+Heavy), every slot visible at once, buddy shown as an icon docked
+// beside the weapon render in each tile - not the tab/one-weapon-at-a-time
+// layout tried first (that was based on researching the real client, which
+// turned out not to match what was wanted here - see docs/PRD.md).
 export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isRenaming, setIsRenaming] = useState(false);
   const [name, setName] = useState(loadout.name);
-
-  const categories = CATEGORY_ORDER.filter((cat) => weapons.some((w) => w.category === cat));
-  const [activeCategory, setActiveCategory] = useState<string>(categories[0] ?? "");
-  const weaponsInCategory = weapons.filter((w) => w.category === activeCategory);
-
-  // Derived, not synced via an effect: whenever the category changes and the
-  // last-picked weapon isn't in it, this falls back to the category's first
-  // weapon on the very next render - no cascading-render risk.
-  const [selectedWeaponId, setSelectedWeaponId] = useState<string | undefined>(weaponsInCategory[0]?.id);
-  const activeWeaponId = weaponsInCategory.some((w) => w.id === selectedWeaponId) ? selectedWeaponId : weaponsInCategory[0]?.id;
+  const [openWeaponId, setOpenWeaponId] = useState<string | null>(null);
 
   function commitRename() {
     setIsRenaming(false);
@@ -66,11 +58,10 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
 
   function handleClear(weaponId: string) {
     startTransition(() => clearLoadoutItem(loadout.id, weaponId));
+    setOpenWeaponId(null);
   }
 
   const itemsByWeapon = new Map(loadout.items.map((item) => [item.weaponId, item]));
-  const activeWeapon = weaponsInCategory.find((w) => w.id === activeWeaponId);
-  const activeItem = activeWeapon ? itemsByWeapon.get(activeWeapon.id) : undefined;
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -138,168 +129,134 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
         </div>
       </div>
 
-      {/* Category tabs */}
-      <div className="mt-6 flex gap-6 overflow-x-auto border-b border-border">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`whitespace-nowrap border-b-2 pb-3 text-sm font-semibold uppercase tracking-widest transition-colors ${
-              activeCategory === cat ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"
-            }`}
-          >
-            {CATEGORY_LABELS[cat] ?? cat}
-          </button>
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8">
+        {BOARD_COLUMN_GROUPS.map((categoriesInColumn, colIndex) => (
+          <div key={colIndex} className="flex flex-col gap-8">
+            {categoriesInColumn.map((category) => {
+              const categoryWeapons = weapons
+                .filter((w) => w.category === category)
+                .sort((a, b) => a.displayName.localeCompare(b.displayName));
+              if (categoryWeapons.length === 0) return null;
+              return (
+                <div key={category}>
+                  <p className="mb-3 text-center text-sm font-semibold uppercase tracking-widest text-foreground">
+                    {CATEGORY_LABELS[category] ?? category}
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    {categoryWeapons.map((weapon) => (
+                      <WeaponTile
+                        key={weapon.id}
+                        loadoutId={loadout.id}
+                        weapon={weapon}
+                        item={itemsByWeapon.get(weapon.id)}
+                        isOpen={openWeaponId === weapon.id}
+                        onToggle={() => setOpenWeaponId((prev) => (prev === weapon.id ? null : weapon.id))}
+                        onClose={() => setOpenWeaponId(null)}
+                        onClear={() => handleClear(weapon.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ))}
       </div>
-
-      {/* Weapon row within the active category */}
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
-        {weaponsInCategory.map((weapon) => {
-          const item = itemsByWeapon.get(weapon.id);
-          const isActive = weapon.id === activeWeaponId;
-          return (
-            <button
-              key={weapon.id}
-              onClick={() => setSelectedWeaponId(weapon.id)}
-              className={`clip-notch-sm flex-shrink-0 border p-2 transition-colors ${
-                isActive ? "border-accent bg-accent/10" : "border-border bg-surface hover:border-foreground/30"
-              }`}
-            >
-              <div className="relative h-14 w-24 bg-black/20">
-                {item?.skin.displayIconUrl ? (
-                  <Image src={item.skin.displayIconUrl} alt={item.skin.displayName} fill sizes="96px" className="object-contain p-1" />
-                ) : weapon.displayIconUrl ? (
-                  <Image src={weapon.displayIconUrl} alt={weapon.displayName} fill sizes="96px" className="object-contain p-2 opacity-40" />
-                ) : null}
-              </div>
-              <p className={`mt-1 text-[10px] font-semibold uppercase tracking-wider ${isActive ? "text-foreground" : "text-muted"}`}>
-                {weapon.displayName}
-              </p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Large focused panel for the selected weapon */}
-      {activeWeapon ? (
-        <ActiveWeaponPanel
-          loadoutId={loadout.id}
-          weapon={activeWeapon}
-          item={activeItem}
-          onClear={() => handleClear(activeWeapon.id)}
-        />
-      ) : null}
     </div>
   );
 }
 
-function ActiveWeaponPanel({
+function WeaponTile({
   loadoutId,
   weapon,
   item,
+  isOpen,
+  onToggle,
+  onClose,
   onClear,
 }: {
   loadoutId: string;
   weapon: Weapon;
   item: LoadoutItem | undefined;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
   onClear: () => void;
 }) {
+  const router = useRouter();
   const pickerHref = `/loadouts/${loadoutId}/weapon/${weapon.id}`;
-  const price = item ? estimatePriceVp(item.skin.contentTier?.devName) : null;
+  const viewHref = item
+    ? `/combo/${encodeCombo({ skinId: item.skinId, levelId: item.levelId, chromaId: item.chromaId, buddyId: item.buddyId })}`
+    : null;
+
+  function handleTileClick() {
+    if (item) {
+      onToggle();
+    } else {
+      router.push(pickerHref);
+    }
+  }
 
   return (
-    <div className="mt-6 grid lg:grid-cols-[1fr_360px] gap-8 items-start">
-      <div className="relative border border-border bg-surface overflow-hidden aspect-video lg:aspect-auto lg:h-[480px]">
-        {item?.skin.displayIconUrl ? (
-          <Image
-            key={item.skin.id}
-            src={item.skin.displayIconUrl}
-            alt={item.skin.displayName}
-            fill
-            sizes="(max-width: 1024px) 100vw, 60vw"
-            className="object-contain p-10"
-          />
-        ) : weapon.displayIconUrl ? (
-          <Image
-            src={weapon.displayIconUrl}
-            alt={weapon.displayName}
-            fill
-            sizes="(max-width: 1024px) 100vw, 60vw"
-            className="object-contain p-16 opacity-30"
-          />
-        ) : null}
+    <div className="group relative">
+      <button onClick={handleTileClick} className="clip-notch-sm block w-full border border-border bg-surface text-left hover:border-accent/50 transition-colors">
+        <div className="flex">
+          <div className="relative h-[76px] flex-1 bg-black/20">
+            {item?.skin.displayIconUrl ? (
+              <Image src={item.skin.displayIconUrl} alt={item.skin.displayName} fill sizes="220px" className="object-contain p-1.5" />
+            ) : weapon.displayIconUrl ? (
+              <Image src={weapon.displayIconUrl} alt={weapon.displayName} fill sizes="220px" className="object-contain p-3 opacity-30" />
+            ) : null}
+          </div>
+          <div className="flex w-12 flex-shrink-0 items-center justify-center border-l border-border">
+            {item?.buddy?.displayIconUrl ? (
+              <div className="relative h-7 w-7">
+                <Image src={item.buddy.displayIconUrl} alt={item.buddy.displayName} fill sizes="28px" className="object-contain" />
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <p className="border-t border-border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground truncate">
+          {weapon.displayName}
+        </p>
+      </button>
 
-        <span className="pointer-events-none absolute left-3 top-3 h-6 w-6 border-l-2 border-t-2 border-accent/70" />
-        <span className="pointer-events-none absolute right-3 top-3 h-6 w-6 border-r-2 border-t-2 border-accent/70" />
-        <span className="pointer-events-none absolute left-3 bottom-3 h-6 w-6 border-l-2 border-b-2 border-accent/70" />
-        <span className="pointer-events-none absolute right-3 bottom-3 h-6 w-6 border-r-2 border-b-2 border-accent/70" />
+      {item ? (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onClear();
+          }}
+          title="Clear slot"
+          className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-xs text-muted opacity-0 group-hover:opacity-100 hover:text-accent transition-opacity"
+        >
+          ×
+        </button>
+      ) : null}
 
-        {item?.buddy?.displayIconUrl ? (
-          <div
-            title={item.buddy.displayName}
-            className="absolute top-4 right-4 h-16 w-16 rounded-full border-2 border-accent/60 bg-black/60 p-2 shadow-lg backdrop-blur-sm"
-          >
-            <div className="relative h-full w-full">
-              <Image src={item.buddy.displayIconUrl} alt={item.buddy.displayName} fill sizes="64px" className="object-contain" />
+      {isOpen && item ? (
+        <>
+          <div className="fixed inset-0 z-10" onClick={onClose} />
+          <div className="absolute z-20 left-0 top-full mt-1 w-56 border border-accent bg-surface p-4 shadow-xl">
+            <p className="text-sm font-semibold truncate">{item.skin.displayName}</p>
+            {item.buddy ? <p className="mt-0.5 text-xs font-normal text-muted truncate">{item.buddy.displayName}</p> : null}
+            <div className="mt-3 flex gap-2">
+              <Link
+                href={viewHref!}
+                className="clip-notch-sm flex-1 border border-border py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-muted hover:text-foreground hover:border-foreground/40 transition-colors"
+              >
+                View
+              </Link>
+              <Link
+                href={pickerHref}
+                className="clip-notch-sm flex-1 bg-accent py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-accent-dark transition-colors"
+              >
+                Replace
+              </Link>
             </div>
           </div>
-        ) : null}
-      </div>
-
-      <div className="border border-border border-t-2 border-t-accent bg-surface p-6">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">{weapon.displayName}</p>
-        <h2 className="mt-1 font-display text-3xl uppercase tracking-wide leading-none">
-          {item ? item.skin.displayName : "Empty Slot"}
-        </h2>
-
-        {item ? (
-          <dl className="mt-4 space-y-0">
-            {item.level ? (
-              <div className="flex justify-between border-b border-border py-2.5">
-                <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Level</dt>
-                <dd className="text-sm font-semibold">{item.level.levelIndex}</dd>
-              </div>
-            ) : null}
-            {item.chroma?.displayName ? (
-              <div className="flex justify-between border-b border-border py-2.5">
-                <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Color</dt>
-                <dd className="text-sm font-semibold">{item.chroma.displayName}</dd>
-              </div>
-            ) : null}
-            {item.buddy ? (
-              <div className="flex justify-between border-b border-border py-2.5">
-                <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Buddy</dt>
-                <dd className="text-sm font-semibold">{item.buddy.displayName}</dd>
-              </div>
-            ) : null}
-            {price !== null ? (
-              <div className="flex justify-between border-b border-border py-2.5">
-                <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Price (est.)</dt>
-                <dd className="text-sm font-semibold text-accent">{price.toLocaleString()} VP</dd>
-              </div>
-            ) : null}
-          </dl>
-        ) : (
-          <p className="mt-4 text-sm text-muted">No skin assigned to this slot yet.</p>
-        )}
-
-        <Link
-          href={pickerHref}
-          className="clip-notch-sm mt-6 block w-full bg-accent py-2.5 text-center text-xs font-bold uppercase tracking-widest text-white hover:bg-accent-dark transition-colors"
-        >
-          {item ? "Change Skin" : "Assign Skin"}
-        </Link>
-
-        {item ? (
-          <button
-            onClick={onClear}
-            className="clip-notch-sm mt-3 w-full border border-border py-2.5 text-xs font-semibold uppercase tracking-widest text-muted hover:text-accent hover:border-accent/40 transition-colors"
-          >
-            Clear Slot
-          </button>
-        ) : null}
-      </div>
+        </>
+      ) : null}
     </div>
   );
 }

@@ -26,3 +26,13 @@ export function sortByWeaponOrder<T extends { category: string | null; displayNa
     return a.displayName.localeCompare(b.displayName);
   });
 }
+
+// Which categories stack together in one column of the loadout board, per
+// the reference loadout-chart layout: Sidearms alone; SMGs+Shotguns;
+// Rifles+Melee; Snipers+Heavy machine guns.
+export const BOARD_COLUMN_GROUPS: readonly (readonly string[])[] = [
+  ["Sidearm"],
+  ["SMG", "Shotgun"],
+  ["Rifle", "Melee"],
+  ["Sniper", "Heavy"],
+];
