@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { valorantApi } from "@/lib/valorant-api";
 import { runBatched } from "@/lib/batch";
-import { extractColorFamily } from "@/lib/color";
+import { extractBuddyColorFamily } from "@/lib/color";
 
 export async function syncContentTiers() {
   const tiers = await valorantApi.getContentTiers();
@@ -54,7 +54,7 @@ export async function syncBuddies() {
     // Same ingest-time-only rule as skins/chromas: only extract for buddies
     // that don't have a color yet, never re-run on unchanged rows.
     if (buddyRow.colorFamily === null && buddyRow.displayIconUrl) {
-      const colorFamily = await extractColorFamily(buddyRow.displayIconUrl);
+      const colorFamily = await extractBuddyColorFamily(buddyRow.displayIconUrl);
       if (colorFamily) {
         await prisma.buddy.update({ where: { id: buddyRow.id }, data: { colorFamily } });
       }
