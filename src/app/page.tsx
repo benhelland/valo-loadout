@@ -1,6 +1,7 @@
 import { listSkins, getFilterOptions, type SortOption } from "@/queries/gallery";
 import { SkinCard } from "@/components/gallery/SkinCard";
 import { FilterBar } from "@/components/gallery/FilterBar";
+import { GalleryTabs } from "@/components/gallery/GalleryTabs";
 import { Pagination } from "@/components/gallery/Pagination";
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -40,6 +41,8 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
 
   return (
     <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-8">
+      <GalleryTabs active="skins" />
+
       <div className="mb-6 flex items-baseline gap-4 border-l-4 border-accent pl-4">
         <h1 className="font-display text-5xl uppercase tracking-wide leading-none">All Skins</h1>
         <p className="text-sm uppercase tracking-wide text-muted">

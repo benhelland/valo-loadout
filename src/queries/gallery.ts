@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { VIBE_TAGS } from "@/lib/vibeTagging";
+import { fuzzyScore } from "@/lib/fuzzyMatch";
 
 export const PAGE_SIZE = 48;
 
@@ -18,7 +19,25 @@ export interface GalleryFilters {
   page?: number;
 }
 
-function buildWhere(filters: GalleryFilters): Prisma.SkinWhereInput {
+// Bounded to 1 row each - a cheap fallback source for SkinCard's image when
+// the skin's own top-level displayIconUrl is null (confirmed: 47 real
+// skins). Preference is the highest level's icon (levelIndex desc) of the
+// base chroma (chromaIndex 0), since that's the base/default look at its
+// most complete. Shared between both listSkins code paths below.
+const listInclude = {
+  weapon: true,
+  contentTier: true,
+  theme: true,
+  levels: { orderBy: { levelIndex: "desc" as const }, take: 1 },
+  chromas: { orderBy: { chromaIndex: "asc" as const }, take: 1 },
+} satisfies Prisma.SkinInclude;
+
+type ListedSkin = Prisma.SkinGetPayload<{ include: typeof listInclude }>;
+
+// Everything except the text search - that's handled separately (SQL
+// `contains` when there's no search text driving the normal indexed/
+// paginated path; fuzzy-ranked in JS, see listSkins, when there is).
+function buildWhere(filters: Omit<GalleryFilters, "search">): Prisma.SkinWhereInput {
   // Exclude the catalog's ~40 non-skin entries: the stock "Standard X"
   // reskin and "Random Favorite Skin" placeholder that valorant-api.com
   // includes per weapon. Both are real rows with no content tier (verified:
@@ -47,11 +66,24 @@ function buildWhere(filters: GalleryFilters): Prisma.SkinWhereInput {
     ];
   }
 
-  if (filters.search) {
-    where.displayName = { contains: filters.search, mode: "insensitive" };
-  }
-
   return where;
+}
+
+// JS equivalent of buildOrderBy, for the fuzzy-search path below where
+// ranking already has to happen in application code - used only as a
+// tiebreaker under fuzzy-match score, never on its own while searching.
+function compareBySort(a: ListedSkin, b: ListedSkin, sort: SortOption | undefined): number {
+  switch (sort) {
+    case "alphabetical":
+      return a.displayName.localeCompare(b.displayName);
+    case "price":
+      return (a.contentTier?.rank ?? 0) - (b.contentTier?.rank ?? 0) || a.displayName.localeCompare(b.displayName);
+    case "newest":
+      return b.firstSeenInSyncAt.getTime() - a.firstSeenInSyncAt.getTime();
+    case "rarity":
+    default:
+      return (b.contentTier?.rank ?? 0) - (a.contentTier?.rank ?? 0) || a.displayName.localeCompare(b.displayName);
+  }
 }
 
 function buildOrderBy(sort: SortOption | undefined): Prisma.SkinOrderByWithRelationInput[] {
@@ -78,9 +110,36 @@ function buildOrderBy(sort: SortOption | undefined): Prisma.SkinOrderByWithRelat
 }
 
 export async function listSkins(filters: GalleryFilters) {
+  const page = Math.max(1, filters.page ?? 1);
+  const trimmedSearch = filters.search?.trim();
+
+  if (trimmedSearch && trimmedSearch.length >= 2) {
+    // Fuzzy search path: relevance ranking has to happen in JS (no fuzzy
+    // matching in SQL), so pagination/counting move here too, on the
+    // already-ranked array rather than the DB. SQL still applies every
+    // *other* filter (weapon/tier/theme/color/vibe/animation) - only the
+    // text match and the resulting order are handled here. The catalog is
+    // small enough (~1365 real skins, usually far fewer once other filters
+    // narrow it down) that fetching the full matching set and ranking in
+    // memory is simple and still fast - the same approach the search bar's
+    // predictive dropdown already uses (src/actions/search.ts).
+    const where = buildWhere(filters);
+    const candidates = await prisma.skin.findMany({ where, include: listInclude });
+
+    const ranked = candidates
+      .map((skin) => ({ skin, score: fuzzyScore(trimmedSearch, skin.displayName) }))
+      .filter((x): x is { skin: ListedSkin; score: number } => x.score !== null)
+      .sort((a, b) => b.score - a.score || compareBySort(a.skin, b.skin, filters.sort));
+
+    const total = ranked.length;
+    const skins = ranked.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => r.skin);
+    return { skins, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
+  }
+
+  // Normal path: no search text, so SQL does filtering, sorting, and
+  // pagination directly - the efficient case, and the common one.
   const where = buildWhere(filters);
   const orderBy = buildOrderBy(filters.sort);
-  const page = Math.max(1, filters.page ?? 1);
 
   const [skins, total] = await Promise.all([
     prisma.skin.findMany({
@@ -88,18 +147,7 @@ export async function listSkins(filters: GalleryFilters) {
       orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: {
-        weapon: true,
-        contentTier: true,
-        theme: true,
-        // Bounded to 1 row each - a cheap fallback source for SkinCard's
-        // image when the skin's own top-level displayIconUrl is null
-        // (confirmed: 47 real skins). Preference is the highest level's
-        // icon (levelIndex desc) of the base chroma (chromaIndex 0), since
-        // that's the base/default look at its most complete.
-        levels: { orderBy: { levelIndex: "desc" }, take: 1 },
-        chromas: { orderBy: { chromaIndex: "asc" }, take: 1 },
-      },
+      include: listInclude,
     }),
     prisma.skin.count({ where }),
   ]);
