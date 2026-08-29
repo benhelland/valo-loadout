@@ -18,7 +18,9 @@ valo-loadout is a VALORANT cosmetics webapp: a full-catalog skin gallery, a load
 - **Fuzzy predictive search** — a hand-rolled subsequence-matching scorer (not plain substring matching), so typos and skipped letters still find the right skin — e.g. "eldervndl" surfaces "Elderflame Vandal". The same scorer drives both the instant dropdown suggestions and the main grid's live filtering, so they're always consistent with each other.
 - **Auto-applying filter bar** — every filter (weapon, tier, collection, color, vibe, sort, animation, search) applies immediately on change via client-side URL navigation. No "Apply" button, no full page reloads — and all filter state still lives in the URL, so every view is a real, shareable, bookmarkable link.
 - **Rarity-first default sort** — chosen deliberately after confirming the "obvious" default (newest) was actually meaningless for a one-time-backfilled catalog.
-- **Standalone buddy gallery** (`/buddies`) — a denser browse grid sized for how small buddy icons actually are, reachable from the skin gallery via a lightweight secondary tab without competing with it as the main landing page.
+- **Standalone buddy gallery** (`/buddies`) — a denser browse grid sized for how small buddy icons actually are, with its own fuzzy search and color filter, reachable from the skin gallery via a lightweight secondary tab without competing with it as the main landing page.
+- **Buddy gallery doubles as a picker** — "Browse all buddies" from a skin sends you into the same gallery in pick mode; choosing one returns you exactly where you were with the buddy equipped and your level/chroma selection intact. Works identically from the loadout builder. The return path is validated as same-origin rather than trusted, since an unchecked redirect target is an open-redirect vector.
+- **Configurable page size** on both galleries, with the requested value validated against an allowlist — echoing a raw URL param into a query's `take` would let anyone request the entire table in one request.
 - **Stateless combo share links** — a skin + level + chroma + buddy combination encodes directly into a URL (`/combo/:encoded`, base64url) with zero database row. Anyone can share or bookmark an exact configuration instantly, with nothing to clean up or expire.
 
 ## Skin detail experience
@@ -35,6 +37,8 @@ valo-loadout is a VALORANT cosmetics webapp: a full-catalog skin gallery, a load
 - **View / Replace popup** on filled slots — "View" jumps to the exact saved combo (level/chroma/buddy) via the same combo-link codec used for sharing, not the skin's defaults.
 - **State-preserving re-edit** — reopening an already-assigned skin to tweak just the buddy keeps the previously chosen level/chroma instead of resetting everything.
 - **Multiple named loadouts** — duplicate, rename, delete, a quick switcher between them, and a running estimated VP total computed live from a static tier-price table.
+- **Revocable share links** — loadouts are private by default; opting in mints an unguessable slug (deliberately not the loadout's own id) that serves a public, read-only page. Revoking clears the slug, which genuinely kills links already sent out rather than just hiding a flag.
+- **One-click loadout image export** — renders a purpose-built, presentation-only template off-screen (not a screenshot of the live UI, buttons and all), rasterises it at 2x, and copies the PNG straight to the clipboard, with download as a fallback. Clipboard *image* writes are unsupported in some browsers and blocked outside secure contexts, so that step degrades on its own without failing the export.
 
 ## Architecture & engineering notes
 

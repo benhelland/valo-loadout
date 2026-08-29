@@ -1,10 +1,13 @@
 import { getCurrentUserId } from "@/lib/auth";
-import { listLoadouts } from "@/queries/loadouts";
+import { listLoadouts, listAllWeapons } from "@/queries/loadouts";
+import { sortByWeaponOrder } from "@/lib/weaponOrder";
 import { LoadoutListClient } from "@/components/loadouts/LoadoutListClient";
 
 export default async function LoadoutsPage() {
   const userId = await getCurrentUserId();
-  const loadouts = await listLoadouts(userId);
+  // Weapons are needed here only so each card's Share action can render the
+  // full board off-screen for image export.
+  const [loadouts, weapons] = await Promise.all([listLoadouts(userId), listAllWeapons()]);
 
   return (
     <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-8">
@@ -15,7 +18,7 @@ export default async function LoadoutsPage() {
         </p>
       </div>
 
-      <LoadoutListClient loadouts={loadouts} />
+      <LoadoutListClient loadouts={loadouts} weapons={sortByWeaponOrder(weapons)} />
     </div>
   );
 }

@@ -4,11 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createLoadout, deleteLoadout, duplicateLoadout, renameLoadout } from "@/actions/loadouts";
-import type { listLoadouts } from "@/queries/loadouts";
+import { ShareLoadoutButton } from "@/components/loadouts/ShareLoadoutButton";
+import type { listLoadouts, listAllWeapons } from "@/queries/loadouts";
 
 type LoadoutSummary = Awaited<ReturnType<typeof listLoadouts>>[number];
+type Weapon = Awaited<ReturnType<typeof listAllWeapons>>[number];
 
-export function LoadoutListClient({ loadouts }: { loadouts: LoadoutSummary[] }) {
+export function LoadoutListClient({ loadouts, weapons }: { loadouts: LoadoutSummary[]; weapons: Weapon[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
@@ -52,7 +54,7 @@ export function LoadoutListClient({ loadouts }: { loadouts: LoadoutSummary[] }) 
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {loadouts.map((loadout) => (
-            <LoadoutCard key={loadout.id} loadout={loadout} />
+            <LoadoutCard key={loadout.id} loadout={loadout} weapons={weapons} />
           ))}
         </div>
       )}
@@ -60,7 +62,7 @@ export function LoadoutListClient({ loadouts }: { loadouts: LoadoutSummary[] }) 
   );
 }
 
-function LoadoutCard({ loadout }: { loadout: LoadoutSummary }) {
+function LoadoutCard({ loadout, weapons }: { loadout: LoadoutSummary; weapons: Weapon[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isRenaming, setIsRenaming] = useState(false);
@@ -120,6 +122,12 @@ function LoadoutCard({ loadout }: { loadout: LoadoutSummary }) {
         <button onClick={handleDuplicate} disabled={isPending} className="text-muted hover:text-foreground transition-colors">
           Duplicate
         </button>
+        <ShareLoadoutButton
+          loadout={loadout}
+          weapons={weapons}
+          initialShareSlug={loadout.shareSlug}
+          variant="inline"
+        />
         <button onClick={handleDelete} disabled={isPending} className="text-muted hover:text-accent transition-colors">
           Delete
         </button>

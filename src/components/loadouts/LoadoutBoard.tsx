@@ -7,6 +7,7 @@ import Link from "next/link";
 import { clearLoadoutItem, deleteLoadout, duplicateLoadout, renameLoadout } from "@/actions/loadouts";
 import { encodeCombo } from "@/lib/comboLink";
 import { BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
+import { ShareLoadoutButton } from "@/components/loadouts/ShareLoadoutButton";
 import type { getLoadout, listAllWeapons, listLoadoutSummaries } from "@/queries/loadouts";
 
 type Loadout = NonNullable<Awaited<ReturnType<typeof getLoadout>>>;
@@ -112,6 +113,7 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
               </select>
             </label>
           ) : null}
+          <ShareLoadoutButton loadout={loadout} weapons={weapons} initialShareSlug={loadout.shareSlug} />
           <button
             onClick={handleDuplicate}
             disabled={isPending}
