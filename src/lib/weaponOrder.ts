@@ -2,7 +2,7 @@
 // purchase menu grouping (Sidearms -> SMGs -> Shotguns -> Rifles -> Snipers
 // -> Heavies -> Melee). Categories come from valorant-api.com's
 // EEquippableCategory enum (see src/lib/valorant-api.ts).
-const CATEGORY_ORDER = ["Sidearm", "SMG", "Shotgun", "Rifle", "Sniper", "Heavy", "Melee"] as const;
+export const CATEGORY_ORDER = ["Sidearm", "SMG", "Shotgun", "Rifle", "Sniper", "Heavy", "Melee"] as const;
 
 export const CATEGORY_LABELS: Record<string, string> = {
   Sidearm: "Sidearms",

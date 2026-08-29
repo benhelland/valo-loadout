@@ -50,6 +50,8 @@ The one piece worth keeping regardless of any future stack changes: the store-ch
 
 **Loadout builder implementation:** matches `PRD.md`'s "board layout" and "picker is the gallery's filter/search UI scoped to that weapon" directly - the picker (`/loadouts/[id]/weapon/[weaponId]`) reuses `FilterBar`/`SkinCard`/`Pagination` from the gallery itself (weapon filter hidden since it's locked by the slot), and assigning a skin (`/loadouts/[id]/weapon/[weaponId]/skins/[skinId]`) reuses the skin detail page verbatim (`SkinDetailView`/`SkinPreview`) with an added `loadoutContext` prop that surfaces an "Add to Loadout" action alongside the existing "Copy share link" one. Net-new code is mostly the board itself and the mutations, not a parallel picker/detail UI.
 
+The board itself (`LoadoutBoard.tsx`) mirrors the real client's Collection screen navigation, confirmed by research rather than assumed: category tabs, a row of weapons within the active category, one large focused panel for whichever weapon is selected - not a grid of all 20 slots visible simultaneously (the first version, before this was checked against the actual game). The focused panel's "Change Skin"/"Assign Skin" button is the only entry point into the picker described above.
+
 ## Data model (sketch)
 
 - `users` — id, email, auth info, created_at
