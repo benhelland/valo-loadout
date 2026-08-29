@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { BuddyPreview } from "@/components/gallery/BuddyPreview";
 import { encodeCombo } from "@/lib/comboLink";
 import type { Prisma, Buddy } from "@/generated/prisma/client";
 
@@ -35,6 +34,7 @@ export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, in
 
   const activeChroma = skin.chromas.find((c) => c.id === selectedChromaId);
   const activeLevel = skin.levels.find((l) => l.id === selectedLevelId);
+  const buddy = buddies.find((b) => b.id === selectedBuddyId);
 
   const media: Media = activeChroma
     ? {
@@ -49,11 +49,6 @@ export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, in
       };
 
   const isMelee = skin.weapon?.category === "Melee";
-  // Always a flat render, never the video - a buddy overlay only makes sense
-  // against a static image. See src/components/gallery/BuddyPreview.tsx.
-  const stillImageUrl = activeChroma
-    ? (activeChroma.fullRenderUrl ?? activeChroma.displayIconUrl ?? skin.displayIconUrl)
-    : skin.displayIconUrl;
 
   function selectLevel(id: string) {
     setSelectedLevelId(id);
@@ -106,6 +101,23 @@ export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, in
             className="object-contain p-8"
             priority
           />
+        ) : null}
+
+        {/* Buddy badge - a corner icon, not a composite onto the weapon itself.
+            Mirrors how Riot's own store/inventory UI pairs a buddy with a skin
+            (a small badge, never glued onto the gun render). Being anchored to
+            the frame corner rather than any point on the weapon means it works
+            identically over video or a still image, and needs no per-weapon
+            tuning - see docs/ARCHITECTURE.md "Buddy pairing". */}
+        {buddy?.displayIconUrl ? (
+          <div
+            title={buddy.displayName}
+            className="absolute bottom-3 right-3 h-14 w-14 rounded-full border border-white/10 bg-black/60 p-1.5 shadow-lg backdrop-blur-sm"
+          >
+            <div className="relative h-full w-full">
+              <Image src={buddy.displayIconUrl} alt={buddy.displayName} fill sizes="56px" className="object-contain" />
+            </div>
+          </div>
         ) : null}
       </div>
 
@@ -169,14 +181,23 @@ export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, in
       ) : null}
 
       {isMelee ? null : (
-        <BuddyPreview
-          weaponDisplayName={skin.weapon?.displayName}
-          stillImageUrl={stillImageUrl}
-          skinDisplayName={skin.displayName}
-          buddies={buddies}
-          buddyId={selectedBuddyId}
-          onBuddyChange={setSelectedBuddyId}
-        />
+        <div className="mt-4">
+          <label className="flex flex-col gap-1 text-xs text-muted max-w-xs">
+            Buddy
+            <select
+              value={selectedBuddyId}
+              onChange={(e) => setSelectedBuddyId(e.target.value)}
+              className="rounded border border-border bg-background px-2 py-1.5 text-sm text-foreground"
+            >
+              <option value="">None</option>
+              {buddies.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       )}
     </div>
   );
