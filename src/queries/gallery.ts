@@ -19,7 +19,15 @@ export interface GalleryFilters {
 }
 
 function buildWhere(filters: GalleryFilters): Prisma.SkinWhereInput {
-  const where: Prisma.SkinWhereInput = {};
+  // Exclude the catalog's ~40 non-skin entries: the stock "Standard X"
+  // reskin and "Random Favorite Skin" placeholder that valorant-api.com
+  // includes per weapon. Both are real rows with no content tier (verified:
+  // every contentTierId-null skin is one of these two, no false positives),
+  // so that's a reliable signal to filter the gallery on. They stay in the
+  // DB and reachable by direct /skins/[id] link - the future loadout builder
+  // needs "no skin"/"random" to be a valid per-weapon choice - just hidden
+  // from this browse listing since they're not real skins to look at.
+  const where: Prisma.SkinWhereInput = { contentTierId: { not: null } };
 
   if (filters.weaponId) where.weaponId = filters.weaponId;
   if (filters.tierId) where.contentTierId = filters.tierId;

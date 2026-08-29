@@ -23,34 +23,46 @@ interface SkinPreviewProps {
   children: React.ReactNode;
 }
 
-interface Media {
-  imageUrl: string | null;
-  videoUrl: string | null;
-  label: string;
-}
-
 export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, initialBuddyId, children }: SkinPreviewProps) {
   const defaultLevel = skin.levels[0];
   const [selectedLevelId, setSelectedLevelId] = useState<string | null>(initialLevelId ?? defaultLevel?.id ?? null);
   const [selectedChromaId, setSelectedChromaId] = useState<string | null>(initialChromaId ?? null);
   const [selectedBuddyId, setSelectedBuddyId] = useState<string>(initialBuddyId ?? "");
+  // Defaults to the still image - never auto-plays video. Switching levels/
+  // chromas while browsing shouldn't cause a video-loading flash, and there
+  // needs to be an explicit way to just look at the flat render. Video is
+  // opt-in via the Animation tab below.
+  const [showVideo, setShowVideo] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
   const activeChroma = skin.chromas.find((c) => c.id === selectedChromaId);
   const activeLevel = skin.levels.find((l) => l.id === selectedLevelId);
   const buddy = buddies.find((b) => b.id === selectedBuddyId);
 
-  const media: Media = activeChroma
-    ? {
-        imageUrl: activeChroma.fullRenderUrl ?? activeChroma.displayIconUrl ?? skin.displayIconUrl,
-        videoUrl: activeChroma.videoUrl,
-        label: activeChroma.displayName ?? skin.displayName,
-      }
-    : {
-        imageUrl: activeLevel?.displayIconUrl ?? skin.displayIconUrl,
-        videoUrl: activeLevel?.videoUrl ?? null,
-        label: activeLevel ? `Level ${activeLevel.levelIndex}` : skin.displayName,
-      };
+  // The base/default chroma always carries the API's only reliably high-res
+  // flat asset (fullRenderUrl); a level only ever has a smaller displayIcon,
+  // and that icon is chroma-agnostic (one set of level icons per skin,
+  // regardless of which color chroma is picked).
+  //
+  // Priority: an explicitly-selected chroma always wins (it's the only way
+  // to see that color). Otherwise, for skins with real level-to-level
+  // progression (verified: ~half of multi-level skins have genuinely
+  // different art per level - upgrade glow-ups etc.), prefer that level's
+  // own icon so the progression is visible, falling back to the high-res
+  // render only where a given level lacks its own. For skins with just a
+  // single level (no progression to show), always prefer the high-res
+  // render - that's what was previously falling back to a small icon and
+  // looking low-res by default.
+  const defaultChroma = skin.chromas[0];
+  const hasMultipleLevels = skin.levels.length > 1;
+  const stillImageUrl = activeChroma
+    ? (activeChroma.fullRenderUrl ?? activeChroma.displayIconUrl ?? skin.displayIconUrl)
+    : hasMultipleLevels
+      ? (activeLevel?.displayIconUrl ?? defaultChroma?.fullRenderUrl ?? defaultChroma?.displayIconUrl ?? skin.displayIconUrl)
+      : (defaultChroma?.fullRenderUrl ?? activeLevel?.displayIconUrl ?? defaultChroma?.displayIconUrl ?? skin.displayIconUrl);
+  const videoUrl = activeChroma ? activeChroma.videoUrl : (activeLevel?.videoUrl ?? defaultChroma?.videoUrl ?? null);
+  const label = activeChroma?.displayName ?? (activeLevel ? `Level ${activeLevel.levelIndex}` : skin.displayName);
+  const hasVideo = Boolean(videoUrl);
 
   const isMelee = skin.weapon?.category === "Melee";
 
@@ -85,56 +97,79 @@ export function SkinPreview({ skin, buddies, initialLevelId, initialChromaId, in
       {/* Media - the hero. Fixed tall height on large screens instead of a
           16:9 crop, so it reads as the star of the page rather than sharing
           the spotlight evenly with the sidebar. */}
-      <div className="relative border border-border bg-surface overflow-hidden aspect-video lg:aspect-auto lg:h-[640px]">
-        {media.videoUrl ? (
-          <video
-            key={media.videoUrl}
-            src={media.videoUrl}
-            poster={media.imageUrl ?? undefined}
-            autoPlay
-            muted
-            loop
-            playsInline
-            controls
-            className="absolute inset-0 h-full w-full object-contain"
-          />
-        ) : media.imageUrl ? (
-          <Image
-            key={media.imageUrl}
-            src={media.imageUrl}
-            alt={media.label}
-            fill
-            sizes="(max-width: 1024px) 100vw, 65vw"
-            className="object-contain p-10"
-            priority
-          />
-        ) : null}
-
-        {/* Targeting-bracket corner accents - purely decorative, echoes the
-            client's inspect-view framing. */}
-        <span className="pointer-events-none absolute left-3 top-3 h-6 w-6 border-l-2 border-t-2 border-accent/70" />
-        <span className="pointer-events-none absolute right-3 top-3 h-6 w-6 border-r-2 border-t-2 border-accent/70" />
-        <span className="pointer-events-none absolute left-3 bottom-3 h-6 w-6 border-l-2 border-b-2 border-accent/70" />
-        <span className="pointer-events-none absolute right-3 bottom-3 h-6 w-6 border-r-2 border-b-2 border-accent/70" />
-
-        {/* Buddy badge - a corner icon, not a composite onto the weapon
-            itself. Mirrors how Riot's own store/inventory UI pairs a buddy
-            with a skin (a badge, never glued onto the gun render). Anchored
-            to the frame corner rather than any point on the weapon, so it
-            works identically over video or a still image, with no
-            per-weapon tuning - see docs/ARCHITECTURE.md "Buddy pairing".
-            Top-right, not bottom - at this size a bottom placement would
-            sit on top of the video's native control bar on hover. */}
-        {buddy?.displayIconUrl ? (
-          <div
-            title={buddy.displayName}
-            className="absolute top-4 right-4 h-24 w-24 rounded-full border-2 border-accent/60 bg-black/60 p-2.5 shadow-lg backdrop-blur-sm"
-          >
-            <div className="relative h-full w-full">
-              <Image src={buddy.displayIconUrl} alt={buddy.displayName} fill sizes="96px" className="object-contain" />
-            </div>
+      <div>
+        {hasVideo ? (
+          <div className="mb-3 flex gap-5 text-xs font-semibold uppercase tracking-widest">
+            <button
+              onClick={() => setShowVideo(false)}
+              className={`border-b-2 pb-1 transition-colors ${
+                !showVideo ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"
+              }`}
+            >
+              Image
+            </button>
+            <button
+              onClick={() => setShowVideo(true)}
+              className={`border-b-2 pb-1 transition-colors ${
+                showVideo ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"
+              }`}
+            >
+              Animation
+            </button>
           </div>
         ) : null}
+
+        <div className="relative border border-border bg-surface overflow-hidden aspect-video lg:aspect-auto lg:h-[640px]">
+          {showVideo && videoUrl ? (
+            <video
+              key={videoUrl}
+              src={videoUrl}
+              poster={stillImageUrl ?? undefined}
+              autoPlay
+              muted
+              loop
+              playsInline
+              controls
+              className="absolute inset-0 h-full w-full object-contain"
+            />
+          ) : stillImageUrl ? (
+            <Image
+              key={stillImageUrl}
+              src={stillImageUrl}
+              alt={label}
+              fill
+              sizes="(max-width: 1024px) 100vw, 65vw"
+              className="object-contain p-10"
+              priority
+            />
+          ) : null}
+
+          {/* Targeting-bracket corner accents - purely decorative, echoes the
+              client's inspect-view framing. */}
+          <span className="pointer-events-none absolute left-3 top-3 h-6 w-6 border-l-2 border-t-2 border-accent/70" />
+          <span className="pointer-events-none absolute right-3 top-3 h-6 w-6 border-r-2 border-t-2 border-accent/70" />
+          <span className="pointer-events-none absolute left-3 bottom-3 h-6 w-6 border-l-2 border-b-2 border-accent/70" />
+          <span className="pointer-events-none absolute right-3 bottom-3 h-6 w-6 border-r-2 border-b-2 border-accent/70" />
+
+          {/* Buddy badge - a corner icon, not a composite onto the weapon
+              itself. Mirrors how Riot's own store/inventory UI pairs a buddy
+              with a skin (a badge, never glued onto the gun render). Anchored
+              to the frame corner rather than any point on the weapon, so it
+              works identically over video or a still image, with no
+              per-weapon tuning - see docs/ARCHITECTURE.md "Buddy pairing".
+              Top-right, not bottom - at this size a bottom placement would
+              sit on top of the video's native control bar on hover. */}
+          {buddy?.displayIconUrl ? (
+            <div
+              title={buddy.displayName}
+              className="absolute top-4 right-4 h-24 w-24 rounded-full border-2 border-accent/60 bg-black/60 p-2.5 shadow-lg backdrop-blur-sm"
+            >
+              <div className="relative h-full w-full">
+                <Image src={buddy.displayIconUrl} alt={buddy.displayName} fill sizes="96px" className="object-contain" />
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* Sidebar - skin info up top, then the interactive controls, all in
