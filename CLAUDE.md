@@ -47,6 +47,6 @@ Guidance for Claude (Claude Code / Cowork) when working in this repo. Read this 
 - Whether skin "animation" playback means the hosted showcase video clips valorant-api.com exposes for some tiers, or something more produced (custom-captured/rendered) — start with what the API gives us for free, treat anything fancier as a stretch goal
 - Exact Vercel Hobby-tier cron granularity (affects whether the store-check poll trigger uses Vercel Cron directly or a GitHub Actions workflow as a free fallback — see `docs/ARCHITECTURE.md`)
 
-**Reprompt the user: set up `ANTHROPIC_API_KEY`.** Vibe-tagging (`src/lib/vibeTagging.ts`) is written and type-checks but has never been run against the live API — the user deferred it since it needs its own Developer-API billing (console.anthropic.com, pay-as-you-go, separate from their Claude subscription). Bring this up again next time Phase 1 or the sync job comes up, so it actually gets verified. Estimated cost: ~$1-3 one-time backfill, pennies/year after.
-
 Resolved: stack is locked in (`docs/ARCHITECTURE.md`) — Next.js + TypeScript + Tailwind, Postgres via Neon + Prisma, Auth.js with Discord OAuth, Vercel hosting, Discord webhook notifications.
+
+Resolved: vibe-tagging (`src/lib/vibeTagging.ts`) is live and backfilled — `ANTHROPIC_API_KEY` is set, and all 1318 real skins have vibe tags (1318/1318, ~$1.15 total spend). See `docs/ARCHITECTURE.md` "Color and vibe tagging pipeline" for the prompt-tuning history and the one real data quirk found (the "Hi-DR0" collection's 8192px renders, now handled by an automatic downscale fallback).
