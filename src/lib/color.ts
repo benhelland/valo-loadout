@@ -12,14 +12,27 @@ function hueDistance(a: number, b: number): number {
   return diff > 180 ? 360 - diff : diff;
 }
 
+// black/gray/white thresholds are calibrated against real data, not guessed.
+// The original (lightPct<15 for black, lightPct>92 for white) were dead
+// zones no real skin render ever reaches: histogrammed the population-
+// weighted winning swatch's lightness across all 1318 real skins among
+// desaturated (satPct<12) results (src/scripts/histogramLightness.ts) and
+// found the darkest bottoms out at l=21%, the lightest tops out at l=81% -
+// nothing anywhere near the old cutoffs, so "black" and "white" were
+// literally unreachable buckets. That histogram showed three genuine
+// clusters with natural valleys at ~35% and ~65% (a dark cluster around
+// 20-30%, a true-gray cluster around 45-55%, a light cluster around 70-80%),
+// which is what these thresholds are set from.
 function classifyHsl([h, s, l]: [number, number, number]): string {
   const hueDeg = h * 360;
   const satPct = s * 100;
   const lightPct = l * 100;
 
-  if (lightPct < 15) return "black";
-  if (lightPct > 92 && satPct < 15) return "white";
-  if (satPct < 12) return "gray";
+  if (satPct < 12) {
+    if (lightPct < 35) return "black";
+    if (lightPct > 65) return "white";
+    return "gray";
+  }
 
   let best = HUE_FAMILIES[0];
   let bestDist = Infinity;
@@ -35,15 +48,32 @@ function classifyHsl([h, s, l]: [number, number, number]): string {
 
 const SWATCH_PRIORITY = ["Vibrant", "DarkVibrant", "LightVibrant", "Muted", "DarkMuted", "LightMuted"] as const;
 
+// Population-weighted, not priority-order. The original version returned
+// classifyHsl(swatches[0].hsl) - whichever named swatch (Vibrant, then
+// DarkVibrant, ...) happened to be non-null first, regardless of how much of
+// the image it actually represented. Confirmed on real data this was
+// silently reading near-meaningless swatches: Reaver Vandal's "Vibrant"
+// swatch had population 0 (a placeholder Vibrant.js synthesizes when it
+// can't find real vibrant content) while its real dominant color sat in
+// DarkMuted at population 24; Blackthorn Vandal's Muted swatch at
+// population 76 lost to its own Vibrant swatch at population 10 purely on
+// priority order. Structurally, this also explains why "black" and "white"
+// never appeared anywhere in 1365 skins + thousands of chromas: both can
+// only come from the two lowest-priority swatches (DarkMuted/DarkVibrant for
+// black, LightMuted/LightVibrant for white), which "Vibrant" (1st priority,
+// almost always non-null) pre-empts before they're ever considered - the
+// same class of bug already found and fixed for buddy colors
+// (extractBuddyFamilyFromPalette below), just never generalized here.
 function extractFamilyFromPalette(palette: Palette): string | null {
-  const swatches = SWATCH_PRIORITY.map((key) => palette[key]).filter((s): s is Swatch => s !== null);
+  const swatches = SWATCH_PRIORITY.map((key) => palette[key]).filter((s): s is Swatch => s !== null && s.population > 0);
   if (swatches.length === 0) return null;
 
   const families = new Set(swatches.map((s) => classifyHsl(s.hsl)));
   const distinctHueFamilies = [...families].filter((f) => f !== "black" && f !== "white" && f !== "gray");
   if (distinctHueFamilies.length >= 3) return "multicolor";
 
-  return classifyHsl(swatches[0].hsl);
+  const best = swatches.reduce((a, b) => (b.population > a.population ? b : a));
+  return classifyHsl(best.hsl);
 }
 
 // Returns null on failure (unreachable image, decode error, etc.) rather than
