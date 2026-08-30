@@ -14,21 +14,35 @@ interface SkinCardProps {
   // page. The loadout picker overrides this to route into its own
   // assign-to-slot flow instead (see /loadouts/[id]/weapon/[weaponId]).
   hrefBase?: string;
+  // The active color filter value, if any (e.g. "green"). When the skin's
+  // base look doesn't carry that color but one of its recolors does, show
+  // and link to that specific chroma instead of the default - otherwise
+  // filtering by "green" could still show a red card, which is confusing.
+  matchColor?: string;
 }
 
-export function SkinCard({ skin, hrefBase = "/skins" }: SkinCardProps) {
+export function SkinCard({ skin, hrefBase = "/skins", matchColor }: SkinCardProps) {
   const price = estimatePriceVp(skin.contentTier?.devName);
   const tierColor = tierColorToCss(skin.contentTier?.highlightColor);
 
+  // Only override anything when the base chroma (chromas[0], the default
+  // look) ISN'T what matched the filter - the common case (base already
+  // matches, or no color filter at all) stays on the untouched path below.
+  const matchedChroma = matchColor ? skin.chromas.find((c) => c.colorFamily === matchColor) : undefined;
+  const showingMatchedChroma = matchedChroma !== undefined && matchedChroma.id !== skin.chromas[0]?.id;
+
   // The skin's own displayIconUrl is null for some real skins (confirmed:
-  // 47). Fall back to the highest level we have of the base chroma - the
-  // query only fetches one of each (see src/queries/gallery.ts), ordered so
-  // levels[0] is the highest level and chromas[0] is the base/default one.
-  const imageUrl = skin.displayIconUrl ?? skin.levels[0]?.displayIconUrl ?? skin.chromas[0]?.fullRenderUrl ?? skin.chromas[0]?.displayIconUrl;
+  // 47). Fall back to the highest level we have of the base chroma, ordered
+  // so levels[0] is the highest level and chromas[0] is the base/default one.
+  const imageUrl = showingMatchedChroma
+    ? (matchedChroma.displayIconUrl ?? matchedChroma.fullRenderUrl ?? skin.displayIconUrl ?? skin.levels[0]?.displayIconUrl)
+    : (skin.displayIconUrl ?? skin.levels[0]?.displayIconUrl ?? skin.chromas[0]?.fullRenderUrl ?? skin.chromas[0]?.displayIconUrl);
+
+  const href = showingMatchedChroma ? `${hrefBase}/${skin.id}?chromaId=${matchedChroma.id}` : `${hrefBase}/${skin.id}`;
 
   return (
     <Link
-      href={`${hrefBase}/${skin.id}`}
+      href={href}
       className="clip-notch-sm group block border border-border bg-surface hover:bg-surface-hover hover:border-accent/50 transition-colors"
     >
       <div className="relative aspect-[4/3] bg-black/20">

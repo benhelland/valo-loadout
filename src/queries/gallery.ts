@@ -23,17 +23,20 @@ export interface GalleryFilters {
   pageSize?: number;
 }
 
-// Bounded to 1 row each - a cheap fallback source for SkinCard's image when
-// the skin's own top-level displayIconUrl is null (confirmed: 47 real
-// skins). Preference is the highest level's icon (levelIndex desc) of the
-// base chroma (chromaIndex 0), since that's the base/default look at its
-// most complete. Shared between both listSkins code paths below.
+// levels: bounded to 1 row - a cheap fallback source for SkinCard's image
+// when the skin's own top-level displayIconUrl is null (confirmed: 47 real
+// skins). Preference is the highest level's icon (levelIndex desc).
+//
+// chromas: the full (small, bounded - typically 1-6 rows) list, not just the
+// base one. SkinCard needs every chroma's colorFamily to pick which recolor
+// to actually display when a color filter is active and the base chroma
+// isn't the one that matched it - see SkinCard's matchColor prop.
 const listInclude = {
   weapon: true,
   contentTier: true,
   theme: true,
   levels: { orderBy: { levelIndex: "desc" as const }, take: 1 },
-  chromas: { orderBy: { chromaIndex: "asc" as const }, take: 1 },
+  chromas: { orderBy: { chromaIndex: "asc" as const } },
 } satisfies Prisma.SkinInclude;
 
 type ListedSkin = Prisma.SkinGetPayload<{ include: typeof listInclude }>;

@@ -84,7 +84,7 @@ export default async function LoadoutWeaponPickerPage({
       ) : (
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           {skins.map((skin) => (
-            <SkinCard key={skin.id} skin={skin} hrefBase={`${basePath}/skins`} />
+            <SkinCard key={skin.id} skin={skin} hrefBase={`${basePath}/skins`} matchColor={filters.color} />
           ))}
         </div>
       )}
