@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
     // assets ourselves - see docs/ARCHITECTURE.md.
     remotePatterns: [
       { protocol: "https", hostname: "media.valorant-api.com" },
+      // Discord avatar images (sign-in profile picture) - see AuthControl.tsx.
+      { protocol: "https", hostname: "cdn.discordapp.com" },
     ],
   },
 };

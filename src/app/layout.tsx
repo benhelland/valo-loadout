@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Bebas_Neue, Rajdhani } from "next/font/google";
+import { AuthControl } from "@/components/auth/AuthControl";
 import "./globals.css";
 
 // Display font for big headers - the closest free stand-in for the VALORANT
@@ -36,20 +37,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="font-display text-3xl uppercase tracking-wide leading-none">
               valo<span className="text-accent">loadout</span>
             </Link>
-            <nav className="flex items-center gap-8 text-sm font-semibold uppercase tracking-widest text-muted">
-              <Link
-                href="/"
-                className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
-              >
-                Gallery
-              </Link>
-              <Link
-                href="/loadouts"
-                className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
-              >
-                Loadouts
-              </Link>
-            </nav>
+            <div className="flex items-center gap-8">
+              <nav className="flex items-center gap-8 text-sm font-semibold uppercase tracking-widest text-muted">
+                <Link
+                  href="/"
+                  className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
+                >
+                  Gallery
+                </Link>
+                <Link
+                  href="/loadouts"
+                  className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
+                >
+                  Loadouts
+                </Link>
+              </nav>
+              <AuthControl />
+            </div>
           </div>
         </header>
 

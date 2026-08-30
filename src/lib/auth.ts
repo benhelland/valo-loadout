@@ -1,19 +1,35 @@
-import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 
-// TEMPORARY - Phase 2 mock auth. Real auth (Auth.js + Discord OAuth per
-// docs/ARCHITECTURE.md) hasn't been built yet; the loadout builder needs a
-// concept of "the current user" to exist first, so this stands in for it.
-// getCurrentUserId() is the single place that reads "who is logged in" -
-// every loadout query/action calls this instead of touching a session
-// directly, so swapping in a real Auth.js session lookup later is a
-// one-function change, not a hunt through the codebase.
-const MOCK_USER_EMAIL = "dev@valo-loadout.local";
-
+// The single place any query/action reads "who's logged in" - every loadout
+// (and, going forward, account/notification) query or action calls this
+// instead of touching the session directly, so auth logic never has to be
+// re-implemented per call site.
+//
+// middleware.ts already redirects unauthenticated requests away from every
+// protected path (/loadouts/*, /account/*) before a page or action ever
+// runs - the redirect() call below is a deliberate second layer, not
+// redundant. It's what actually protects a server action if it's ever
+// called from somewhere middleware doesn't cover (a bug in the matcher, a
+// future call site added outside those paths), so a mistake there fails
+// closed (bounce to sign-in) instead of silently running as no one / a
+// stale mock user. redirect() is safe to call from both Server Components
+// and Server Actions - Next.js handles the special thrown signal in either
+// context, as long as nothing here wraps this call in try/catch (none of
+// the current call sites in src/actions/loadouts.ts do).
 export async function getCurrentUserId(): Promise<string> {
-  const user = await prisma.user.upsert({
-    where: { email: MOCK_USER_EMAIL },
-    update: {},
-    create: { email: MOCK_USER_EMAIL, name: "Dev User" },
-  });
-  return user.id;
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    redirect("/sign-in");
+  }
+  return userId;
+}
+
+// For places that want to render differently when signed out instead of
+// forcing a redirect (e.g. the header's sign-in/account control) - returns
+// null rather than bouncing, unlike getCurrentUserId().
+export async function getOptionalUserId(): Promise<string | null> {
+  const session = await auth();
+  return session?.user?.id ?? null;
 }

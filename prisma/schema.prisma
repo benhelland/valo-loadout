@@ -13,9 +13,16 @@ datasource db {
 // --- Auth (Auth.js / NextAuth, Discord OAuth only, JWT sessions - no Session table needed) ---
 
 model User {
-  id        String   @id @default(cuid())
-  name      String?
-  email     String?  @unique
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? // required by @auth/prisma-adapter's AdapterUser shape - the OAuth
+  // sign-in path (handle-login.js in @auth/core) unconditionally passes
+  // `emailVerified: null` to createUser even for OAuth-only setups with no
+  // email provider configured. Without this column the very first Discord
+  // sign-in throws a Prisma "unknown argument" error - confirmed by reading
+  // the adapter's actual source rather than assuming the schema was already
+  // adapter-compatible just because it looked complete.
   image     String?
   createdAt DateTime @default(now())
 
