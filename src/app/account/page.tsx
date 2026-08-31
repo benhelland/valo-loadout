@@ -2,6 +2,7 @@ import Image from "next/image";
 import { auth } from "@/auth";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { maskEmail } from "@/lib/maskEmail";
 import { UnlinkRiotAccountButton } from "@/components/account/UnlinkRiotAccountButton";
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
@@ -40,7 +41,7 @@ export default async function AccountPage() {
           )}
           <div>
             <p className="font-display text-2xl uppercase tracking-wide leading-none">{session?.user?.name ?? "—"}</p>
-            {session?.user?.email ? <p className="mt-1 text-xs text-muted">{session.user.email}</p> : null}
+            {session?.user?.email ? <p className="mt-1 text-xs text-muted">{maskEmail(session.user.email)}</p> : null}
           </div>
         </div>
       </section>
