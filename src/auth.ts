@@ -3,6 +3,7 @@ import Discord, { type DiscordProfile } from "next-auth/providers/discord";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
 import { authConfig } from "@/auth.config";
+import { joinGuild } from "@/discord/bot";
 
 // Avatar-URL logic copied verbatim from @auth/core's default Discord
 // provider (node_modules/@auth/core/providers/discord.js) - only the `name`
@@ -49,7 +50,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
-  providers: [Discord({ profile: discordProfile })],
+  providers: [
+    Discord({
+      profile: discordProfile,
+      // `guilds.join` on top of the defaults ("identify email") is what lets
+      // events.signIn below silently add the user to this app's Discord
+      // server - see src/discord/bot.ts for why that has to happen at all
+      // (a bot can't DM a user it shares no server with). One extra line on
+      // Discord's own consent screen, no separate step for the user.
+      authorization: { params: { scope: "identify email guilds.join" } },
+    }),
+  ],
   callbacks: {
     ...authConfig.callbacks,
     // JWT sessions carry no server-side lookup, so the user's id has to be
@@ -88,13 +99,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user, profile, account }) {
       if (account?.provider !== "discord" || !user.id) return;
       const discord = profile as DiscordProfile | undefined;
-      if (!discord?.username) return;
-      await prisma.user
-        .update({ where: { id: user.id }, data: { name: discord.username } })
-        .catch(() => {
-          // Best-effort - a sign-in should never fail because this
-          // housekeeping update didn't land.
-        });
+      if (discord?.username) {
+        await prisma.user
+          .update({ where: { id: user.id }, data: { name: discord.username } })
+          .catch(() => {
+            // Best-effort - a sign-in should never fail because this
+            // housekeeping update didn't land.
+          });
+      }
+
+      // Fires on every Discord sign-in (new and returning users alike -
+      // this event isn't gated on isNewUser), using this login's fresh
+      // access_token. That token is NOT the same one persisted to the
+      // `accounts` table: @auth/core only calls the adapter's linkAccount
+      // (and so only ever writes access_token) the first time an account is
+      // created, never again on a returning sign-in - confirmed by reading
+      // handle-login.ts rather than assuming. Reusing a stale, possibly
+      // long-expired DB token here would silently break the join. Also
+      // idempotent and self-healing: a user who left the server gets
+      // re-added on their next sign-in, with no support request needed.
+      if (account.access_token) {
+        await joinGuild(account.providerAccountId, account.access_token).catch(() => {});
+      }
     },
   },
 });

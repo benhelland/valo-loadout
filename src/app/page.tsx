@@ -1,4 +1,6 @@
 import { listSkins, getFilterOptions, type SortOption } from "@/queries/gallery";
+import { getWishlistedSkinIds } from "@/queries/wishlist";
+import { getOptionalUserId } from "@/lib/auth";
 import { SkinCard } from "@/components/gallery/SkinCard";
 import { FilterBar } from "@/components/gallery/FilterBar";
 import { GalleryTabs } from "@/components/gallery/GalleryTabs";
@@ -39,10 +41,12 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
     pageSize,
   };
 
-  const [{ skins, total, page, pageCount }, filterOptions] = await Promise.all([
+  const [{ skins, total, page, pageCount }, filterOptions, userId] = await Promise.all([
     listSkins(filters),
     getFilterOptions(),
+    getOptionalUserId(),
   ]);
+  const wishlistedIds = userId ? await getWishlistedSkinIds(userId, skins.map((s) => s.id)) : new Set<string>();
 
   return (
     <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-8">
@@ -68,7 +72,12 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
       ) : (
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           {skins.map((skin) => (
-            <SkinCard key={skin.id} skin={skin} matchColor={filters.color} />
+            <SkinCard
+              key={skin.id}
+              skin={skin}
+              matchColor={filters.color}
+              wishlist={{ isWishlisted: wishlistedIds.has(skin.id), isSignedIn: !!userId }}
+            />
           ))}
         </div>
       )}

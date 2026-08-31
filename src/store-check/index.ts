@@ -5,6 +5,7 @@ import { extractAuthorizationCode } from "@/riot/oauth";
 import { fetchDailyShop } from "@/riot/store";
 import { RiotError, isRiotError } from "@/riot/errors";
 import { LinkedAccountStatus } from "@/generated/prisma/client";
+import { notifyWishlistMatches, notifyRiotLinkExpired } from "@/notifications";
 
 // The seam between the isolated Riot client (src/riot/, no database access)
 // and this app's data. Everything that persists anything Riot-derived lives
@@ -52,6 +53,9 @@ export async function linkRiotAccount(userId: string, pastedRedirect: string): P
       lastError: null,
       nextPollAt: new Date(),
       refreshLockedUntil: null,
+      // A fresh link resets the expiry-notification guard too, so a future
+      // expiry (of this new token) can notify again.
+      expiryNotifiedAt: null,
     },
   });
 
@@ -137,7 +141,7 @@ async function refreshWithLock(accountId: string): Promise<RiotSession> {
 export async function runShopCheck(linkedAccountId: string): Promise<ShopCheckResult> {
   const account = await prisma.linkedRiotAccount.findUnique({
     where: { id: linkedAccountId },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
   if (!account) throw new RiotError("UNEXPECTED", "Linked account not found");
 
@@ -184,9 +188,17 @@ export async function runShopCheck(linkedAccountId: string): Promise<ShopCheckRe
           lastError: null,
           lastSyncedAt: new Date(),
           nextPollAt,
+          // Clears any expiry warning from a past episode - see
+          // notifyRiotLinkExpired. Harmless no-op when it was already null.
+          expiryNotifiedAt: null,
         },
       }),
     ]);
+
+    // Wishlist-match notification is best-effort and strictly after the
+    // check's own data is safely persisted above - a Discord hiccup here
+    // must not turn a successful shop read into a reported failure.
+    await notifyWishlistMatches(account.userId, skinIds).catch(() => {});
 
     return { skinIds, unresolvedOfferIds, nextPollAt };
   } catch (err) {
@@ -261,4 +273,11 @@ async function recordFailure(linkedAccountId: string, err: unknown): Promise<voi
     where: { id: linkedAccountId },
     data: { status, lastError: message, nextPollAt },
   });
+
+  // Best-effort and deliberately last: notifyRiotLinkExpired re-reads the
+  // row (including expiryNotifiedAt) itself, so it's fine for this to run
+  // after the update above rather than racing it.
+  if (status === LinkedAccountStatus.EXPIRED) {
+    await notifyRiotLinkExpired(linkedAccountId).catch(() => {});
+  }
 }

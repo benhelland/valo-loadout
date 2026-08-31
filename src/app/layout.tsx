@@ -51,6 +51,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 >
                   Loadouts
                 </Link>
+                <Link
+                  href="/wishlist"
+                  className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
+                >
+                  Wishlist
+                </Link>
               </nav>
               <AuthControl />
             </div>

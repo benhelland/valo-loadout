@@ -31,7 +31,10 @@ export interface GalleryFilters {
 // base one. SkinCard needs every chroma's colorFamily to pick which recolor
 // to actually display when a color filter is active and the base chroma
 // isn't the one that matched it - see SkinCard's matchColor prop.
-const listInclude = {
+// Exported so other query modules (e.g. src/queries/wishlist.ts) that also
+// feed SkinCard can reuse the exact same shape instead of a near-duplicate
+// that could silently drift from what SkinCard actually expects.
+export const listInclude = {
   weapon: true,
   contentTier: true,
   theme: true,
@@ -39,7 +42,7 @@ const listInclude = {
   chromas: { orderBy: { chromaIndex: "asc" as const } },
 } satisfies Prisma.SkinInclude;
 
-type ListedSkin = Prisma.SkinGetPayload<{ include: typeof listInclude }>;
+export type ListedSkin = Prisma.SkinGetPayload<{ include: typeof listInclude }>;
 
 // Everything except the text search - that's handled separately (SQL
 // `contains` when there's no search text driving the normal indexed/

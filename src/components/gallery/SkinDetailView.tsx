@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { SkinPreview } from "@/components/gallery/SkinPreview";
+import { WishlistButton } from "@/components/gallery/WishlistButton";
 import { estimatePriceVp } from "@/lib/pricing";
 import { tierColorToCss } from "@/lib/tierColor";
 import type { Prisma, Buddy } from "@/generated/prisma/client";
@@ -20,6 +21,10 @@ interface SkinDetailViewProps {
   loadoutContext?: { loadoutId: string; weaponId: string; loadoutName: string };
   backHref?: string;
   backLabel?: string;
+  // Omitted on the loadout-assignment reuse of this view (see
+  // /loadouts/[id]/weapon/[weaponId]/skins/[skinId]) - wishlisting isn't the
+  // point of that flow, "Add to Loadout" is.
+  wishlist?: { isWishlisted: boolean; isSignedIn: boolean };
 }
 
 // Shared by the normal gallery detail page (/skins/[id]) and the stateless
@@ -39,6 +44,7 @@ export function SkinDetailView({
   loadoutContext,
   backHref = "/",
   backLabel = "← Back to gallery",
+  wishlist,
 }: SkinDetailViewProps) {
   const price = estimatePriceVp(skin.contentTier?.devName);
   const tierColor = tierColorToCss(skin.contentTier?.highlightColor);
@@ -79,6 +85,17 @@ export function SkinDetailView({
           </div>
 
           <h1 className="mt-2 font-display text-4xl uppercase tracking-wide leading-none">{skin.displayName}</h1>
+
+          {wishlist ? (
+            <div className="mt-4">
+              <WishlistButton
+                skinId={skin.id}
+                initialWishlisted={wishlist.isWishlisted}
+                isSignedIn={wishlist.isSignedIn}
+                variant="labeled"
+              />
+            </div>
+          ) : null}
 
           <dl className="mt-5 space-y-0">
             <div className="flex justify-between border-b border-border py-2.5">

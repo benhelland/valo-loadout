@@ -274,7 +274,11 @@ model LinkedRiotAccount {
   // Short, non-sensitive reason string surfaced with an ERROR/EXPIRED status
   // so the user sees why re-linking is needed. Never contains a token.
   lastError             String?
-  discordWebhookUrl     String?
+  // Set the first time we DM the user that this link expired, so recordFailure
+  // (src/store-check/) doesn't re-notify on every subsequent failed poll or
+  // manual "check shop now" click. Cleared back to null on every successful
+  // (re)link - see linkRiotAccount - so a future expiry notifies again.
+  expiryNotifiedAt      DateTime?
   lastSyncedAt          DateTime?
   nextPollAt            DateTime? // derived from the account's own shop reset time, not a blind interval
   createdAt             DateTime            @default(now())
@@ -303,7 +307,10 @@ model SkinSightingStat {
 }
 
 enum NotificationChannel {
-  DISCORD_WEBHOOK
+  // A bot DM, not a manually-configured per-user webhook - see
+  // docs/ARCHITECTURE.md "Notifications". Delivered automatically off the
+  // user's existing Discord OAuth sign-in; no separate setup step.
+  DISCORD_DM
 }
 
 model NotificationSent {
@@ -314,7 +321,8 @@ model NotificationSent {
   skin      Skin                @relation(fields: [skinId], references: [id], onDelete: Cascade)
   channel   NotificationChannel
   sentAt    DateTime            @default(now())
-  // Dedupe: check for an existing row since the account's last reset before sending.
+  // Dedupe: src/notifications/ checks for an existing row within a rolling
+  // window (roughly one shop cycle) before sending - see notifyWishlistMatches.
 
   @@index([userId, skinId, sentAt])
   @@map("notifications_sent")
