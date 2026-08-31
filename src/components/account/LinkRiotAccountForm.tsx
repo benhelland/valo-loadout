@@ -3,69 +3,69 @@
 import { useState, useTransition } from "react";
 import { linkRiotAccountAction, type RiotActionResult } from "@/actions/riotAccount";
 
-export function LinkRiotAccountForm() {
-  const [ssid, setSsid] = useState("");
+export function LinkRiotAccountForm({ authorizeUrl }: { authorizeUrl: string }) {
+  const [redirectUrl, setRedirectUrl] = useState("");
   const [result, setResult] = useState<RiotActionResult | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!ssid.trim()) return;
+    if (!redirectUrl.trim()) return;
     startTransition(async () => {
-      const next = await linkRiotAccountAction(ssid);
+      const next = await linkRiotAccountAction(redirectUrl);
       setResult(next);
-      // Clear the field either way - it's a live session credential and there
-      // is no reason for it to sit in the DOM after submission.
-      setSsid("");
+      // The pasted value contains a single-use authorization code. It's spent
+      // now either way, so there's no reason to leave it sitting in the DOM.
+      setRedirectUrl("");
     });
   }
 
   return (
     <div>
-      <ol className="mt-4 space-y-2 text-xs text-muted">
+      <ol className="mt-4 space-y-3 text-xs text-muted">
         <li>
-          <span className="font-semibold text-foreground">1.</span> Sign in at{" "}
+          <span className="font-semibold text-foreground">1.</span> Sign in on Riot&rsquo;s own site:
           <a
-            href="https://auth.riotgames.com/login"
+            href={authorizeUrl}
             target="_blank"
             rel="noreferrer"
-            className="underline hover:text-foreground"
+            className="clip-notch-sm mt-2 flex w-full items-center justify-center bg-[#d13639] px-6 py-2.5 text-sm font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#b02d30]"
           >
-            auth.riotgames.com
-          </a>{" "}
-          in your own browser, the normal way.
+            Sign in with Riot
+          </a>
         </li>
         <li>
-          <span className="font-semibold text-foreground">2.</span> Open DevTools (F12) →{" "}
-          <span className="text-foreground">Application</span> → <span className="text-foreground">Cookies</span> →{" "}
-          <span className="text-foreground">https://auth.riotgames.com</span>
+          <span className="font-semibold text-foreground">2.</span> After signing in you&rsquo;ll land on a page that{" "}
+          <strong className="text-foreground">fails to load</strong> (the address starts with{" "}
+          <code className="bg-background px-1">http://localhost/redirect</code>). That is expected &mdash; nothing is
+          supposed to be running there.
         </li>
         <li>
-          <span className="font-semibold text-foreground">3.</span> Find the cookie named{" "}
-          <code className="bg-background px-1 text-foreground">ssid</code> and copy its <em>Value</em> (just the value).
+          <span className="font-semibold text-foreground">3.</span> Copy that whole address out of your browser&rsquo;s
+          address bar and paste it below.
         </li>
       </ol>
 
       <form onSubmit={handleSubmit} className="mt-4">
         <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
-          ssid cookie value
+          Redirect address
           <input
             type="password"
-            value={ssid}
-            onChange={(e) => setSsid(e.target.value)}
+            value={redirectUrl}
+            onChange={(e) => setRedirectUrl(e.target.value)}
             autoComplete="off"
             spellCheck={false}
-            placeholder="Paste the ssid value here"
+            placeholder="http://localhost/redirect?code=..."
             className="rounded-none border border-border bg-background px-3 py-2 font-mono text-sm text-foreground focus:border-accent focus:outline-none transition-colors"
           />
         </label>
 
         <button
           type="submit"
-          disabled={isPending || !ssid.trim()}
+          disabled={isPending || !redirectUrl.trim()}
           className="clip-notch-sm mt-3 bg-accent px-6 py-2 text-sm font-bold uppercase tracking-widest text-white transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isPending ? "Linking…" : "Link account"}
+          {isPending ? "Linking…" : "Finish linking"}
         </button>
       </form>
 
@@ -80,9 +80,9 @@ export function LinkRiotAccountForm() {
       ) : null}
 
       <p className="mt-4 text-[11px] text-muted">
-        Treat this value like a password - it grants access to your Riot session. We encrypt it before storing it, only
-        ever send it to Riot, and delete it the moment you unlink. It typically stops working after about a week, at
-        which point you&rsquo;ll need to repeat these steps.
+        You sign in on Riot&rsquo;s own page &mdash; we never see your password. The address you paste contains a
+        single-use code that expires within minutes; we exchange it for a token, encrypt that, and delete it the moment
+        you unlink.
       </p>
     </div>
   );

@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
-import { createSessionFromSsid } from "@/riot/auth";
+import { createSessionFromCode, createSessionFromRefreshToken, type RiotSession } from "@/riot/auth";
+import { extractAuthorizationCode } from "@/riot/oauth";
 import { fetchDailyShop } from "@/riot/store";
 import { RiotError, isRiotError } from "@/riot/errors";
-import { assertUsableSsid } from "@/riot/ssid";
 import { LinkedAccountStatus } from "@/generated/prisma/client";
 
 // The seam between the isolated Riot client (src/riot/, no database access)
@@ -19,27 +19,21 @@ export interface LinkResult {
 }
 
 /**
- * Validates a pasted `ssid` by actually using it, then stores it encrypted.
- * The cookie is proven to work before anything is written, so a bad paste
- * fails immediately with a clear reason instead of creating a dead row that
- * only errors on the next scheduled poll.
+ * Completes the OAuth link. The code is validated, redeemed, and the
+ * resulting refresh token stored encrypted. The code is proven to work before
+ * anything is written, so a bad paste fails immediately with a clear reason
+ * rather than creating a dead row that only errors on the next poll.
  */
-export async function linkRiotAccount(userId: string, rawSsid: string): Promise<LinkResult> {
-  const ssid = rawSsid.trim();
-  assertUsableSsid(ssid);
-
-  const session = await createSessionFromSsid(ssid);
-
-  // Riot may hand back a rolled cookie during that exchange; storing the
-  // newest one is what keeps a link alive longest.
-  const toStore = session.refreshedSsid ?? ssid;
+export async function linkRiotAccount(userId: string, pastedRedirect: string): Promise<LinkResult> {
+  const code = extractAuthorizationCode(pastedRedirect);
+  const session = await createSessionFromCode(code);
 
   const linked = await prisma.linkedRiotAccount.upsert({
     where: { userId_puuid: { userId, puuid: session.puuid } },
     create: {
       userId,
       puuid: session.puuid,
-      encryptedSessionToken: encryptSecret(toStore),
+      encryptedRefreshToken: encryptSecret(session.refreshToken),
       region: session.region,
       riotGameName: session.gameName,
       riotTagLine: session.tagLine,
@@ -50,13 +44,14 @@ export async function linkRiotAccount(userId: string, rawSsid: string): Promise<
       nextPollAt: new Date(),
     },
     update: {
-      encryptedSessionToken: encryptSecret(toStore),
+      encryptedRefreshToken: encryptSecret(session.refreshToken),
       region: session.region,
       riotGameName: session.gameName,
       riotTagLine: session.tagLine,
       status: LinkedAccountStatus.ACTIVE,
       lastError: null,
       nextPollAt: new Date(),
+      refreshLockedUntil: null,
     },
   });
 
@@ -69,25 +64,85 @@ export async function linkRiotAccount(userId: string, rawSsid: string): Promise<
 }
 
 export interface ShopCheckResult {
-  /** Skin ids resolved from the rotation, in offer order. */
   skinIds: string[];
-  /** Offer ids we couldn't resolve - almost always a skin not yet synced. */
   unresolvedOfferIds: string[];
   nextPollAt: Date;
 }
 
+// How long a refresh may hold the lease. Long enough for the OAuth round trip
+// plus the three follow-up calls; short enough that a crashed run frees the
+// account well before its next daily poll.
+const REFRESH_LOCK_MS = 60_000;
+
+/**
+ * Takes an exclusive lease on refreshing this account, refreshes, and stores
+ * the rotated token.
+ *
+ * This lock is load-bearing, not defensive padding. Riot rotates the refresh
+ * token on every use, so two overlapping refreshes (a cron run and a user
+ * clicking "check shop now", or two cron invocations) would each invalidate
+ * the other's token and permanently break the link. The conditional UPDATE is
+ * atomic in Postgres: exactly one caller can transition the row from
+ * "unlocked" to "locked", and everyone else gets zero rows back.
+ */
+async function refreshWithLock(accountId: string): Promise<RiotSession> {
+  const now = new Date();
+  const claimed = await prisma.linkedRiotAccount.updateMany({
+    where: {
+      id: accountId,
+      OR: [{ refreshLockedUntil: null }, { refreshLockedUntil: { lt: now } }],
+    },
+    data: { refreshLockedUntil: new Date(now.getTime() + REFRESH_LOCK_MS) },
+  });
+
+  if (claimed.count === 0) {
+    throw new RiotError("UNAVAILABLE", "A shop check for this account is already running. Try again in a moment.");
+  }
+
+  try {
+    // Re-read inside the lease: another run may have rotated the token
+    // between our read and our claim.
+    const account = await prisma.linkedRiotAccount.findUnique({
+      where: { id: accountId },
+      select: { encryptedRefreshToken: true },
+    });
+    if (!account) throw new RiotError("UNEXPECTED", "Linked account not found");
+
+    const session = await createSessionFromRefreshToken(decryptSecret(account.encryptedRefreshToken));
+
+    // Persist the rotated token immediately - before any of the work that
+    // uses it. If the shop call later fails, we must still have stored the
+    // only refresh token that now works.
+    await prisma.linkedRiotAccount.update({
+      where: { id: accountId },
+      data: { encryptedRefreshToken: encryptSecret(session.refreshToken), refreshLockedUntil: null },
+    });
+
+    return session;
+  } catch (err) {
+    // Release the lease on failure so a transient error doesn't wedge the
+    // account for the full lock duration.
+    await prisma.linkedRiotAccount
+      .update({ where: { id: accountId }, data: { refreshLockedUntil: null } })
+      .catch(() => {});
+    throw err;
+  }
+}
+
 /**
  * One poll for one linked account: refresh the session, read the rotation,
- * record what was seen. Never throws for expected failure modes - it records
- * the status on the account and rethrows only so the caller can log/count.
+ * record what was seen. Records the failure reason on the account before
+ * rethrowing, so the caller only has to count outcomes.
  */
 export async function runShopCheck(linkedAccountId: string): Promise<ShopCheckResult> {
-  const account = await prisma.linkedRiotAccount.findUnique({ where: { id: linkedAccountId } });
+  const account = await prisma.linkedRiotAccount.findUnique({
+    where: { id: linkedAccountId },
+    select: { id: true },
+  });
   if (!account) throw new RiotError("UNEXPECTED", "Linked account not found");
 
   try {
-    const ssid = decryptSecret(account.encryptedSessionToken);
-    const session = await createSessionFromSsid(ssid);
+    const session = await refreshWithLock(account.id);
     const shop = await fetchDailyShop(session);
 
     // Offers are skin *level* ids; the gallery is keyed by skin. Levels we
@@ -113,8 +168,8 @@ export async function runShopCheck(linkedAccountId: string): Promise<ShopCheckRe
     const nextPollAt = new Date(Date.now() + shop.resetInSeconds * 1000 + 60_000 + jitterMs);
 
     await prisma.$transaction([
-      // Upsert one row per (account, skin) ever seen - bounded by catalog
-      // size, not time. Powers "last seen N days ago" / "seen N times".
+      // One row per (account, skin) ever seen - bounded by catalog size, not
+      // time. Powers "last seen N days ago" / "seen N times".
       ...skinIds.map((skinId) =>
         prisma.skinSightingStat.upsert({
           where: { linkedRiotAccountId_skinId: { linkedRiotAccountId: account.id, skinId } },
@@ -129,8 +184,6 @@ export async function runShopCheck(linkedAccountId: string): Promise<ShopCheckRe
           lastError: null,
           lastSyncedAt: new Date(),
           nextPollAt,
-          // Roll the cookie forward if Riot issued a new one.
-          ...(session.refreshedSsid ? { encryptedSessionToken: encryptSecret(session.refreshedSsid) } : {}),
         },
       }),
     ]);
@@ -200,8 +253,8 @@ async function recordFailure(linkedAccountId: string, err: unknown): Promise<voi
   const status = riotError?.accountStatus ?? LinkedAccountStatus.ERROR;
 
   // A retryable blip shouldn't push the account to tomorrow - try again in an
-  // hour. A non-retryable one (expired session, hard block) waits for the
-  // user to act, so it gets no next poll at all rather than a retry loop.
+  // hour. A non-retryable one (expired login, hard block) waits for the user,
+  // so it gets no next poll at all rather than a retry loop.
   const nextPollAt = riotError?.isRetryable ? new Date(Date.now() + 60 * 60 * 1000) : null;
 
   await prisma.linkedRiotAccount.update({

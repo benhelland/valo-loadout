@@ -251,10 +251,17 @@ model LinkedRiotAccount {
   id                    String              @id @default(cuid())
   userId                String
   user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // AES-256-GCM ciphertext (src/lib/crypto.ts) of the Riot `ssid` session
-  // cookie. Never a password - we never receive one; see docs/ARCHITECTURE.md
-  // "Riot account linking" for why the password flow was abandoned.
-  encryptedSessionToken String
+  // AES-256-GCM ciphertext (src/lib/crypto.ts) of the Riot OAuth *refresh*
+  // token. Never a password - we never receive one; see docs/ARCHITECTURE.md
+  // "Store-check subsystem detail" for why the password flow was abandoned.
+  //
+  // Riot rotates this on every use, so it is rewritten on every successful
+  // refresh. Two concurrent refreshes would each invalidate the other's token
+  // and kill the link outright, which is what refreshLockedUntil prevents.
+  encryptedRefreshToken String
+  // Short-lived lease held while a refresh is in flight. A poll that can't
+  // take the lease skips rather than racing.
+  refreshLockedUntil    DateTime?
   region                String? // resolved shard from riot-geo affinities.live - the shop endpoint is region-specific
   // Needed to address the storefront endpoint (/store/v3/storefront/{puuid}).
   puuid                 String?

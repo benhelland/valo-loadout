@@ -77,10 +77,16 @@ export function redactUrl(url: string): string {
 export interface RiotFetchOptions {
   method?: "GET" | "POST" | "PUT";
   headers?: Record<string, string>;
+  /** Serialised as JSON. Mutually exclusive with `rawBody`. */
   body?: unknown;
+  /**
+   * Pre-encoded body, sent verbatim. Riot's OAuth token endpoint requires
+   * `application/x-www-form-urlencoded`, not JSON - passing a URLSearchParams
+   * string through `body` would have JSON-quoted it into garbage.
+   */
+  rawBody?: string;
   cookie?: string;
-  // Reauth needs the 3xx itself, not the followed redirect - the tokens are
-  // in the Location header.
+  // Some flows need the 3xx itself rather than the followed redirect.
   redirect?: "follow" | "manual";
 }
 
@@ -96,15 +102,20 @@ export async function riotFetch(url: string, options: RiotFetchOptions = {}): Pr
       Accept: "application/json",
       ...options.headers,
     };
+    // Only default the content type for JSON bodies - a rawBody caller sets
+    // its own (and would break if this stomped it).
     if (options.body !== undefined) headers["Content-Type"] = "application/json";
     if (options.cookie) headers["Cookie"] = options.cookie;
+
+    const body =
+      options.rawBody !== undefined ? options.rawBody : options.body === undefined ? undefined : JSON.stringify(options.body);
 
     let response: Response;
     try {
       response = await fetch(url, {
         method: options.method ?? "GET",
         headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        body,
         redirect: options.redirect ?? "follow",
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });

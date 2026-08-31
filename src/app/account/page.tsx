@@ -1,5 +1,7 @@
 import Image from "next/image";
+import { randomUUID } from "node:crypto";
 import { auth } from "@/auth";
+import { buildAuthorizeUrl } from "@/riot/oauth";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { maskEmail } from "@/lib/maskEmail";
@@ -153,18 +155,18 @@ export default async function AccountPage() {
                   in any way.
                 </li>
                 <li>
-                  <strong>We never see your password.</strong> You sign in to Riot yourself and hand us only the
-                  resulting session cookie, which we encrypt before storing. Your password never reaches our
-                  servers, not even for an instant.
+                  <strong>We never see your password.</strong> You sign in on Riot&rsquo;s own page and we receive
+                  only a short-lived, single-use code, which we exchange for an access token and store encrypted.
+                  Your password never reaches our servers, not even for an instant.
                 </li>
                 <li>
-                  You can unlink at any time, which deletes the stored session cookie immediately and stops
-                  all checking.
+                  You can unlink at any time, which deletes the stored token immediately and stops all
+                  checking.
                 </li>
               </ul>
             </div>
 
-            <LinkRiotAccountForm />
+            <LinkRiotAccountForm authorizeUrl={buildAuthorizeUrl(randomUUID())} />
           </div>
         )}
       </section>
