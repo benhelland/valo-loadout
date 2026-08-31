@@ -50,10 +50,15 @@ export function buildAuthorizeUrl(nonce: string): string {
   return `${AUTH_ORIGIN}/authorize?${params.toString()}`;
 }
 
-// Authorization codes are opaque, but they end up in a POST body and a
-// database, so they're constrained rather than trusted. Riot's are URL-safe
-// token characters; anything outside that set means the paste is wrong.
-const CODE_PATTERN = /^[A-Za-z0-9._~-]{8,512}$/;
+// Authorization codes are opaque, but they end up in a POST body, so they're
+// constrained rather than trusted.
+//
+// The character set is base64 (both the standard "+/" and URL-safe "-_"
+// alphabets) plus "=" padding. An earlier, narrower set omitted "=" and
+// rejected every real code Riot issues - they're padded base64, e.g.
+// "dXcxOjRK…LXg3ZnJvN25CNlRLZi1XQQ==". Caught only by a real link attempt,
+// because the hand-written test fixtures happened to be unpadded.
+const CODE_PATTERN = /^[A-Za-z0-9._~+/=-]{8,512}$/;
 
 /**
  * Accepts either the whole redirect URL the user landed on, or a bare code.
@@ -69,23 +74,19 @@ export function extractAuthorizationCode(input: string): string {
   let candidate: string | null = null;
 
   if (trimmed.includes("code=")) {
-    try {
-      // Parse against a base so a pasted path-only fragment still works.
-      const url = new URL(trimmed, "http://localhost");
-      candidate = url.searchParams.get("code");
-    } catch {
-      candidate = null;
-    }
-    // Fallback for values that aren't parseable as a URL (a stray space, a
-    // truncated paste) but still clearly contain the parameter.
-    if (!candidate) {
-      candidate = /[?&]code=([^&\s]+)/.exec(trimmed)?.[1] ?? null;
-    }
+    // Deliberately a raw substring match rather than URL.searchParams.get().
+    // URLSearchParams applies form-decoding, which turns "+" into a space -
+    // and these codes are base64, where "+" is a legitimate character. Using
+    // it would silently corrupt any code containing one. decodeURIComponent
+    // below still handles real %XX escapes but leaves "+" alone, which is the
+    // behaviour we actually want here.
+    candidate = /[?&]code=([^&\s]+)/.exec(trimmed)?.[1] ?? null;
     if (candidate) {
       try {
         candidate = decodeURIComponent(candidate);
       } catch {
-        // Leave it as-is; the pattern check below is the real gate.
+        // Not valid percent-encoding - leave as-is and let the pattern check
+        // below be the gate.
       }
     }
   } else {

@@ -47,6 +47,34 @@ describe("extractAuthorizationCode", () => {
     assert.equal(extractAuthorizationCode("http://localhost/redirect?code=abc%2Ddef123456"), "abc-def123456");
   });
 
+  // --- Regressions from a real, failed link attempt -----------------------
+  // The fixtures above were all hand-written and happened to be unpadded, so
+  // they missed what Riot actually issues. Codes below mirror the real shape
+  // (padded base64) without reproducing an actual credential.
+
+  it("accepts a padded base64 code from a real Riot redirect", () => {
+    // Riot's codes end in "=" padding. An earlier character set omitted "="
+    // and so rejected every genuine code.
+    const real = "dXcxOjRKWXBTX2ZWLVRtRUZ.LVFhOS1GS3cuRnNmamxn-Xg3ZnJvN25CNlRLZi1XQQ==";
+    const redirect =
+      "http://localhost/redirect?iss=https%3A%2F%2Fauth.riotgames.com" +
+      "&session_state=bRy8ZE5M63yPO0Yxd8HHfysSvn0k_fWoIVAgIfG9_5w.aLdRZwTkaQ2EtECvo4HTng" +
+      `&code=${real}`;
+    assert.equal(extractAuthorizationCode(redirect), real);
+  });
+
+  it("preserves '+' in a code instead of form-decoding it to a space", () => {
+    // URLSearchParams.get() would turn "+" into " " and silently corrupt a
+    // standard-base64 code. Extraction deliberately avoids that path.
+    const withPlus = "abc+def/ghi=jkl12345";
+    assert.equal(extractAuthorizationCode(`http://localhost/redirect?code=${withPlus}`), withPlus);
+  });
+
+  it("takes the code even when it is not the first query parameter", () => {
+    const code = "Zm9vYmFyYmF6cXV4MTIzNA==";
+    assert.equal(extractAuthorizationCode(`http://localhost/redirect?iss=x&session_state=y&code=${code}`), code);
+  });
+
   it("rejects the authorize URL (the most likely mis-paste)", () => {
     // Copying the link they were *sent* rather than the one they landed on.
     assert.throws(
