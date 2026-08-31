@@ -4,6 +4,8 @@ import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { maskEmail } from "@/lib/maskEmail";
 import { UnlinkRiotAccountButton } from "@/components/account/UnlinkRiotAccountButton";
+import { CheckShopNowButton } from "@/components/account/CheckShopNowButton";
+import { LinkRiotAccountForm } from "@/components/account/LinkRiotAccountForm";
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   ACTIVE: { label: "Active", tone: "text-green-400" },
@@ -18,6 +20,22 @@ export default async function AccountPage() {
   const userId = await getCurrentUserId();
   const session = await auth();
   const linkedAccounts = await prisma.linkedRiotAccount.findMany({ where: { userId } });
+
+  // The four most recently seen skins per linked account - the visible payoff
+  // that a shop check actually ran, and the fastest way to eyeball whether the
+  // offer-id -> skin mapping resolved correctly.
+  const recentSightings = await prisma.skinSightingStat.findMany({
+    where: { linkedRiotAccountId: { in: linkedAccounts.map((a) => a.id) } },
+    orderBy: { lastSeenAt: "desc" },
+    take: 4 * Math.max(1, linkedAccounts.length),
+    include: { skin: { select: { displayName: true, displayIconUrl: true } } },
+  });
+  const recentByAccount = new Map<string, typeof recentSightings>();
+  for (const stat of recentSightings) {
+    const bucket = recentByAccount.get(stat.linkedRiotAccountId) ?? [];
+    if (bucket.length < 4) bucket.push(stat);
+    recentByAccount.set(stat.linkedRiotAccountId, bucket);
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">
@@ -58,19 +76,58 @@ export default async function AccountPage() {
           <div className="mt-4 space-y-3">
             {linkedAccounts.map((account) => {
               const status = STATUS_LABEL[account.status] ?? { label: account.status, tone: "text-muted" };
+              const riotId = account.riotGameName
+                ? `${account.riotGameName}#${account.riotTagLine ?? "?"}`
+                : "Riot account";
               return (
                 <div key={account.id} className="clip-notch-sm border border-border bg-background p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className={`text-sm font-semibold ${status.tone}`}>{status.label}</p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-display text-xl uppercase tracking-wide leading-none">
+                        {riotId}
+                        {account.region ? (
+                          <span className="ml-2 text-xs tracking-widest text-muted">{account.region.toUpperCase()}</span>
+                        ) : null}
+                      </p>
+                      <p className={`mt-2 text-sm font-semibold ${status.tone}`}>{status.label}</p>
+                      {/* Only ever a message this codebase authored - never a
+                          token or raw upstream error body. */}
+                      {account.lastError ? <p className="mt-1 text-xs text-muted">{account.lastError}</p> : null}
                       <p className="mt-1 text-xs text-muted">
                         {account.lastSyncedAt
                           ? `Last checked ${account.lastSyncedAt.toLocaleString()}`
                           : "Not checked yet"}
                       </p>
                     </div>
-                    <UnlinkRiotAccountButton linkedAccountId={account.id} />
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <UnlinkRiotAccountButton linkedAccountId={account.id} />
+                      <CheckShopNowButton linkedAccountId={account.id} />
+                    </div>
                   </div>
+
+                  {recentByAccount.get(account.id)?.length ? (
+                    <div className="mt-4 border-t border-border pt-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Most recently seen</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {recentByAccount.get(account.id)!.map((stat) => (
+                          <div key={stat.skinId} className="clip-notch-sm border border-border bg-surface p-2">
+                            <div className="relative h-12">
+                              {stat.skin.displayIconUrl ? (
+                                <Image
+                                  src={stat.skin.displayIconUrl}
+                                  alt={stat.skin.displayName}
+                                  fill
+                                  sizes="160px"
+                                  className="object-contain"
+                                />
+                              ) : null}
+                            </div>
+                            <p className="mt-1 truncate text-[10px] text-muted">{stat.skin.displayName}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -96,30 +153,18 @@ export default async function AccountPage() {
                   in any way.
                 </li>
                 <li>
-                  Your Riot password is used only for the instant it takes to sign you in, then discarded -
-                  it is never stored, by us or in our database, in any form.
+                  <strong>We never see your password.</strong> You sign in to Riot yourself and hand us only the
+                  resulting session cookie, which we encrypt before storing. Your password never reaches our
+                  servers, not even for an instant.
                 </li>
                 <li>
-                  You can unlink at any time, which deletes the stored session token immediately and stops
+                  You can unlink at any time, which deletes the stored session cookie immediately and stops
                   all checking.
                 </li>
               </ul>
             </div>
 
-            <div className="clip-notch-sm mt-4 flex items-center justify-between gap-4 border border-dashed border-border bg-background p-4">
-              <p className="text-xs text-muted">
-                <span className="font-semibold text-foreground">Coming soon.</span> The account-linking flow
-                itself (handling your Riot login, 2FA, and encrypting the resulting session) is still being
-                built with the extra security review this specific piece needs before it goes live.
-              </p>
-              <button
-                type="button"
-                disabled
-                className="clip-notch-sm shrink-0 cursor-not-allowed bg-accent/30 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white/50"
-              >
-                Link Riot account
-              </button>
-            </div>
+            <LinkRiotAccountForm />
           </div>
         )}
       </section>

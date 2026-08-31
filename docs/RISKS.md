@@ -15,6 +15,11 @@ This project made a deliberate, informed choice to build store notifications on 
 
 **Known limitation, not a bug to "fix":** Riot's auth endpoint can return a CAPTCHA challenge on some accounts or after repeated attempts, which this unofficial flow cannot solve. Some accounts simply won't be linkable this way, sometimes intermittently. Handle this as an honest status (`captcha_blocked`) surfaced to the user, not something to work around with retries — retrying into a CAPTCHA wall is exactly the aggressive-polling pattern that risks drawing attention (see above).
 
+**Update (2026-08-31), on implementing this:** the above understated it. CAPTCHA is no longer an occasional per-account edge case — `PUT /api/v1/authorization` now takes an hCaptcha token as a *required* field, so password login is CAPTCHA-gated for everyone, always. The password flow was therefore never built; account linking uses cookie reauth instead, and our servers never receive a password at all. See `ARCHITECTURE.md` → "Store-check subsystem detail". Two consequences worth keeping in view:
+
+- **The "never store a raw password" rule got easier to honour, not harder.** There is no password to mishandle. The stored secret is a session cookie, encrypted at rest, deletable by the user at any time from `/account`.
+- **A second, newer wall sits behind the CAPTCHA one: Cloudflare, which is hardest on datacenter IPs.** The known mitigations in this space are proxy rotation and residential hosting. Proxy rotation is bot-detection evasion and is **deliberately not implemented** — it's precisely the "behavior most likely to draw attention" this document already warns about. Running the poller from a machine that isn't blocked in the first place is a different thing and is supported (`npm run check-shops`). If the only way to keep this feature working ever becomes active evasion, that is the signal to drop the feature, not to escalate — the isolation of the store-check module exists so that stays a cheap decision.
+
 ## Credential handling risk
 
 - Never persist a user's raw Riot password. Use it only transiently during the auth handshake to obtain a session token/cookie, then discard it.

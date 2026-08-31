@@ -251,9 +251,22 @@ model LinkedRiotAccount {
   id                    String              @id @default(cuid())
   userId                String
   user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  encryptedSessionToken String // AES-256-GCM ciphertext - never the raw password
-  region                String? // resolved shard/region (PAS token) - the shop endpoint is region-specific
+  // AES-256-GCM ciphertext (src/lib/crypto.ts) of the Riot `ssid` session
+  // cookie. Never a password - we never receive one; see docs/ARCHITECTURE.md
+  // "Riot account linking" for why the password flow was abandoned.
+  encryptedSessionToken String
+  region                String? // resolved shard from riot-geo affinities.live - the shop endpoint is region-specific
+  // Needed to address the storefront endpoint (/store/v3/storefront/{puuid}).
+  puuid                 String?
+  // Shown on /account so a user can confirm *which* account got linked - the
+  // only way to catch having pasted a cookie for the wrong account. Kept to
+  // the in-game display name only, nothing further (data minimization).
+  riotGameName          String?
+  riotTagLine           String?
   status                LinkedAccountStatus @default(ACTIVE)
+  // Short, non-sensitive reason string surfaced with an ERROR/EXPIRED status
+  // so the user sees why re-linking is needed. Never contains a token.
+  lastError             String?
   discordWebhookUrl     String?
   lastSyncedAt          DateTime?
   nextPollAt            DateTime? // derived from the account's own shop reset time, not a blind interval
@@ -261,6 +274,7 @@ model LinkedRiotAccount {
 
   sightingStats SkinSightingStat[]
 
+  @@unique([userId, puuid])
   @@index([nextPollAt])
   @@index([userId])
   @@map("linked_riot_accounts")

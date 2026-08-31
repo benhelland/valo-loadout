@@ -3,18 +3,76 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth";
+import { linkRiotAccount, runShopCheck } from "@/store-check";
+import { isRiotError } from "@/riot/errors";
 
-// Deliberately the ONLY mutation in this file. Actually linking a Riot
-// account means handling a live login handshake (username/password, 2FA,
-// CAPTCHA) against Riot's unofficial internal endpoints, plus encrypting
-// and refreshing the resulting session token - the security-sensitive,
-// judgment-heavy part of the app docs/ROADMAP.md explicitly flags for a
-// model switch (Opus) before it gets written, not Sonnet. See the "Coming
-// soon" section of /account for what's built instead. Unlinking has none of
-// that risk - it's a plain delete of a row this user owns, which is exactly
-// what RISKS.md requires regardless ("have a clean path for a user to
-// unlink their account and have their token deleted"), so it's safe to ship
-// now even though nothing can create a LinkedRiotAccount row yet.
+// Actions return a result object instead of throwing for expected failures
+// (bad cookie, expired session, Riot blocked us). A thrown Server Action
+// error surfaces as an opaque "something went wrong" in production and, worse,
+// risks the raw error text reaching a log - and the input here is adjacent to
+// a credential. Every message below is one this codebase wrote.
+export type RiotActionResult = { ok: true; message: string } | { ok: false; message: string };
+
+function toMessage(err: unknown): string {
+  // RiotError messages are authored in src/riot/*, are user-facing by design,
+  // and never contain a token. Anything else is deliberately generic - an
+  // arbitrary error's message could carry request internals.
+  if (isRiotError(err)) return err.message;
+  return "Something went wrong talking to Riot. Please try again in a bit.";
+}
+
+/**
+ * Takes the pasted `ssid` cookie, proves it works by using it, and stores it
+ * encrypted. The value is never logged and never leaves this request except
+ * as a `Cookie` header to Riot itself.
+ */
+export async function linkRiotAccountAction(ssid: string): Promise<RiotActionResult> {
+  const userId = await getCurrentUserId();
+
+  try {
+    const result = await linkRiotAccount(userId, ssid);
+    revalidatePath("/account");
+    const who = result.gameName ? `${result.gameName}#${result.tagLine ?? "?"}` : "your account";
+    return { ok: true, message: `Linked ${who} (${result.region.toUpperCase()}).` };
+  } catch (err) {
+    return { ok: false, message: toMessage(err) };
+  }
+}
+
+/**
+ * Manual "check my shop now". The scheduled poller will do this on its own
+ * cadence, but an on-demand path makes the feature verifiable immediately
+ * after linking instead of only at the next rotation.
+ */
+export async function checkShopNowAction(linkedAccountId: string): Promise<RiotActionResult> {
+  const userId = await getCurrentUserId();
+  const account = await prisma.linkedRiotAccount.findUnique({
+    where: { id: linkedAccountId },
+    select: { userId: true },
+  });
+  if (!account || account.userId !== userId) return { ok: false, message: "Linked account not found." };
+
+  try {
+    const result = await runShopCheck(linkedAccountId);
+    revalidatePath("/account");
+    const skipped = result.unresolvedOfferIds.length;
+    return {
+      ok: true,
+      message:
+        `Read your shop: ${result.skinIds.length} skins recorded` +
+        (skipped > 0 ? `, ${skipped} not in our catalog yet (run the sync job).` : "."),
+    };
+  } catch (err) {
+    // runShopCheck already recorded the status on the account before
+    // rethrowing, so the page will reflect it after revalidation.
+    revalidatePath("/account");
+    return { ok: false, message: toMessage(err) };
+  }
+}
+
+// Unlinking is a plain delete of a row this user owns. RISKS.md requires this
+// path exist regardless of the rest of the subsystem's state: "have a clean
+// path for a user to unlink their account and have their token deleted."
 export async function unlinkRiotAccount(linkedAccountId: string): Promise<void> {
   const userId = await getCurrentUserId();
   const account = await prisma.linkedRiotAccount.findUnique({

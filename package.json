@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "sync": "tsx --env-file=.env.local src/scripts/sync.ts"
+    "test": "tsx --env-file=.env.local --test \"src/**/*.test.ts\"",
+    "sync": "tsx --env-file=.env.local src/scripts/sync.ts",
+    "check-shops": "tsx --env-file=.env.local src/scripts/checkShops.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
