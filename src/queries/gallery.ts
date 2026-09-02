@@ -6,7 +6,34 @@ import { DEFAULT_SKIN_PAGE_SIZE } from "@/lib/pageSize";
 
 export const PAGE_SIZE = DEFAULT_SKIN_PAGE_SIZE;
 
-export type SortOption = "newest" | "price" | "alphabetical" | "rarity";
+// No "newest". `skins.firstSeenInSyncAt` is our own insert timestamp, not a
+// release date (valorant-api.com has none - re-confirmed 2026-09-02), and the
+// entire launch catalog was backfilled inside a single 15-second sync run on
+// 2026-08-28. Sorting by it therefore ordered 1,365 skins by *millisecond of
+// insertion*, i.e. the order the upstream API happened to return them - which
+// surfaced a clump of melee skins at the top and read as authoritative. A
+// sort has to order the whole catalog to be meaningful, and this one couldn't.
+//
+// The column stays: it's accurate for anything added *after* the backfill, so
+// the "what's new" intent is better served later by a "New" badge on skins
+// first seen within the last N days. That only has to be right about genuinely
+// new skins, needs no curated release-date data, and correctly never matches
+// the backfilled catalog. See docs/ARCHITECTURE.md "No release date anywhere".
+export type SortOption = "price" | "alphabetical" | "rarity";
+
+export const SORT_OPTIONS: readonly SortOption[] = ["rarity", "price", "alphabetical"];
+
+/**
+ * Validates a raw `?sort=` value against the allowlist, same treatment
+ * `pageSize` already gets (src/lib/pageSize.ts) - callers previously cast it
+ * with `as SortOption`, which told the type system a lie about
+ * attacker-controllable input. Returns undefined for anything unrecognised
+ * (including the removed "newest"), so the caller can drop it from the URL
+ * rather than carrying a dead param around forever.
+ */
+export function resolveSort(raw: string | undefined): SortOption | undefined {
+  return SORT_OPTIONS.includes(raw as SortOption) ? (raw as SortOption) : undefined;
+}
 
 export interface GalleryFilters {
   weaponId?: string;
@@ -88,8 +115,6 @@ function compareBySort(a: ListedSkin, b: ListedSkin, sort: SortOption | undefine
       return a.displayName.localeCompare(b.displayName);
     case "price":
       return (a.contentTier?.rank ?? 0) - (b.contentTier?.rank ?? 0) || a.displayName.localeCompare(b.displayName);
-    case "newest":
-      return b.firstSeenInSyncAt.getTime() - a.firstSeenInSyncAt.getTime();
     case "rarity":
     default:
       return (b.contentTier?.rank ?? 0) - (a.contentTier?.rank ?? 0) || a.displayName.localeCompare(b.displayName);
@@ -105,16 +130,12 @@ function buildOrderBy(sort: SortOption | undefined): Prisma.SkinOrderByWithRelat
     // just in opposite directions (cheapest-first vs. rarest-first).
     case "price":
       return [{ contentTier: { rank: "asc" } }, { displayName: "asc" }];
-    case "newest":
-      return [{ firstSeenInSyncAt: "desc" }];
     case "rarity":
     default:
-      // Default, not "newest": firstSeenInSyncAt is only meaningful for
-      // skins added after this project started syncing (documented gap in
-      // ARCHITECTURE.md) - almost the entire current catalog shares one
-      // backfill timestamp, so "newest" isn't actually a meaningful default
-      // order yet. Rarity-first also just makes a better first impression
-      // for a gallery whose whole point is showing skins off.
+      // Also the fallback for an unrecognised ?sort= value, including the
+      // removed "newest" - old bookmarks and shared links degrade to the
+      // default rather than erroring. Rarity-first makes a better first
+      // impression anyway for a gallery whose whole point is showing skins off.
       return [{ contentTier: { rank: "desc" } }, { displayName: "asc" }];
   }
 }

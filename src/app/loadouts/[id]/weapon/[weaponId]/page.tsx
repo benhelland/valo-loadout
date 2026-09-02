@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUserId } from "@/lib/auth";
 import { getLoadout } from "@/queries/loadouts";
-import { listSkins, getFilterOptions, type SortOption } from "@/queries/gallery";
+import { listSkins, getFilterOptions, resolveSort } from "@/queries/gallery";
 import { prisma } from "@/lib/db";
 import { FilterBar } from "@/components/gallery/FilterBar";
 import { SkinCard } from "@/components/gallery/SkinCard";
@@ -27,6 +27,9 @@ export default async function LoadoutWeaponPickerPage({
   if (!loadout) notFound();
   if (!weapon) notFound();
 
+  // Resolved before flatParams for the same reason as the gallery page -
+  // see the comment there.
+  const sort = resolveSort(first(sp.sort));
   const flatParams: Record<string, string | undefined> = {
     tierId: first(sp.tierId),
     themeId: first(sp.themeId),
@@ -34,7 +37,7 @@ export default async function LoadoutWeaponPickerPage({
     vibe: first(sp.vibe),
     hasAnimation: first(sp.hasAnimation),
     search: first(sp.search),
-    sort: first(sp.sort),
+    sort,
     page: first(sp.page),
   };
 
@@ -46,7 +49,7 @@ export default async function LoadoutWeaponPickerPage({
     vibe: flatParams.vibe,
     hasAnimation: flatParams.hasAnimation === "1",
     search: flatParams.search,
-    sort: flatParams.sort as SortOption | undefined,
+    sort,
     page: flatParams.page ? Number(flatParams.page) : 1,
   };
 

@@ -186,7 +186,6 @@ export function FilterBar({
             onChange={(v) => updateParam("sort", v)}
           >
             <option value="rarity">Rarity: highest first</option>
-            <option value="newest">Newest</option>
             <option value="price">Price: low to high</option>
             <option value="alphabetical">Alphabetical</option>
           </Select>

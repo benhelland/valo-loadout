@@ -1,4 +1,4 @@
-import { listSkins, getFilterOptions, type SortOption } from "@/queries/gallery";
+import { listSkins, getFilterOptions, resolveSort } from "@/queries/gallery";
 import { getWishlistedSkinIds } from "@/queries/wishlist";
 import { getOptionalUserId } from "@/lib/auth";
 import { SkinCard } from "@/components/gallery/SkinCard";
@@ -14,6 +14,13 @@ function first(value: string | string[] | undefined): string | undefined {
 
 export default async function GalleryPage({ searchParams }: PageProps<"/">) {
   const sp = await searchParams;
+  // Resolved once, before flatParams, because flatParams is deliberately
+  // typed as loose strings (it feeds FilterBar and Pagination, which just
+  // rebuild query strings) and would widen SortOption straight back to
+  // string. Normalising here means an unrecognised value - e.g. the removed
+  // "newest", still live in old bookmarks - never reaches the sort <select>
+  // as a phantom selection, and isn't carried into pagination links either.
+  const sort = resolveSort(first(sp.sort));
   const flatParams: Record<string, string | undefined> = {
     weaponId: first(sp.weaponId),
     tierId: first(sp.tierId),
@@ -22,7 +29,7 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
     vibe: first(sp.vibe),
     hasAnimation: first(sp.hasAnimation),
     search: first(sp.search),
-    sort: first(sp.sort),
+    sort,
     page: first(sp.page),
     pageSize: first(sp.pageSize),
   };
@@ -37,7 +44,7 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
     vibe: flatParams.vibe,
     hasAnimation: flatParams.hasAnimation === "1",
     search: flatParams.search,
-    sort: flatParams.sort as SortOption | undefined,
+    sort,
     page: flatParams.page ? Number(flatParams.page) : 1,
     pageSize,
   };
