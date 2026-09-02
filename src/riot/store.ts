@@ -84,30 +84,70 @@ async function authHeaders(session: RiotSession): Promise<Record<string, string>
 // Credits - we read VP and ignore the rest.
 const VP_CURRENCY_ID = "85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741";
 
-// One offer, in the shape both the daily panel and bundle item lists use.
+// One offer, in the shape the daily panel and bundle item lists use.
 interface RawOffer {
   OfferID?: unknown;
   Cost?: Record<string, unknown>;
   Rewards?: { ItemID?: unknown }[];
 }
 
+function addPrice(id: unknown, cost: unknown, into: Map<string, number>): void {
+  if (typeof id === "string" && typeof cost === "number" && Number.isFinite(cost) && cost > 0) {
+    into.set(id, cost);
+  }
+}
+
 /**
- * Pulls VP costs out of any offer list, keyed by the skin *level* id the
- * offer actually grants.
+ * Pulls VP costs out of an offer list, keyed by the item the offer grants.
  *
- * `Rewards[0].ItemID` is preferred over `OfferID`: for the daily panel they
- * happen to match, but bundle item offers use a bundle-scoped offer id that
- * is NOT a skin level, so keying on OfferID silently loses every bundle
- * price. Anything unparseable is skipped rather than throwing - a
- * Radianite-priced or non-skin entry in these lists is normal, not an error.
+ * `Rewards[0].ItemID` is preferred over `OfferID` purely for robustness -
+ * for the daily panel and for bundle ItemOffers these are in fact the same
+ * value (verified against a real response: OfferID, Rewards[0].ItemID and
+ * BundleItemOfferID were all identical), but Rewards is the field that
+ * actually names the granted item, so it is the one that stays correct if
+ * Riot ever makes offer ids opaque.
+ *
+ * Anything unparseable is skipped rather than throwing - a Radianite-priced
+ * or non-skin entry in these lists is normal, not an error.
  */
 function collectVpPrices(offers: RawOffer[] | undefined, into: Map<string, number>): void {
   for (const offer of offers ?? []) {
-    const id = offer.Rewards?.[0]?.ItemID ?? offer.OfferID;
-    const cost = offer.Cost?.[VP_CURRENCY_ID];
-    if (typeof id === "string" && typeof cost === "number" && Number.isFinite(cost) && cost > 0) {
-      into.set(id, cost);
+    addPrice(offer.Rewards?.[0]?.ItemID ?? offer.OfferID, offer.Cost?.[VP_CURRENCY_ID], into);
+  }
+}
+
+// The VCT capsule store (and any future "plugin" storefront) nests its offers
+// differently: costs live under PurchaseInformation, and each top-level offer
+// carries SubOffers for the individual items. The top-level entry is the
+// whole-capsule price and is flagged WholesaleOnly - skipping those is what
+// keeps a bundle's total from being recorded as an individual skin's price.
+//
+// Worth harvesting because it is a *persistent* store rather than a rotation:
+// it yields ~47 real skin prices on every read, none of which depend on the
+// user's shop luck. Ministral doesn't read this one.
+interface RawPluginOffer {
+  PurchaseInformation?: {
+    Cost?: Record<string, unknown>;
+    DataAssetID?: unknown;
+    OfferID?: unknown;
+    Rewards?: { ItemID?: unknown }[];
+    WholesaleOnly?: unknown;
+  };
+  SubOffers?: RawPluginOffer[];
+}
+
+interface RawBundle {
+  ItemOffers?: { Offer?: RawOffer }[];
+  Items?: { Item?: { ItemID?: unknown }; BasePrice?: unknown }[];
+}
+
+function collectPluginPrices(offers: RawPluginOffer[] | undefined, into: Map<string, number>): void {
+  for (const offer of offers ?? []) {
+    const info = offer.PurchaseInformation;
+    if (info && info.WholesaleOnly !== true) {
+      addPrice(info.Rewards?.[0]?.ItemID ?? info.DataAssetID ?? info.OfferID, info.Cost?.[VP_CURRENCY_ID], into);
     }
+    collectPluginPrices(offer.SubOffers, into);
   }
 }
 
@@ -139,9 +179,13 @@ export async function fetchDailyShop(session: RiotSession): Promise<DailyShop> {
       SingleItemOffersRemainingDurationInSeconds?: unknown;
     };
     FeaturedBundle?: {
-      Bundle?: { ItemOffers?: { Offer?: RawOffer }[] };
-      Bundles?: { ItemOffers?: { Offer?: RawOffer }[] }[];
+      Bundle?: RawBundle;
+      Bundles?: RawBundle[];
     };
+    // Night market. Absent outside night-market events, hence optional.
+    BonusStore?: { BonusStoreOffers?: { Offer?: RawOffer }[] };
+    // VCT capsule store - see collectPluginPrices.
+    PluginStores?: { PluginOffers?: { StoreOffers?: RawPluginOffer[] } }[];
   };
 
   const panel = body.SkinsPanelLayout;
@@ -152,15 +196,24 @@ export async function fetchDailyShop(session: RiotSession): Promise<DailyShop> {
     throw new RiotError("UNEXPECTED", "Riot's shop response didn't contain a readable rotation.");
   }
 
-  // Prices are additive and best-effort: a malformed bundle must never fail a
-  // shop check, whose actual job is the rotation above.
+  // Prices are additive and best-effort: a malformed section must never fail
+  // a shop check, whose actual job is the rotation above. Every source below
+  // is already present in this one response - none costs an extra call.
   const prices = new Map<string, number>();
   collectVpPrices(panel?.SingleItemStoreOffers, prices);
   for (const bundle of [body.FeaturedBundle?.Bundle, ...(body.FeaturedBundle?.Bundles ?? [])]) {
-    collectVpPrices(
-      bundle?.ItemOffers?.map((entry) => entry.Offer ?? {}),
-      prices,
-    );
+    collectVpPrices(bundle?.ItemOffers?.map((entry) => entry.Offer ?? {}), prices);
+    // `Items[]` duplicates `ItemOffers[]` in every response seen so far, but
+    // carries the undiscounted BasePrice in its own shape. Read as a fallback
+    // (Ministral reads it too) in case a bundle ever ships one and not the
+    // other - Map.set means the later, equal value is simply a no-op.
+    for (const item of bundle?.Items ?? []) {
+      addPrice(item.Item?.ItemID, item.BasePrice, prices);
+    }
+  }
+  collectVpPrices(body.BonusStore?.BonusStoreOffers?.map((entry) => entry.Offer ?? {}), prices);
+  for (const store of body.PluginStores ?? []) {
+    collectPluginPrices(store.PluginOffers?.StoreOffers, prices);
   }
 
   return {

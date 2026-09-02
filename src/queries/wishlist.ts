@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { totalSkinPrice, type PriceTotal } from "@/lib/pricing";
+import { getPriceEstimates } from "@/queries/prices";
 import { listInclude, type ListedSkin } from "@/queries/gallery";
 
 // Newest-added first - matches the intuition of "what did I just add".
@@ -13,7 +14,7 @@ export async function listWishlistSkins(userId: string): Promise<{ skins: Listed
   const skins = items.map((item) => item.skin);
   // listInclude already pulls `weapon`, which resolveSkinPrice needs to know
   // a melee skin has no reliable estimate (src/lib/pricing.ts).
-  return { skins, priceTotal: totalSkinPrice(skins) };
+  return { skins, priceTotal: totalSkinPrice(skins, await getPriceEstimates()) };
 }
 
 // Powers the heart toggle on gallery cards - one query per page render

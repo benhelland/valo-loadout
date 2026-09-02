@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { tierColorToCss } from "@/lib/tierColor";
 import { resolveSkinPrice } from "@/lib/pricing";
+import { getPriceEstimates } from "@/queries/prices";
 import { WishlistButton } from "@/components/gallery/WishlistButton";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -30,8 +31,10 @@ interface SkinCardProps {
   badge?: string;
 }
 
-export function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist, badge }: SkinCardProps) {
-  const price = resolveSkinPrice(skin);
+// Async server component. getPriceEstimates is React-cached, so rendering
+// a full grid of these still runs exactly one query per request.
+export async function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist, badge }: SkinCardProps) {
+  const price = resolveSkinPrice(skin, await getPriceEstimates());
   // Full opacity, not the API's own 0.2 alpha: this is the card's rarity
   // signal, so it has to actually read. Rarity is the primary way people
   // sort skins mentally, and it was previously communicated only by a 12px

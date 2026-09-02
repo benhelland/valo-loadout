@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { totalSkinPrice } from "@/lib/pricing";
+import { getPriceEstimates } from "@/queries/prices";
 
 const itemInclude = {
   weapon: true,
@@ -12,10 +13,10 @@ const itemInclude = {
 // The item's `weapon` is the slot's weapon, which is by construction the
 // skin's own weapon - so it's what tells resolveSkinPrice whether this is a
 // melee skin (which has no reliable estimate; see src/lib/pricing.ts).
-function loadoutPriceTotal(
+async function loadoutPriceTotal(
   items: { skin: { priceVp: number | null; contentTier: { devName: string } | null }; weapon: { category: string | null } }[],
 ) {
-  return totalSkinPrice(items.map((item) => ({ ...item.skin, weapon: item.weapon })));
+  return totalSkinPrice(items.map((item) => ({ ...item.skin, weapon: item.weapon })), await getPriceEstimates());
 }
 
 export async function listLoadouts(userId: string) {
@@ -25,10 +26,12 @@ export async function listLoadouts(userId: string) {
     include: { items: { include: itemInclude } },
   });
 
-  return loadouts.map((loadout) => ({
-    ...loadout,
-    priceTotal: loadoutPriceTotal(loadout.items),
-  }));
+  return Promise.all(
+    loadouts.map(async (loadout) => ({
+      ...loadout,
+      priceTotal: await loadoutPriceTotal(loadout.items),
+    })),
+  );
 }
 
 // Returns null if the loadout doesn't exist OR isn't owned by this user -
@@ -41,7 +44,7 @@ export async function getLoadout(id: string, userId: string) {
 
   if (!loadout || loadout.userId !== userId) return null;
 
-  return { ...loadout, priceTotal: loadoutPriceTotal(loadout.items) };
+  return { ...loadout, priceTotal: await loadoutPriceTotal(loadout.items) };
 }
 
 export async function listAllWeapons() {
@@ -57,7 +60,7 @@ export async function getSharedLoadout(shareSlug: string) {
     include: { items: { include: itemInclude } },
   });
   if (!loadout || !loadout.isShareable) return null;
-  return { ...loadout, priceTotal: loadoutPriceTotal(loadout.items) };
+  return { ...loadout, priceTotal: await loadoutPriceTotal(loadout.items) };
 }
 
 // Lightweight - just id/name, for the loadout switcher dropdown. Avoids

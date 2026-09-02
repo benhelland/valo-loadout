@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SkinPreview } from "@/components/gallery/SkinPreview";
 import { WishlistButton } from "@/components/gallery/WishlistButton";
 import { resolveSkinPrice } from "@/lib/pricing";
+import { getPriceEstimates } from "@/queries/prices";
 import { tierColorToCss } from "@/lib/tierColor";
 import type { Prisma, Buddy } from "@/generated/prisma/client";
 
@@ -40,7 +41,7 @@ interface SkinDetailViewProps {
 // component - that's what lets the sidebar hold both this info AND the
 // interactive level/chroma/buddy controls in one panel next to the media,
 // instead of splitting them across two mismatched columns.
-export function SkinDetailView({
+export async function SkinDetailView({
   skin,
   buddies,
   initialLevelId,
@@ -53,7 +54,7 @@ export function SkinDetailView({
   loadouts,
   inLoadouts,
 }: SkinDetailViewProps) {
-  const price = resolveSkinPrice(skin);
+  const price = resolveSkinPrice(skin, await getPriceEstimates());
   const tierColor = tierColorToCss(skin.contentTier?.highlightColor);
 
   return (
