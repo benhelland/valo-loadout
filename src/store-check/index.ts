@@ -71,6 +71,8 @@ export interface ShopCheckResult {
   skinIds: string[];
   unresolvedOfferIds: string[];
   nextPollAt: Date;
+  /** Skins whose real VP price this check recorded - see recordObservedPrices. */
+  pricesRecorded: number;
 }
 
 // How long a refresh may hold the lease. Long enough for the OAuth round trip
@@ -82,6 +84,12 @@ const REFRESH_LOCK_MS = 60_000;
  * Takes an exclusive lease on refreshing this account, refreshes, and stores
  * the rotated token.
  *
+ * Exported (as `acquireSession`) because there is now more than one job that
+ * needs an authenticated session - the daily shop check and the price sync.
+ * Every such job must go through this, never `createSessionFromRefreshToken`
+ * directly: the rotation hazard below is not specific to shop checks, and a
+ * second entry point that skipped the lease would reintroduce it.
+ *
  * This lock is load-bearing, not defensive padding. Riot rotates the refresh
  * token on every use, so two overlapping refreshes (a cron run and a user
  * clicking "check shop now", or two cron invocations) would each invalidate
@@ -89,7 +97,7 @@ const REFRESH_LOCK_MS = 60_000;
  * atomic in Postgres: exactly one caller can transition the row from
  * "unlocked" to "locked", and everyone else gets zero rows back.
  */
-async function refreshWithLock(accountId: string): Promise<RiotSession> {
+export async function acquireSession(accountId: string): Promise<RiotSession> {
   const now = new Date();
   const claimed = await prisma.linkedRiotAccount.updateMany({
     where: {
@@ -100,7 +108,7 @@ async function refreshWithLock(accountId: string): Promise<RiotSession> {
   });
 
   if (claimed.count === 0) {
-    throw new RiotError("UNAVAILABLE", "A shop check for this account is already running. Try again in a moment.");
+    throw new RiotError("UNAVAILABLE", "Another request for this account is already running. Try again in a moment.");
   }
 
   try {
@@ -134,6 +142,45 @@ async function refreshWithLock(accountId: string): Promise<RiotSession> {
 }
 
 /**
+ * Records real VP prices observed in a storefront response.
+ *
+ * Riot withdrew the full-catalogue price endpoint, so prices accrue instead:
+ * every shop check contributes the four daily offers plus every item in
+ * whatever bundles are featured, and coverage grows as the store rotates.
+ * That's slower than a bulk sync but it is *real* data, and it costs nothing
+ * - this was already in a response we fetch and parse.
+ *
+ * Prices are keyed by skin level; a skin takes the lowest observed level
+ * price, which is the "buy this skin" cost (higher levels are Radianite
+ * upgrades, not separate VP purchases). Existing values are overwritten
+ * because the newer observation is the more current one.
+ */
+async function recordObservedPrices(prices: Map<string, number>): Promise<number> {
+  if (prices.size === 0) return 0;
+
+  const levels = await prisma.skinLevel.findMany({
+    where: { id: { in: [...prices.keys()] } },
+    select: { id: true, skinId: true },
+  });
+
+  const priceBySkin = new Map<string, number>();
+  for (const level of levels) {
+    const price = prices.get(level.id);
+    if (price === undefined) continue;
+    const existing = priceBySkin.get(level.skinId);
+    if (existing === undefined || price < existing) priceBySkin.set(level.skinId, price);
+  }
+  if (priceBySkin.size === 0) return 0;
+
+  await prisma.$transaction(
+    [...priceBySkin.entries()].map(([skinId, priceVp]) =>
+      prisma.skin.update({ where: { id: skinId }, data: { priceVp } }),
+    ),
+  );
+  return priceBySkin.size;
+}
+
+/**
  * One poll for one linked account: refresh the session, read the rotation,
  * record what was seen. Records the failure reason on the account before
  * rethrowing, so the caller only has to count outcomes.
@@ -146,7 +193,7 @@ export async function runShopCheck(linkedAccountId: string): Promise<ShopCheckRe
   if (!account) throw new RiotError("UNEXPECTED", "Linked account not found");
 
   try {
-    const session = await refreshWithLock(account.id);
+    const session = await acquireSession(account.id);
     const shop = await fetchDailyShop(session);
 
     // Offers are skin *level* ids; the gallery is keyed by skin. Levels we
@@ -195,12 +242,17 @@ export async function runShopCheck(linkedAccountId: string): Promise<ShopCheckRe
       }),
     ]);
 
+    // Catalog-wide price data, harvested from the response we just made
+    // anyway. Best-effort and after the check's own writes: prices are a
+    // bonus, and failing to store one must not fail the shop check.
+    const pricesRecorded = await recordObservedPrices(shop.prices).catch(() => 0);
+
     // Wishlist-match notification is best-effort and strictly after the
     // check's own data is safely persisted above - a Discord hiccup here
     // must not turn a successful shop read into a reported failure.
     await notifyWishlistMatches(account.userId, skinIds).catch(() => {});
 
-    return { skinIds, unresolvedOfferIds, nextPollAt };
+    return { skinIds, unresolvedOfferIds, nextPollAt, pricesRecorded };
   } catch (err) {
     await recordFailure(account.id, err);
     throw err;

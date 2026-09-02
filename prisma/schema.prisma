@@ -104,8 +104,20 @@ model Skin {
   displayIconUrl    String?
   colorFamily       String? // extracted from the base/first chroma's image at sync time
   firstSeenInSyncAt DateTime @default(now())
-  // No price/release-date columns: valorant-api.com exposes neither.
-  // Price is looked up from a static tier-price table at read time (see src/lib/pricing.ts).
+  // Real VP price, from Riot's own store offers endpoint via a linked
+  // account (src/riot/store.ts fetchOfferPrices -> syncSkinPrices). Null
+  // means "not directly purchasable, or not seen in the offer list" - battle
+  // pass / event / agent-contract skins have no VP price at all, and null is
+  // a truthful answer for those rather than a fabricated one.
+  //
+  // This replaced a static tier-based estimate that was structurally unable
+  // to be right: it keyed off rarity alone, so every melee skin (175 of them,
+  // all tier "Exclusive") was priced identically to an Exclusive *gun*,
+  // understating knives by thousands of VP. See src/lib/pricing.ts.
+  priceVp           Int?
+  // Still no release-date column: valorant-api.com exposes none, and our own
+  // firstSeenInSyncAt is an insert time, not a release date - see
+  // docs/ARCHITECTURE.md.
 
   levels            SkinLevel[]
   chromas           SkinChroma[]

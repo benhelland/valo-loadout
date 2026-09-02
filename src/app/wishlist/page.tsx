@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentUserId } from "@/lib/auth";
 import { listWishlistSkins } from "@/queries/wishlist";
 import { getLoadoutMembership } from "@/queries/loadouts";
+import { formatPriceTotal } from "@/lib/pricing";
 import { SkinCard } from "@/components/gallery/SkinCard";
 
 // Protected by src/proxy.ts's matcher (/wishlist/:path*) - getCurrentUserId()
@@ -9,7 +10,7 @@ import { SkinCard } from "@/components/gallery/SkinCard";
 // /account.
 export default async function WishlistPage() {
   const userId = await getCurrentUserId();
-  const { skins, totalVp } = await listWishlistSkins(userId);
+  const { skins, priceTotal } = await listWishlistSkins(userId);
   // One query for the whole page, not one per card - see getLoadoutMembership.
   const membership = await getLoadoutMembership(userId, skins.map((s) => s.id));
 
@@ -19,7 +20,7 @@ export default async function WishlistPage() {
         <h1 className="font-display text-5xl uppercase tracking-wide leading-none">Wishlist</h1>
         <p className="text-sm uppercase tracking-wide text-muted">
           {skins.length} {skins.length === 1 ? "skin" : "skins"}
-          {skins.length > 0 ? ` · ${totalVp.toLocaleString()} VP est.` : ""}
+          {skins.length > 0 ? ` · ${formatPriceTotal(priceTotal)}` : ""}
         </p>
       </div>
 

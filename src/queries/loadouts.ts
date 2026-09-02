@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { estimatePriceVp } from "@/lib/pricing";
+import { totalSkinPrice } from "@/lib/pricing";
 
 const itemInclude = {
   weapon: true,
@@ -9,8 +9,13 @@ const itemInclude = {
   buddy: true,
 } as const;
 
-function estimateLoadoutTotal(items: { skin: { contentTier: { devName: string } | null } }[]): number {
-  return items.reduce((sum, item) => sum + (estimatePriceVp(item.skin.contentTier?.devName) ?? 0), 0);
+// The item's `weapon` is the slot's weapon, which is by construction the
+// skin's own weapon - so it's what tells resolveSkinPrice whether this is a
+// melee skin (which has no reliable estimate; see src/lib/pricing.ts).
+function loadoutPriceTotal(
+  items: { skin: { priceVp: number | null; contentTier: { devName: string } | null }; weapon: { category: string | null } }[],
+) {
+  return totalSkinPrice(items.map((item) => ({ ...item.skin, weapon: item.weapon })));
 }
 
 export async function listLoadouts(userId: string) {
@@ -22,7 +27,7 @@ export async function listLoadouts(userId: string) {
 
   return loadouts.map((loadout) => ({
     ...loadout,
-    estimatedTotalVp: estimateLoadoutTotal(loadout.items),
+    priceTotal: loadoutPriceTotal(loadout.items),
   }));
 }
 
@@ -36,7 +41,7 @@ export async function getLoadout(id: string, userId: string) {
 
   if (!loadout || loadout.userId !== userId) return null;
 
-  return { ...loadout, estimatedTotalVp: estimateLoadoutTotal(loadout.items) };
+  return { ...loadout, priceTotal: loadoutPriceTotal(loadout.items) };
 }
 
 export async function listAllWeapons() {
@@ -52,7 +57,7 @@ export async function getSharedLoadout(shareSlug: string) {
     include: { items: { include: itemInclude } },
   });
   if (!loadout || !loadout.isShareable) return null;
-  return { ...loadout, estimatedTotalVp: estimateLoadoutTotal(loadout.items) };
+  return { ...loadout, priceTotal: loadoutPriceTotal(loadout.items) };
 }
 
 // Lightweight - just id/name, for the loadout switcher dropdown. Avoids

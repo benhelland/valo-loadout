@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { SkinPreview } from "@/components/gallery/SkinPreview";
 import { WishlistButton } from "@/components/gallery/WishlistButton";
-import { estimatePriceVp } from "@/lib/pricing";
+import { resolveSkinPrice } from "@/lib/pricing";
 import { tierColorToCss } from "@/lib/tierColor";
 import type { Prisma, Buddy } from "@/generated/prisma/client";
 
@@ -53,7 +53,7 @@ export function SkinDetailView({
   loadouts,
   inLoadouts,
 }: SkinDetailViewProps) {
-  const price = estimatePriceVp(skin.contentTier?.devName);
+  const price = resolveSkinPrice(skin);
   const tierColor = tierColorToCss(skin.contentTier?.highlightColor);
 
   return (
@@ -120,12 +120,34 @@ export function SkinDetailView({
               <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Collection</dt>
               <dd className="text-sm font-semibold">{skin.theme?.displayName ?? "—"}</dd>
             </div>
+            {/* The label is now conditional. It used to always read
+                "Price (est.)" - which was both wrong when we have a real
+                Riot price, and misleadingly reassuring when the estimate
+                was off by thousands of VP. */}
             <div className="flex justify-between border-b border-border py-2.5">
-              <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Price (est.)</dt>
+              <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                {price?.source === "estimate" ? "Price (est.)" : "Price"}
+              </dt>
+              {/* "Unknown", not "not sold" - we genuinely can't tell those
+                  apart. Riot withdrew the catalogue price endpoint, so an
+                  absent price means "never observed in a shop or bundle we've
+                  read", which includes plenty of skins that are on sale. */}
               <dd className="text-sm font-semibold text-accent">
-                {price !== null ? `${price.toLocaleString()} VP` : "—"}
+                {price ? `${price.vp.toLocaleString()} VP` : "Unknown"}
               </dd>
             </div>
+            {price?.source === "estimate" ? (
+              <p className="pt-2 text-[11px] leading-snug text-muted">
+                Estimated from this skin&rsquo;s rarity. A confirmed price appears once this skin has shown up
+                in a shop or bundle we&rsquo;ve read.
+              </p>
+            ) : null}
+            {!price ? (
+              <p className="pt-2 text-[11px] leading-snug text-muted">
+                No confirmed price yet, and this skin&rsquo;s rarity doesn&rsquo;t have a fixed price we can
+                estimate from. It&rsquo;ll fill in once the skin appears in a shop or bundle we read.
+              </p>
+            ) : null}
             {skin.colorFamily ? (
               <div className="flex justify-between border-b border-border py-2.5">
                 <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Color</dt>

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { formatPriceTotal } from "@/lib/pricing";
 import { BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
 import type { getLoadout, listAllWeapons } from "@/queries/loadouts";
 
@@ -40,7 +41,7 @@ export function LoadoutShareImage({ loadout, weapons }: LoadoutShareImageProps) 
         </h1>
         <p style={{ margin: "8px 0 0", fontSize: 14, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8b978f" }}>
           {loadout.items.length} / {weapons.length} slots ·{" "}
-          <span style={{ color: "#ff4655", fontWeight: 600 }}>{loadout.estimatedTotalVp.toLocaleString()} VP est.</span>
+          <span style={{ color: "#ff4655", fontWeight: 600 }}>{formatPriceTotal(loadout.priceTotal)}</span>
         </p>
       </div>
 

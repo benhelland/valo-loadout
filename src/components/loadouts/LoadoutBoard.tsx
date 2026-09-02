@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { clearLoadoutItem, deleteLoadout, duplicateLoadout, renameLoadout } from "@/actions/loadouts";
 import { encodeCombo } from "@/lib/comboLink";
+import { formatPriceTotal } from "@/lib/pricing";
 import { BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
 import { ShareLoadoutButton } from "@/components/loadouts/ShareLoadoutButton";
 import type { getLoadout, listAllWeapons, listLoadoutSummaries } from "@/queries/loadouts";
@@ -92,7 +93,7 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
           )}
           <p className="mt-2 text-sm uppercase tracking-wide text-muted">
             {loadout.items.length} / {weapons.length} slots filled ·{" "}
-            <span className="text-accent font-semibold">{loadout.estimatedTotalVp.toLocaleString()} VP est.</span>
+            <span className="text-accent font-semibold">{formatPriceTotal(loadout.priceTotal)}</span>
           </p>
         </div>
 

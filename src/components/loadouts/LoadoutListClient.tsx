@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createLoadout, deleteLoadout, duplicateLoadout, renameLoadout } from "@/actions/loadouts";
 import { ShareLoadoutButton } from "@/components/loadouts/ShareLoadoutButton";
+import { formatPriceTotal } from "@/lib/pricing";
 import type { listLoadouts, listAllWeapons } from "@/queries/loadouts";
 
 type LoadoutSummary = Awaited<ReturnType<typeof listLoadouts>>[number];
@@ -110,7 +111,7 @@ function LoadoutCard({ loadout, weapons }: { loadout: LoadoutSummary; weapons: W
       <p className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
         {loadout.items.length} / 20 slots filled
       </p>
-      <p className="mt-1 text-sm font-semibold text-accent">{loadout.estimatedTotalVp.toLocaleString()} VP est.</p>
+      <p className="mt-1 text-sm font-semibold text-accent">{formatPriceTotal(loadout.priceTotal)}</p>
 
       <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wider">
         <Link href={`/loadouts/${loadout.id}`} className="text-muted hover:text-foreground transition-colors">

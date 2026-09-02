@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { tierColorToCss } from "@/lib/tierColor";
-import { estimatePriceVp } from "@/lib/pricing";
+import { resolveSkinPrice } from "@/lib/pricing";
 import { WishlistButton } from "@/components/gallery/WishlistButton";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -31,7 +31,7 @@ interface SkinCardProps {
 }
 
 export function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist, badge }: SkinCardProps) {
-  const price = estimatePriceVp(skin.contentTier?.devName);
+  const price = resolveSkinPrice(skin);
   // Full opacity, not the API's own 0.2 alpha: this is the card's rarity
   // signal, so it has to actually read. Rarity is the primary way people
   // sort skins mentally, and it was previously communicated only by a 12px
@@ -106,8 +106,15 @@ export function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist, badg
             <span className="truncate">{skin.weapon?.displayName ?? "—"}</span>
             {/* Deliberately NOT accent-red here. One red price is a
                 highlight; thirty of them in a grid is just noise competing
-                with the skin art, which is the actual content. */}
-            {price !== null ? <span className="shrink-0 text-foreground/80">{price.toLocaleString()} VP</span> : null}
+                with the skin art, which is the actual content.
+                A "~" prefix marks an estimate, so a real Riot price and a
+                guess are never presented as the same thing. */}
+            {price ? (
+              <span className="shrink-0 text-foreground/80" title={price.source === "estimate" ? "Estimated from rarity - not a confirmed price" : "Real price from Riot's store"}>
+                {price.source === "estimate" ? "~" : ""}
+                {price.vp.toLocaleString()} VP
+              </span>
+            ) : null}
           </div>
           {badge ? (
             <p className="mt-1.5 truncate text-[10px] font-semibold uppercase tracking-wider text-muted">{badge}</p>

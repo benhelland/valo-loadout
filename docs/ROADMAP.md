@@ -6,7 +6,7 @@ Phased so the riskiest, least-necessary-first piece (Riot account linking) comes
 
 - [x] Market research on existing tools
 - [x] `CLAUDE.md` / `PRD.md` / `ARCHITECTURE.md` / `RISKS.md` written
-- [x] Confirm valorant-api.com's actual schema — see `ARCHITECTURE.md`. Two gaps found and resolved: no price data (static tier-based estimate) and no release date (our own `first_seen_in_sync_at`)
+- [x] Confirm valorant-api.com's actual schema — see `ARCHITECTURE.md`. Two gaps found: no price data and no release date. Both resolutions were later revised after measurement — see `ARCHITECTURE.md` "Real VP prices" and the release-date note
 - [x] Lock in stack choice — see `ARCHITECTURE.md`
 
 ## Phase 1 — Skin gallery (no accounts, no auth)
@@ -65,7 +65,7 @@ A full review of the shipped UI, benchmarked against the established sites in th
 ## Phase 4 — Polish / stretch
 
 - [ ] **"My collection" / owned-skins view** — deferred, not yet designed. Needs its own scoping pass before building: it requires reading a linked account's actual *inventory*, a different Riot endpoint than the shop-checking one, with its own data-minimization question (`RISKS.md`'s current stance only covers fetching shop contents, not inventory) — revisit `RISKS.md` when this gets picked up. Explicitly out of the loadout builder, which stays aspirational/ownership-agnostic regardless (`PRD.md`).
-- [ ] Real VP prices from the authenticated Riot session (Phase 3), backfilling/replacing the tier-based estimates for skins that session exposes pricing for — see `ARCHITECTURE.md`
+- [x] **Real VP prices from the authenticated Riot session** — done (2026-09-02), though not as planned: Riot has withdrawn the bulk price endpoint (`GET /store/v1/offers/`, 404 at v1–v5 while `/store/v1/wallet` still works), so there's no backfill available. Instead prices accrue from storefront responses the shop check already fetches — the four daily offers plus every featured-bundle item — at zero extra Riot calls; one real check yielded 12 confirmed prices. The old tier table was measured and proven structurally wrong (Exclusive isn't one price: 2,175 *and* 2,375 observed; melee is a different scale entirely and not a fixed multiple). Estimates are now narrow (standard tiers, guns only) and anything else reads "Unknown" rather than fabricating a number. See `ARCHITECTURE.md` "Real VP prices".
 - [ ] Loadout image export (downloadable/postable image, distinct from the link-sharing already in Phase 1/2)
 - [ ] Vibe-based onboarding + "match my vibe" loadout suggestions (see `PRD.md`)
 - [ ] Night market tracking

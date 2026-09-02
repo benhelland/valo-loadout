@@ -16,6 +16,18 @@ export interface DailyShop {
   offerIds: string[];
   /** Seconds until this rotation is replaced. Drives nextPollAt. */
   resetInSeconds: number;
+  /**
+   * Real VP prices observed in this response, keyed by skin level id -
+   * from the daily panel *and* whatever bundles are currently featured.
+   *
+   * Riot removed the endpoint that returned the full catalogue price list
+   * (`GET /store/v1/offers/`, used by SkinPeek; now 404 at every version
+   * while `/store/v1/wallet` still works, so it was withdrawn rather than
+   * merely re-versioned). Harvesting from a response we already fetch is
+   * therefore the only remaining route to real prices, and it costs no extra
+   * calls - this data was previously parsed and thrown away.
+   */
+  prices: Map<string, number>;
 }
 
 // Identifies the caller as the PC client. Same accepted tradeoff as the User-
@@ -58,8 +70,48 @@ async function getClientVersion(): Promise<string> {
   throw new RiotError("UNAVAILABLE", "Could not determine the current VALORANT client version.");
 }
 
+async function authHeaders(session: RiotSession): Promise<Record<string, string>> {
+  return {
+    Authorization: `Bearer ${session.accessToken}`,
+    "X-Riot-Entitlements-JWT": session.entitlementsToken,
+    "X-Riot-ClientPlatform": CLIENT_PLATFORM,
+    "X-Riot-ClientVersion": await getClientVersion(),
+  };
+}
+
+// Riot's own VP currency id. Offers are priced in a currency map rather than
+// a scalar, because the same payload also quotes Radianite and Kingdom
+// Credits - we read VP and ignore the rest.
+const VP_CURRENCY_ID = "85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741";
+
+// One offer, in the shape both the daily panel and bundle item lists use.
+interface RawOffer {
+  OfferID?: unknown;
+  Cost?: Record<string, unknown>;
+  Rewards?: { ItemID?: unknown }[];
+}
+
+/**
+ * Pulls VP costs out of any offer list, keyed by the skin *level* id the
+ * offer actually grants.
+ *
+ * `Rewards[0].ItemID` is preferred over `OfferID`: for the daily panel they
+ * happen to match, but bundle item offers use a bundle-scoped offer id that
+ * is NOT a skin level, so keying on OfferID silently loses every bundle
+ * price. Anything unparseable is skipped rather than throwing - a
+ * Radianite-priced or non-skin entry in these lists is normal, not an error.
+ */
+function collectVpPrices(offers: RawOffer[] | undefined, into: Map<string, number>): void {
+  for (const offer of offers ?? []) {
+    const id = offer.Rewards?.[0]?.ItemID ?? offer.OfferID;
+    const cost = offer.Cost?.[VP_CURRENCY_ID];
+    if (typeof id === "string" && typeof cost === "number" && Number.isFinite(cost) && cost > 0) {
+      into.set(id, cost);
+    }
+  }
+}
+
 export async function fetchDailyShop(session: RiotSession): Promise<DailyShop> {
-  const clientVersion = await getClientVersion();
   const url = `https://pd.${session.region}.a.pvp.net/store/v3/storefront/${session.puuid}`;
 
   // v3 is a POST with an empty body (v2 was a GET). Confirmed against the
@@ -67,12 +119,7 @@ export async function fetchDailyShop(session: RiotSession): Promise<DailyShop> {
   // the older v2 GET shape, which no longer works.
   const response = await riotFetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "X-Riot-Entitlements-JWT": session.entitlementsToken,
-      "X-Riot-ClientPlatform": CLIENT_PLATFORM,
-      "X-Riot-ClientVersion": clientVersion,
-    },
+    headers: await authHeaders(session),
     body: {},
   });
 
@@ -88,7 +135,12 @@ export async function fetchDailyShop(session: RiotSession): Promise<DailyShop> {
   const body = (await response.json()) as {
     SkinsPanelLayout?: {
       SingleItemOffers?: unknown;
+      SingleItemStoreOffers?: RawOffer[];
       SingleItemOffersRemainingDurationInSeconds?: unknown;
+    };
+    FeaturedBundle?: {
+      Bundle?: { ItemOffers?: { Offer?: RawOffer }[] };
+      Bundles?: { ItemOffers?: { Offer?: RawOffer }[] }[];
     };
   };
 
@@ -100,10 +152,22 @@ export async function fetchDailyShop(session: RiotSession): Promise<DailyShop> {
     throw new RiotError("UNEXPECTED", "Riot's shop response didn't contain a readable rotation.");
   }
 
+  // Prices are additive and best-effort: a malformed bundle must never fail a
+  // shop check, whose actual job is the rotation above.
+  const prices = new Map<string, number>();
+  collectVpPrices(panel?.SingleItemStoreOffers, prices);
+  for (const bundle of [body.FeaturedBundle?.Bundle, ...(body.FeaturedBundle?.Bundles ?? [])]) {
+    collectVpPrices(
+      bundle?.ItemOffers?.map((entry) => entry.Offer ?? {}),
+      prices,
+    );
+  }
+
   return {
     offerIds: offers,
     // Fall back to ~24h rather than failing the whole check if only the
     // countdown is missing - a slightly-off next poll beats no shop data.
     resetInSeconds: typeof reset === "number" && reset > 0 ? reset : 24 * 60 * 60,
+    prices,
   };
 }

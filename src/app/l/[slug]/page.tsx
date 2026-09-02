@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { formatPriceTotal } from "@/lib/pricing";
 import Link from "next/link";
 import Image from "next/image";
 import { getSharedLoadout, listAllWeapons } from "@/queries/loadouts";
@@ -27,7 +28,7 @@ export default async function SharedLoadoutPage({ params }: PageProps<"/l/[slug]
           <h1 className="mt-1 font-display text-5xl uppercase tracking-wide leading-none">{loadout.name}</h1>
           <p className="mt-2 text-sm uppercase tracking-wide text-muted">
             {loadout.items.length} / {weapons.length} slots filled ·{" "}
-            <span className="font-semibold text-accent">{loadout.estimatedTotalVp.toLocaleString()} VP est.</span>
+            <span className="font-semibold text-accent">{formatPriceTotal(loadout.priceTotal)}</span>
           </p>
         </div>
         <Link
