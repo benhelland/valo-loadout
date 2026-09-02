@@ -15,6 +15,7 @@ export const getPriceEstimates = cache(async (): Promise<EstimateTable> => {
     where: { priceVp: { not: null }, contentTierId: { not: null } },
     select: {
       priceVp: true,
+      themeId: true,
       contentTier: { select: { devName: true } },
       weapon: { select: { category: true } },
     },
@@ -23,7 +24,14 @@ export const getPriceEstimates = cache(async (): Promise<EstimateTable> => {
   return deriveEstimates(
     rows.flatMap((row) =>
       row.contentTier && row.priceVp !== null
-        ? [{ tierDevName: row.contentTier.devName, isMelee: row.weapon?.category === "Melee", priceVp: row.priceVp }]
+        ? [
+            {
+              tierDevName: row.contentTier.devName,
+              isMelee: row.weapon?.category === "Melee",
+              priceVp: row.priceVp,
+              themeId: row.themeId,
+            },
+          ]
         : [],
     ),
   );

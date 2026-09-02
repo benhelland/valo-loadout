@@ -50,48 +50,92 @@ export function estimateKey(tierDevName: string, isMelee: boolean): string {
   return `${tierDevName}:${isMelee ? "melee" : "gun"}`;
 }
 
-// How many agreeing observations a group needs before it's allowed to price
-// skins we haven't seen. One is too few - a single sighting of an Exclusive
-// gun at 2175 would have confidently mispriced every other Exclusive gun,
-// which is exactly the failure being fixed. Three agreeing observations is
-// cheap to reach for genuinely uniform tiers and effectively unreachable for
-// heterogeneous ones, which is the discrimination we want.
-export const MIN_OBSERVATIONS_TO_ESTIMATE = 3;
+// A group needs agreeing observations from at least this many DISTINCT
+// themes before it may price skins we haven't seen.
+//
+// Distinct themes rather than a raw count, because Riot sets prices per
+// bundle: five skins from one bundle is one data point about that bundle,
+// whereas two different bundles agreeing is real evidence the tier is
+// uniform. A raw count would have treated the 47-skin VCT capsule haul as
+// overwhelming evidence when it is really a single price decision.
+export const MIN_THEMES_TO_ESTIMATE = 2;
 
 export interface PriceObservation {
   tierDevName: string;
   isMelee: boolean;
   priceVp: number;
+  /** Theme (bundle) the skin belongs to; null groups as its own bucket. */
+  themeId: string | null;
 }
+
+// Launch seed for the four standard gun tiers.
+//
+// This is NOT a return to the old guessed table, and the distinction is the
+// whole point: the old table's failures were Exclusive (not a price point at
+// all - 2175 and 2375 both observed) and melee (a different scale entirely).
+// Both are deliberately absent here and stay "Unknown" until real data
+// arrives. What remains is Riot's standard gun ladder, of which Deluxe
+// (1275) and Ultra (2475) were verified exactly against live storefront
+// data on 2026-09-02; Select and Premium are the same well-documented ladder
+// and were not directly observed, so they are the two values here carrying
+// any residual assumption.
+//
+// Every entry is overridden the moment real observations disagree with it
+// (see applySeed), so this decays into pure measured data rather than
+// persisting as a permanent guess. It exists so a launch with almost no
+// observations doesn't show "Unknown" on ~900 skins whose prices we are not
+// actually uncertain about.
+const SEED_ESTIMATES: ReadonlyArray<{ tierDevName: string; priceVp: number }> = [
+  { tierDevName: "Select", priceVp: 875 },
+  { tierDevName: "Deluxe", priceVp: 1275 },
+  { tierDevName: "Premium", priceVp: 1775 },
+  { tierDevName: "Ultra", priceVp: 2475 },
+];
 
 /**
  * Builds the estimate table from real observations. A group contributes an
- * estimate only if it has at least MIN_OBSERVATIONS_TO_ESTIMATE of them and
- * they ALL agree - a group with any disagreement (Exclusive, in practice)
- * yields no estimate at all rather than a mean or a mode, because a
- * plausible-looking average is precisely the kind of confident wrongness
- * this replaced.
+ * estimate only if its observations span at least MIN_THEMES_TO_ESTIMATE
+ * distinct themes and ALL agree - any disagreement yields no estimate rather
+ * than a mean or a mode, because a plausible-looking average is precisely
+ * the kind of confident wrongness this replaced.
  *
  * Pure and synchronous so it's directly testable; the DB read that feeds it
  * lives in src/queries/prices.ts.
  */
 export function deriveEstimates(observations: PriceObservation[]): EstimateTable {
-  const seen = new Map<string, Set<number>>();
-  const counts = new Map<string, number>();
+  const prices = new Map<string, Set<number>>();
+  const themes = new Map<string, Set<string>>();
 
   for (const o of observations) {
     const key = estimateKey(o.tierDevName, o.isMelee);
-    const prices = seen.get(key) ?? new Set<number>();
-    prices.add(o.priceVp);
-    seen.set(key, prices);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    (prices.get(key) ?? prices.set(key, new Set()).get(key)!).add(o.priceVp);
+    (themes.get(key) ?? themes.set(key, new Set()).get(key)!).add(o.themeId ?? `__none:${o.priceVp}`);
   }
 
   const table = new Map<string, number>();
-  for (const [key, prices] of seen) {
-    if (prices.size !== 1) continue;
-    if ((counts.get(key) ?? 0) < MIN_OBSERVATIONS_TO_ESTIMATE) continue;
-    table.set(key, [...prices][0]);
+  for (const [key, seen] of prices) {
+    if (seen.size !== 1) continue;
+    if ((themes.get(key)?.size ?? 0) < MIN_THEMES_TO_ESTIMATE) continue;
+    table.set(key, [...seen][0]);
+  }
+  return applySeed(table, prices);
+}
+
+/**
+ * Fills gaps in the derived table from SEED_ESTIMATES, but only where the
+ * real data doesn't contradict the seed. A group with any observation that
+ * differs from its seed value drops the seed entirely - measured data always
+ * beats the assumption, including when it merely proves the group isn't
+ * uniform.
+ */
+function applySeed(table: Map<string, number>, observed: Map<string, Set<number>>): EstimateTable {
+  for (const seed of SEED_ESTIMATES) {
+    const key = estimateKey(seed.tierDevName, false);
+    if (table.has(key)) continue; // real data already answered this
+    const seenPrices = observed.get(key);
+    // Contradicted, or proven non-uniform -> no estimate at all.
+    if (seenPrices && (seenPrices.size > 1 || !seenPrices.has(seed.priceVp))) continue;
+    table.set(key, seed.priceVp);
   }
   return table;
 }

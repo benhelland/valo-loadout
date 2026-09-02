@@ -6,7 +6,7 @@ import {
   resolveSkinPrice,
   totalSkinPrice,
   formatPriceTotal,
-  MIN_OBSERVATIONS_TO_ESTIMATE,
+  MIN_THEMES_TO_ESTIMATE,
   type PriceObservation,
 } from "@/lib/pricing";
 
@@ -15,54 +15,88 @@ import {
 // below is drawn from real observed data (see docs/ARCHITECTURE.md "Real VP
 // prices"), not invented.
 
-const gun = (tier: string, priceVp: number): PriceObservation => ({ tierDevName: tier, isMelee: false, priceVp });
-const melee = (tier: string, priceVp: number): PriceObservation => ({ tierDevName: tier, isMelee: true, priceVp });
+const gun = (tier: string, priceVp: number, themeId = "t1"): PriceObservation => ({ tierDevName: tier, isMelee: false, priceVp, themeId });
+const melee = (tier: string, priceVp: number, themeId = "t1"): PriceObservation => ({ tierDevName: tier, isMelee: true, priceVp, themeId });
 
 describe("deriveEstimates", () => {
-  it("estimates from a group whose observations all agree", () => {
-    const table = deriveEstimates([gun("Deluxe", 1275), gun("Deluxe", 1275), gun("Deluxe", 1275)]);
+  it("estimates from a group that agrees across enough distinct themes", () => {
+    const table = deriveEstimates([gun("Deluxe", 1275, "a"), gun("Deluxe", 1275, "b")]);
     assert.equal(table.get(estimateKey("Deluxe", false)), 1275);
   });
 
   it("refuses to estimate when observations disagree", () => {
     // Real data: Exclusive guns were seen at BOTH 2175 and 2375 on the same
-    // day. Any single number here would be wrong for some skins.
+    // day. Any single number here would be wrong for some skins. Exclusive
+    // also has no seed, so this must yield nothing at all.
     const table = deriveEstimates([
-      gun("Exclusive", 2175),
-      gun("Exclusive", 2175),
-      gun("Exclusive", 2375),
-      gun("Exclusive", 2375),
+      gun("Exclusive", 2175, "a"),
+      gun("Exclusive", 2175, "b"),
+      gun("Exclusive", 2375, "c"),
+      gun("Exclusive", 2375, "d"),
     ]);
     assert.equal(table.get(estimateKey("Exclusive", false)), undefined);
   });
 
-  it("refuses to estimate from too few observations even when they agree", () => {
-    const observations = Array.from({ length: MIN_OBSERVATIONS_TO_ESTIMATE - 1 }, () => gun("Ultra", 2475));
-    assert.equal(deriveEstimates(observations).get(estimateKey("Ultra", false)), undefined);
+  it("does not treat many skins from ONE bundle as multiple data points", () => {
+    // The 47-skin VCT capsule haul is a single price decision, not 47.
+    // Ultra is seeded, so assert against a non-seeded tier to isolate the
+    // derivation rule itself.
+    assert.ok(MIN_THEMES_TO_ESTIMATE > 1);
+    const oneBundle = Array.from({ length: 20 }, () => gun("Exclusive", 2175, "same-theme"));
+    assert.equal(deriveEstimates(oneBundle).get(estimateKey("Exclusive", false)), undefined);
+  });
+
+  it("seeds standard gun tiers so a cold start isn't all Unknown", () => {
+    const table = deriveEstimates([]);
+    assert.equal(table.get(estimateKey("Select", false)), 875);
+    assert.equal(table.get(estimateKey("Deluxe", false)), 1275);
+    assert.equal(table.get(estimateKey("Premium", false)), 1775);
+    assert.equal(table.get(estimateKey("Ultra", false)), 2475);
+  });
+
+  it("never seeds Exclusive or melee - the two cases that were badly wrong", () => {
+    const table = deriveEstimates([]);
+    assert.equal(table.get(estimateKey("Exclusive", false)), undefined);
+    assert.equal(table.get(estimateKey("Exclusive", true)), undefined);
+    assert.equal(table.get(estimateKey("Ultra", true)), undefined);
+  });
+
+  it("drops a seed the moment real data contradicts it", () => {
+    const table = deriveEstimates([gun("Premium", 9999, "a")]);
+    assert.equal(table.get(estimateKey("Premium", false)), undefined);
+  });
+
+  it("drops a seed when real data proves the tier isn't uniform", () => {
+    const table = deriveEstimates([gun("Select", 875, "a"), gun("Select", 950, "b")]);
+    assert.equal(table.get(estimateKey("Select", false)), undefined);
+  });
+
+  it("prefers derived data over the seed when both exist", () => {
+    // Riot repriced a tier: two themes agree on a new value, so that wins.
+    const table = deriveEstimates([gun("Deluxe", 1400, "a"), gun("Deluxe", 1400, "b")]);
+    assert.equal(table.get(estimateKey("Deluxe", false)), 1400);
   });
 
   it("keeps melee separate from guns at the same tier", () => {
     // Suit of Aeris (melee, Exclusive) was 5350 while that bundle's Exclusive
     // guns were 2375 - melee is a different scale, not a multiplier.
     const table = deriveEstimates([
-      gun("Premium", 1775),
-      gun("Premium", 1775),
-      gun("Premium", 1775),
-      melee("Premium", 3550),
-      melee("Premium", 3550),
-      melee("Premium", 3550),
+      gun("Premium", 1775, "a"),
+      gun("Premium", 1775, "b"),
+      melee("Premium", 3550, "a"),
+      melee("Premium", 3550, "b"),
     ]);
     assert.equal(table.get(estimateKey("Premium", false)), 1775);
     assert.equal(table.get(estimateKey("Premium", true)), 3550);
   });
 
-  it("returns an empty table for no observations", () => {
-    assert.equal(deriveEstimates([]).size, 0);
+  it("returns only seeded groups when there are no observations at all", () => {
+    assert.equal(deriveEstimates([]).size, 4);
   });
 });
 
 describe("resolveSkinPrice", () => {
-  const estimates = deriveEstimates([gun("Ultra", 2475), gun("Ultra", 2475), gun("Ultra", 2475)]);
+  const estimates = deriveEstimates([gun("Ultra", 2475, "a"), gun("Ultra", 2475, "b")]);
 
   it("always prefers a real price over an estimate", () => {
     // The user's explicit requirement: a known price wins outright. Here the
@@ -104,7 +138,7 @@ describe("resolveSkinPrice", () => {
 });
 
 describe("totalSkinPrice / formatPriceTotal", () => {
-  const estimates = deriveEstimates([gun("Ultra", 2475), gun("Ultra", 2475), gun("Ultra", 2475)]);
+  const estimates = deriveEstimates([gun("Ultra", 2475, "a"), gun("Ultra", 2475, "b")]);
 
   it("never counts an unpriced skin as zero", () => {
     // The old reduce((sum, s) => sum + (price ?? 0)) made a loadout of five
