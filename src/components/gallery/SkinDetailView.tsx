@@ -25,6 +25,11 @@ interface SkinDetailViewProps {
   // /loadouts/[id]/weapon/[weaponId]/skins/[skinId]) - wishlisting isn't the
   // point of that flow, "Add to Loadout" is.
   wishlist?: { isWishlisted: boolean; isSignedIn: boolean };
+  // Passed through to SkinPreview's gallery-side "add to loadout" control.
+  loadouts?: { id: string; name: string }[] | null;
+  // Loadouts this skin is already assigned in, shown so the two features
+  // aren't blind to each other.
+  inLoadouts?: string[];
 }
 
 // Shared by the normal gallery detail page (/skins/[id]) and the stateless
@@ -45,6 +50,8 @@ export function SkinDetailView({
   backHref = "/",
   backLabel = "← Back to gallery",
   wishlist,
+  loadouts,
+  inLoadouts,
 }: SkinDetailViewProps) {
   const price = estimatePriceVp(skin.contentTier?.devName);
   const tierColor = tierColorToCss(skin.contentTier?.highlightColor);
@@ -67,6 +74,7 @@ export function SkinDetailView({
           initialChromaId={initialChromaId}
           initialBuddyId={initialBuddyId}
           loadoutContext={loadoutContext}
+          loadouts={loadouts}
         >
           <div className="flex items-center gap-2">
             {skin.contentTier?.displayIconUrl ? (
@@ -95,6 +103,12 @@ export function SkinDetailView({
                 variant="labeled"
               />
             </div>
+          ) : null}
+
+          {inLoadouts && inLoadouts.length > 0 ? (
+            <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
+              In your {inLoadouts.join(", ")} loadout{inLoadouts.length > 1 ? "s" : ""}
+            </p>
           ) : null}
 
           <dl className="mt-5 space-y-0">

@@ -26,7 +26,7 @@ export function LoadoutListClient({ loadouts, weapons }: { loadouts: LoadoutSumm
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-end gap-3 border border-border border-t-2 border-t-accent bg-surface p-5">
+      <div className="mb-8 flex flex-wrap items-end gap-3 border border-border bg-surface p-5">
         <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted min-w-[220px] flex-1">
           New loadout name
           <input
@@ -41,7 +41,7 @@ export function LoadoutListClient({ loadouts, weapons }: { loadouts: LoadoutSumm
         <button
           onClick={handleCreate}
           disabled={isPending}
-          className="clip-notch-sm bg-accent px-6 py-2 text-sm font-bold uppercase tracking-widest text-white hover:bg-accent-dark transition-colors disabled:opacity-50"
+          className="clip-notch-sm bg-accent px-6 py-2 text-sm font-bold uppercase tracking-widest text-accent-contrast hover:bg-accent-dark transition-colors disabled:opacity-50"
         >
           Create
         </button>

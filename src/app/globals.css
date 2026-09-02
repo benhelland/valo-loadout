@@ -2,15 +2,30 @@
 
 :root {
   /* VALORANT client-inspired palette: dark navy void, warm off-white text,
-     steel-gray secondary, the same signature red the client uses. */
+     the same signature red the client uses.
+
+     Two deliberate departures from a literal copy of the client's values:
+
+     1. `--surface` sits further off `--background` than the client's does.
+        This app's main view is a dense grid of cards; at the original
+        near-identical pair (#16212c on #0f1923) the cards didn't visually
+        separate from the page and the whole grid read as one flat sheet.
+     2. `--muted` used to be #8b978f, which is *green*-dominant (R139 G151
+        B143) sitting in an otherwise blue-navy palette - it made every
+        piece of secondary text read faintly olive. It's now a blue-gray of
+        the same lightness, so it reads as "quiet" rather than "off". */
   --background: #0f1923;
-  --surface: #16212c;
-  --surface-hover: #1e2b38;
-  --border: #2a3744;
+  --surface: #1a2632;
+  --surface-hover: #22303e;
+  --border: #2c3a49;
   --foreground: #ece8e1;
-  --muted: #8b978f;
+  --muted: #8a97a8;
   --accent: #ff4655;
   --accent-dark: #bd3944;
+  /* Text/icon color for anything sitting ON --accent. White on #ff4655 is
+     only ~3.3:1, under the 4.5:1 AA floor; this near-black warm tone is
+     ~5.6:1 on the same background. */
+  --accent-contrast: #2b0409;
 }
 
 @theme inline {
@@ -22,6 +37,7 @@
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent-dark: var(--accent-dark);
+  --color-accent-contrast: var(--accent-contrast);
   --font-display: var(--font-bebas);
   --font-sans: var(--font-rajdhani);
 }
@@ -30,6 +46,17 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Makes the browser render native form controls (and, critically, the
+   OS-drawn <select> popup list) in dark mode. Without this, every dropdown
+   in the app opens a white system popup on Windows/Chrome - the theme
+   visibly breaks the moment you interact with a filter. Cheaper and more
+   robust than replacing every <select> with a custom listbox widget, which
+   would mean re-implementing keyboard nav, focus management and mobile's
+   native picker for no user-visible gain over this. */
+:root {
+  color-scheme: dark;
 }
 
 /* VALORANT-style clipped corners - used on buttons and hero panels instead

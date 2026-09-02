@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUserId } from "@/lib/auth";
 import { listWishlistSkins } from "@/queries/wishlist";
+import { getLoadoutMembership } from "@/queries/loadouts";
 import { SkinCard } from "@/components/gallery/SkinCard";
 
 // Protected by src/proxy.ts's matcher (/wishlist/:path*) - getCurrentUserId()
@@ -9,6 +10,8 @@ import { SkinCard } from "@/components/gallery/SkinCard";
 export default async function WishlistPage() {
   const userId = await getCurrentUserId();
   const { skins, totalVp } = await listWishlistSkins(userId);
+  // One query for the whole page, not one per card - see getLoadoutMembership.
+  const membership = await getLoadoutMembership(userId, skins.map((s) => s.id));
 
   return (
     <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-8">
@@ -37,9 +40,17 @@ export default async function WishlistPage() {
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-          {skins.map((skin) => (
-            <SkinCard key={skin.id} skin={skin} wishlist={{ isWishlisted: true, isSignedIn: true }} />
-          ))}
+          {skins.map((skin) => {
+            const inLoadouts = membership.get(skin.id);
+            return (
+              <SkinCard
+                key={skin.id}
+                skin={skin}
+                wishlist={{ isWishlisted: true, isSignedIn: true }}
+                badge={inLoadouts?.length ? `In ${inLoadouts.join(", ")}` : undefined}
+              />
+            );
+          })}
         </div>
       )}
     </div>

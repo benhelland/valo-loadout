@@ -24,11 +24,20 @@ interface SkinCardProps {
   // doesn't make sense - the loadout picker reuses this same card for
   // "assign to slot", where a wishlist heart would be a non-sequitur.
   wishlist?: { isWishlisted: boolean; isSignedIn: boolean };
+  // Short marker rendered under the name, e.g. the wishlist page's "In
+  // <loadout>" cross-reference. Kept as a plain string so the card stays
+  // agnostic about what's being cross-referenced.
+  badge?: string;
 }
 
-export function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist }: SkinCardProps) {
+export function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist, badge }: SkinCardProps) {
   const price = estimatePriceVp(skin.contentTier?.devName);
-  const tierColor = tierColorToCss(skin.contentTier?.highlightColor);
+  // Full opacity, not the API's own 0.2 alpha: this is the card's rarity
+  // signal, so it has to actually read. Rarity is the primary way people
+  // sort skins mentally, and it was previously communicated only by a 12px
+  // icon on a 20%-opacity wash - effectively invisible across a grid.
+  const tierColor = tierColorToCss(skin.contentTier?.highlightColor, 1);
+  const tierGlow = tierColorToCss(skin.contentTier?.highlightColor, 0.28);
 
   // Only override anything when the base chroma (chromas[0], the default
   // look) ISN'T what matched the filter - the common case (base already
@@ -57,7 +66,16 @@ export function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist }: Sk
       ) : null}
       <Link
         href={href}
-        className="clip-notch-sm group block border border-border bg-surface hover:bg-surface-hover hover:border-accent/50 transition-colors"
+        style={
+          {
+            // Driven by data we already sync but previously barely used. The
+            // hover glow is the tier's own hue rather than a global accent,
+            // so hovering reinforces rarity instead of overriding it.
+            "--tier": tierColor ?? "var(--border)",
+            "--tier-glow": tierGlow ?? "transparent",
+          } as React.CSSProperties
+        }
+        className="clip-notch-sm group block border border-border border-t-[3px] border-t-[var(--tier)] bg-surface transition-all hover:bg-surface-hover hover:border-[var(--tier)] hover:shadow-[0_0_0_1px_var(--tier-glow),0_6px_20px_-6px_var(--tier-glow)]"
       >
         <div className="relative aspect-[4/3] bg-black/20">
           {imageUrl ? (
@@ -69,28 +87,31 @@ export function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist }: Sk
               className="object-contain p-4 group-hover:scale-105 transition-transform duration-200"
             />
           ) : null}
-          {skin.contentTier ? (
-            <div
-              className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm"
-              style={{ backgroundColor: tierColor ?? "rgba(0,0,0,0.4)" }}
-            >
-              {skin.contentTier.displayIconUrl ? (
-                <Image
-                  src={skin.contentTier.displayIconUrl}
-                  alt={skin.contentTier.displayName}
-                  width={12}
-                  height={12}
-                />
-              ) : null}
-            </div>
+          {skin.contentTier?.displayIconUrl ? (
+            <Image
+              src={skin.contentTier.displayIconUrl}
+              alt={skin.contentTier.displayName}
+              width={14}
+              height={14}
+              // No tinted plate behind it any more - the top border now
+              // carries the rarity colour, so the icon only has to say
+              // *which* tier, not shout that there is one.
+              className="absolute top-2 right-2 opacity-80"
+            />
           ) : null}
         </div>
         <div className="p-3 border-t border-border">
           <p className="text-sm font-semibold truncate">{skin.displayName}</p>
-          <div className="mt-1 flex items-center justify-between text-xs uppercase tracking-wide text-muted">
+          <div className="mt-1 flex items-center justify-between gap-2 text-xs uppercase tracking-wide text-muted">
             <span className="truncate">{skin.weapon?.displayName ?? "—"}</span>
-            {price !== null ? <span className="text-foreground/80">{price.toLocaleString()} VP</span> : null}
+            {/* Deliberately NOT accent-red here. One red price is a
+                highlight; thirty of them in a grid is just noise competing
+                with the skin art, which is the actual content. */}
+            {price !== null ? <span className="shrink-0 text-foreground/80">{price.toLocaleString()} VP</span> : null}
           </div>
+          {badge ? (
+            <p className="mt-1.5 truncate text-[10px] font-semibold uppercase tracking-wider text-muted">{badge}</p>
+          ) : null}
         </div>
       </Link>
     </div>

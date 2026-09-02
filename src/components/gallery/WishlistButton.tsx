@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, type MouseEvent } from "react";
-import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import { addToWishlist, removeFromWishlist } from "@/actions/wishlist";
 
 interface WishlistButtonProps {
@@ -20,28 +20,25 @@ interface WishlistButtonProps {
 export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant = "icon" }: WishlistButtonProps) {
   const [wishlisted, setWishlisted] = useState(initialWishlisted);
   const [isPending, startTransition] = useTransition();
-
-  if (!isSignedIn) {
-    // Icon cards stay clean for anonymous browsing rather than showing a
-    // button that just bounces to sign-in on every card - the labeled
-    // variant (skin detail page) is where wishlisting is actually offered
-    // to a signed-out visitor.
-    if (variant === "icon") return null;
-    return (
-      <Link
-        href="/sign-in"
-        className="clip-notch-sm border border-border px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted hover:border-accent hover:text-foreground transition-colors"
-      >
-        Sign in to wishlist
-      </Link>
-    );
-  }
+  const router = useRouter();
+  const pathname = usePathname();
 
   function toggle(event: MouseEvent) {
     // SkinCard overlays this on top of a Link that covers the whole card -
     // stop the click from also triggering that navigation.
     event.preventDefault();
     event.stopPropagation();
+
+    // Signed-out visitors still see (and can click) the heart. It used to
+    // render nothing at all for them, which meant the app's headline
+    // feature was completely invisible to every first-time visitor
+    // browsing the gallery - and browsing anonymously is the intended
+    // front door. Clicking is the natural moment to ask for sign-in, and
+    // callbackUrl brings them straight back to what they were looking at.
+    if (!isSignedIn) {
+      router.push(`/sign-in?callbackUrl=${encodeURIComponent(pathname)}`);
+      return;
+    }
 
     const next = !wishlisted;
     setWishlisted(next);
@@ -60,10 +57,12 @@ export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant 
         type="button"
         onClick={toggle}
         disabled={isPending}
-        aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
-        aria-pressed={wishlisted}
+        aria-label={
+          !isSignedIn ? "Sign in to wishlist" : wishlisted ? "Remove from wishlist" : "Add to wishlist"
+        }
+        aria-pressed={isSignedIn ? wishlisted : undefined}
         className={`absolute top-2 left-2 z-10 flex h-6 w-6 items-center justify-center rounded-full backdrop-blur-sm transition-colors disabled:opacity-50 ${
-          wishlisted ? "bg-accent text-background" : "bg-black/40 text-white hover:bg-black/60"
+          wishlisted ? "bg-accent text-accent-contrast" : "bg-black/40 text-white hover:bg-black/60"
         }`}
       >
         <svg
@@ -86,11 +85,11 @@ export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant 
       disabled={isPending}
       className={`clip-notch-sm border px-4 py-2 text-xs font-semibold uppercase tracking-widest transition-colors disabled:opacity-50 ${
         wishlisted
-          ? "border-accent bg-accent text-background"
+          ? "border-accent bg-accent text-accent-contrast"
           : "border-border text-muted hover:border-accent hover:text-foreground"
       }`}
     >
-      {wishlisted ? "★ On your wishlist" : "☆ Add to wishlist"}
+      {!isSignedIn ? "☆ Add to wishlist" : wishlisted ? "★ On your wishlist" : "☆ Add to wishlist"}
     </button>
   );
 }

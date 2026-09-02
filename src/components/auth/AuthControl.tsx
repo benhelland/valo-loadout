@@ -13,7 +13,7 @@ export async function AuthControl() {
     return (
       <Link
         href="/sign-in"
-        className="clip-notch-sm bg-accent px-4 py-2 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-accent-dark"
+        className="clip-notch-sm bg-accent px-4 py-2 text-xs font-bold uppercase tracking-widest text-accent-contrast transition-colors hover:bg-accent-dark"
       >
         Sign in
       </Link>

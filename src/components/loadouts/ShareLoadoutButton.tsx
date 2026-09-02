@@ -121,7 +121,7 @@ export function ShareLoadoutButton({ loadout, weapons, initialShareSlug, variant
                 <div className="mt-2 flex gap-2">
                   <button
                     onClick={handleCopyLink}
-                    className="clip-notch-sm flex-1 bg-accent py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-accent-dark transition-colors"
+                    className="clip-notch-sm flex-1 bg-accent py-1.5 text-[11px] font-semibold uppercase tracking-wide text-accent-contrast hover:bg-accent-dark transition-colors"
                   >
                     Copy link
                   </button>
@@ -142,7 +142,7 @@ export function ShareLoadoutButton({ loadout, weapons, initialShareSlug, variant
                 <button
                   onClick={handleCreateLink}
                   disabled={isPending}
-                  className="clip-notch-sm mt-2 w-full bg-accent py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-accent-dark transition-colors disabled:opacity-50"
+                  className="clip-notch-sm mt-2 w-full bg-accent py-1.5 text-[11px] font-semibold uppercase tracking-wide text-accent-contrast hover:bg-accent-dark transition-colors disabled:opacity-50"
                 >
                   {isPending ? "Creating..." : "Create share link"}
                 </button>

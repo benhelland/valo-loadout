@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Bebas_Neue, Rajdhani } from "next/font/google";
 import { AuthControl } from "@/components/auth/AuthControl";
+import { MainNav } from "@/components/nav/MainNav";
 import "./globals.css";
 
 // Display font for big headers - the closest free stand-in for the VALORANT
@@ -33,34 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <header className="border-b-2 border-accent/30 bg-surface/80 backdrop-blur">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-            <Link href="/" className="font-display text-3xl uppercase tracking-wide leading-none">
-              valo<span className="text-accent">loadout</span>
-            </Link>
-            <div className="flex items-center gap-8">
-              <nav className="flex items-center gap-8 text-sm font-semibold uppercase tracking-widest text-muted">
-                <Link
-                  href="/"
-                  className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
-                >
-                  Gallery
-                </Link>
-                <Link
-                  href="/loadouts"
-                  className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
-                >
-                  Loadouts
-                </Link>
-                <Link
-                  href="/wishlist"
-                  className="border-b-2 border-transparent pb-1 hover:border-accent hover:text-foreground transition-colors"
-                >
-                  Wishlist
-                </Link>
-              </nav>
-              <AuthControl />
-            </div>
-          </div>
+          <MainNav authControl={<AuthControl />} />
         </header>
 
         <main className="flex-1">{children}</main>

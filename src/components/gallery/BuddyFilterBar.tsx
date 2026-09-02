@@ -30,7 +30,7 @@ export function BuddyFilterBar({ colorOptions, current, clearHref }: BuddyFilter
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-4 border border-border border-t-2 border-t-accent bg-surface p-5">
+    <div className="flex flex-wrap items-end gap-4 border border-border bg-surface p-5">
       <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted min-w-[200px] flex-1">
         Search
         <SearchAutocomplete

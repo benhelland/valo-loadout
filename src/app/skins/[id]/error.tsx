@@ -9,7 +9,7 @@ export default function SkinDetailError({ reset }: { error: Error & { digest?: s
       <div className="mt-4 flex items-center justify-center gap-4">
         <button
           onClick={reset}
-          className="rounded bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+          className="clip-notch-sm bg-accent px-5 py-2 text-xs font-bold uppercase tracking-widest text-accent-contrast transition-colors hover:bg-accent-dark"
         >
           Try again
         </button>

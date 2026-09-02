@@ -255,7 +255,7 @@ function WeaponTile({
               </Link>
               <Link
                 href={pickerHref}
-                className="clip-notch-sm flex-1 bg-accent py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-accent-dark transition-colors"
+                className="clip-notch-sm flex-1 bg-accent py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-accent-contrast hover:bg-accent-dark transition-colors"
               >
                 Replace
               </Link>

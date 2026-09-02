@@ -47,6 +47,21 @@ The riskiest and most differentiated piece — see `RISKS.md` before starting th
 - [x] **Verified end-to-end against live Riot (2026-08-31).** A real account linked and returned its actual daily shop. Confirmed in order: authorization-code exchange → `/userinfo` (puuid + Riot ID) → entitlements token → riot-geo shard (`na`) → `POST /store/v3/storefront` → four offers, **all four resolving to catalog skins with zero unresolved ids** (which independently confirms the "offers are skin *level* UUIDs" assumption taken from SkinPeek). Refresh token stored encrypted; `nextPollAt` derived from Riot's own reset countdown. The **refresh-token grant** was then exercised separately — a second check rotated the token and persisted the new one (`refresh token rotated: true`), which is the path every subsequent poll uses and the one whose failure mode Ministral warned about. The refresh lock was verified to block a concurrent check and to be reclaimable once its lease expires, so an interrupted run can't wedge an account.
 - [ ] **Still unverified: whether this works from a datacenter IP.** Every call so far has come from a residential connection. Cloudflare is hardest on datacenter IPs, which is what Vercel Cron and GitHub Actions both are. Until that's tested, `npm run check-shops` is the known-good trigger. Also untested: the real `EXPIRED` path (needs a genuinely aged-out token) and `CAPTCHA_BLOCKED`.
 
+## UI/UX review pass (2026-09-02)
+
+A full review of the shipped UI, benchmarked against the established sites in this space (op.gg's skin browser, valorantskins.com). All actioned — see `FEATURES.md` "Visual design" and the gallery/wishlist sections for the reasoning behind each.
+
+- [x] **Mobile layout was broken** — the header overflowed at phone widths and scrolled the entire document sideways (502px of content in a 375px viewport), with one nav link unreachable. Responsive nav with a collapse toggle; verified back to 375/375, no overflow.
+- [x] **Styled 404** — Next's unstyled default was reachable from any stale share link.
+- [x] **Rarity made visible** — tier `highlightColor` (already synced, previously only a 20%-opacity wash behind a 12px icon) now drives each card's top border and hover glow.
+- [x] **Palette corrections** — `--muted` was green-dominant in a blue palette; `--surface` sat too close to `--background` for cards to separate; white-on-accent failed AA at ~3.3:1 (new `--accent-contrast` token, ~5.6:1); accent restricted to actions rather than also carrying structural rules and the media frame.
+- [x] **Dropdowns match the theme** — `color-scheme: dark` fixes the light OS-drawn popup, deliberately instead of hand-rolling custom listboxes.
+- [x] **Weapon promoted to an icon rail** — matches how both reference sites organise browsing, and how people actually shop for skins.
+- [x] **Active-filter chips + mobile filter collapse** — applied filters were previously invisible without opening all six dropdowns, and the expanded bar pushed all content below the fold on phones.
+- [x] **Gallery is no longer a dead end for loadouts** — "Add to loadout" now works from the skin detail page, inferring the slot from the skin.
+- [x] **Wishlist discoverable when signed out** — the heart rendered nothing at all for anonymous visitors, hiding the headline feature from exactly the audience the open gallery exists to convert.
+- [x] **Cross-references between the three features** — skin detail and wishlist cards show which loadouts a skin is already in.
+
 ## Phase 4 — Polish / stretch
 
 - [ ] **"My collection" / owned-skins view** — deferred, not yet designed. Needs its own scoping pass before building: it requires reading a linked account's actual *inventory*, a different Riot endpoint than the shop-checking one, with its own data-minimization question (`RISKS.md`'s current stance only covers fetching shop contents, not inventory) — revisit `RISKS.md` when this gets picked up. Explicitly out of the loadout builder, which stays aspirational/ownership-agnostic regardless (`PRD.md`).

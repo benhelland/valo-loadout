@@ -26,6 +26,13 @@ interface SkinPreviewProps {
   // Loadout" action that saves the current level/chroma/buddy selection
   // into that weapon slot and returns to the board.
   loadoutContext?: { loadoutId: string; weaponId: string; loadoutName: string };
+  // The signed-in user's loadouts, for the *gallery-side* "add to loadout"
+  // control. Distinct from loadoutContext above: that one is set when the
+  // user came from a specific slot in a specific loadout, this one is for
+  // someone browsing normally who wants to drop the skin they're looking at
+  // into a loadout without going back to the board and starting over. Null
+  // when signed out; an empty array means signed in with no loadouts yet.
+  loadouts?: { id: string; name: string }[] | null;
   // The static info panel (tier/name/stats/vibe tags), server-rendered by
   // SkinDetailView and dropped into the top of the sidebar here - see that
   // component for why it's structured this way.
@@ -39,11 +46,14 @@ export function SkinPreview({
   initialChromaId,
   initialBuddyId,
   loadoutContext,
+  loadouts,
   children,
 }: SkinPreviewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isSaving, startSaving] = useTransition();
+  const [targetLoadoutId, setTargetLoadoutId] = useState(loadouts?.[0]?.id ?? "");
+  const [addedTo, setAddedTo] = useState<string | null>(null);
   const mediaRef = useRef<HTMLDivElement>(null);
   const defaultLevel = skin.levels[0];
   const [selectedLevelId, setSelectedLevelId] = useState<string | null>(initialLevelId ?? defaultLevel?.id ?? null);
@@ -118,6 +128,27 @@ export function SkinPreview({
         buddyId: selectedBuddyId || null,
       });
       router.push(`/loadouts/${loadoutContext.loadoutId}`);
+    });
+  }
+
+  // The gallery-side equivalent of addToLoadout: same mutation, but the
+  // weapon slot is inferred from the skin itself (a Vandal skin can only go
+  // in the Vandal slot) rather than being chosen up front by clicking into
+  // that slot. Stays on the page and confirms inline instead of navigating
+  // to the board - the user was browsing, and shouldn't be yanked out of it.
+  function addToChosenLoadout() {
+    if (!skin.weaponId || !targetLoadoutId) return;
+    const weaponId = skin.weaponId;
+    startSaving(async () => {
+      await setLoadoutItem({
+        loadoutId: targetLoadoutId,
+        weaponId,
+        skinId: skin.id,
+        levelId: selectedLevelId,
+        chromaId: selectedChromaId,
+        buddyId: selectedBuddyId || null,
+      });
+      setAddedTo(loadouts?.find((l) => l.id === targetLoadoutId)?.name ?? "loadout");
     });
   }
 
@@ -207,11 +238,14 @@ export function SkinPreview({
           ) : null}
 
           {/* Targeting-bracket corner accents - purely decorative, echoes the
-              client's inspect-view framing. */}
-          <span className="pointer-events-none absolute left-3 top-3 h-6 w-6 border-l-2 border-t-2 border-accent/70" />
-          <span className="pointer-events-none absolute right-3 top-3 h-6 w-6 border-r-2 border-t-2 border-accent/70" />
-          <span className="pointer-events-none absolute left-3 bottom-3 h-6 w-6 border-l-2 border-b-2 border-accent/70" />
-          <span className="pointer-events-none absolute right-3 bottom-3 h-6 w-6 border-r-2 border-b-2 border-accent/70" />
+              client's inspect-view framing. Deliberately neutral rather than
+              accent-red: this frames the skin art, and four saturated red
+              brackets around a colourful render fight the thing they're
+              meant to be presenting. */}
+          <span className="pointer-events-none absolute left-3 top-3 h-6 w-6 border-l-2 border-t-2 border-foreground/25" />
+          <span className="pointer-events-none absolute right-3 top-3 h-6 w-6 border-r-2 border-t-2 border-foreground/25" />
+          <span className="pointer-events-none absolute left-3 bottom-3 h-6 w-6 border-l-2 border-b-2 border-foreground/25" />
+          <span className="pointer-events-none absolute right-3 bottom-3 h-6 w-6 border-r-2 border-b-2 border-foreground/25" />
 
           {/* Buddy badge - a corner icon, not a composite onto the weapon
               itself. Mirrors how Riot's own store/inventory UI pairs a buddy
@@ -238,7 +272,7 @@ export function SkinPreview({
       {/* Sidebar - skin info up top, then the interactive controls, all in
           one panel so it fills out next to the (much taller) media area
           instead of trailing off short. */}
-      <aside className="border border-border border-t-2 border-t-accent bg-surface p-6">
+      <aside className="border border-border bg-surface p-6">
         {children}
 
         {skin.levels.length > 0 ? (
@@ -326,10 +360,70 @@ export function SkinPreview({
           <button
             onClick={addToLoadout}
             disabled={isSaving}
-            className="clip-notch-sm mt-6 w-full bg-accent py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-accent-dark transition-colors disabled:opacity-50"
+            className="clip-notch-sm mt-6 w-full bg-accent py-2.5 text-xs font-bold uppercase tracking-widest text-accent-contrast hover:bg-accent-dark transition-colors disabled:opacity-50"
           >
             {isSaving ? "Saving..." : `Add to ${loadoutContext.loadoutName}`}
           </button>
+        ) : null}
+
+        {/* The gallery previously had no route into the loadout builder at
+            all: "Add to Loadout" only existed when you'd arrived from a
+            specific weapon slot, so anyone who found a skin while browsing
+            had to abandon the page, go to /loadouts, pick a loadout, pick
+            the slot, and find the skin again. Melee skins are excluded from
+            neither - skin.weaponId covers knives too. */}
+        {!loadoutContext && loadouts && skin.weaponId ? (
+          <div className="mt-6 border-t border-border pt-6">
+            {loadouts.length === 0 ? (
+              <Link
+                href="/loadouts"
+                className="clip-notch-sm block w-full border border-border py-2.5 text-center text-xs font-semibold uppercase tracking-widest text-muted transition-colors hover:border-foreground/30 hover:text-foreground"
+              >
+                Create a loadout to add this
+              </Link>
+            ) : (
+              <>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">Add to loadout</p>
+                <div className="flex gap-2">
+                  <select
+                    value={targetLoadoutId}
+                    onChange={(e) => {
+                      setTargetLoadoutId(e.target.value);
+                      setAddedTo(null);
+                    }}
+                    aria-label="Loadout to add this skin to"
+                    className="min-w-0 flex-1 rounded-none border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors focus:border-accent focus:outline-none"
+                  >
+                    {loadouts.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={addToChosenLoadout}
+                    disabled={isSaving}
+                    className="clip-notch-sm shrink-0 bg-accent px-4 text-xs font-bold uppercase tracking-widest text-accent-contrast transition-colors hover:bg-accent-dark disabled:opacity-50"
+                  >
+                    {isSaving ? "…" : "Add"}
+                  </button>
+                </div>
+                {addedTo ? (
+                  <p className="mt-2 text-[11px] text-muted">
+                    Added to {addedTo}.{" "}
+                    <Link href={`/loadouts/${targetLoadoutId}`} className="text-accent hover:underline">
+                      View loadout →
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="mt-2 text-[11px] text-muted">
+                    Fills the {skin.weapon?.displayName ?? "weapon"} slot with the level, color and buddy
+                    selected above.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         ) : null}
 
         <button

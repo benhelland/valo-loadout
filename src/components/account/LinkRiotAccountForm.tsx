@@ -63,7 +63,7 @@ export function LinkRiotAccountForm({ authorizeUrl }: { authorizeUrl: string }) 
         <button
           type="submit"
           disabled={isPending || !redirectUrl.trim()}
-          className="clip-notch-sm mt-3 bg-accent px-6 py-2 text-sm font-bold uppercase tracking-widest text-white transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
+          className="clip-notch-sm mt-3 bg-accent px-6 py-2 text-sm font-bold uppercase tracking-widest text-accent-contrast transition-colors hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isPending ? "Linking…" : "Finish linking"}
         </button>

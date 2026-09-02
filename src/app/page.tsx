@@ -3,6 +3,7 @@ import { getWishlistedSkinIds } from "@/queries/wishlist";
 import { getOptionalUserId } from "@/lib/auth";
 import { SkinCard } from "@/components/gallery/SkinCard";
 import { FilterBar } from "@/components/gallery/FilterBar";
+import { WeaponRail } from "@/components/gallery/WeaponRail";
 import { GalleryTabs } from "@/components/gallery/GalleryTabs";
 import { Pagination } from "@/components/gallery/Pagination";
 import { SKIN_PAGE_SIZES, DEFAULT_SKIN_PAGE_SIZE, resolvePageSize } from "@/lib/pageSize";
@@ -48,16 +49,31 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
   ]);
   const wishlistedIds = userId ? await getWishlistedSkinIds(userId, skins.map((s) => s.id)) : new Set<string>();
 
+  // Sort is excluded - it always has a value, so it never means "filtered".
+  const hasActiveFilter = Boolean(
+    filters.weaponId || filters.tierId || filters.themeId || filters.color || filters.vibe || filters.hasAnimation || filters.search,
+  );
+
   return (
     <div className="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 py-8">
       <GalleryTabs active="skins" />
 
-      <div className="mb-6 flex items-baseline gap-4 border-l-4 border-accent pl-4">
+      <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-l-4 border-accent pl-4">
         <h1 className="font-display text-5xl uppercase tracking-wide leading-none">All Skins</h1>
+        {/* The "every weapon and knife" boast only holds for the unfiltered
+            view - with a weapon or tier selected it's just wrong. */}
         <p className="text-sm uppercase tracking-wide text-muted">
-          {total.toLocaleString()} skins across every weapon and knife
+          {hasActiveFilter
+            ? `${total.toLocaleString()} ${total === 1 ? "match" : "matches"}`
+            : `${total.toLocaleString()} skins across every weapon and knife`}
         </p>
       </div>
+
+      {/* Weapon is promoted out of the dropdown row into its own always-
+          visible rail - see WeaponRail for the reasoning. FilterBar's own
+          weapon <select> is hidden here to avoid two controls fighting over
+          the same query param. */}
+      <WeaponRail weapons={filterOptions.weapons} currentWeaponId={filters.weaponId} />
 
       <FilterBar
         weapons={filterOptions.weapons}
@@ -65,6 +81,8 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
         themes={filterOptions.themes}
         vibeTags={filterOptions.vibeTags}
         current={flatParams}
+        hideWeaponFilter
+        lockedWeaponId={filters.weaponId}
       />
 
       {skins.length === 0 ? (

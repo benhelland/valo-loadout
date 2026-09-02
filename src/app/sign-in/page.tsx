@@ -49,11 +49,15 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
       <div className="clip-notch w-full border border-border bg-surface p-8">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-muted">Sign in</p>
         <h1 className="mt-2 font-display text-4xl uppercase tracking-wide leading-none">
-          Build a <span className="text-accent">loadout</span>
+          Save your <span className="text-accent">picks</span>
         </h1>
+        {/* Copy covers all three reasons someone lands here now - the
+            wishlist heart routes signed-out visitors to this page too, so
+            leading with "build a loadout" alone answered the wrong
+            question. The Riot/notification half is no longer "(later)". */}
         <p className="mt-4 text-sm text-muted">
-          Browsing the gallery never requires an account. Signing in with Discord is only needed to save
-          loadouts and (later) link a Riot account for shop notifications.
+          Browsing the gallery never requires an account. Signing in with Discord lets you save loadouts,
+          keep a wishlist, and get a DM when a wishlisted skin hits your daily shop.
         </p>
 
         <form

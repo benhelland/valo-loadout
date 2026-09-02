@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSkinDetail, listBuddies } from "@/queries/gallery";
 import { isSkinWishlisted } from "@/queries/wishlist";
+import { listLoadoutSummaries, getLoadoutMembership } from "@/queries/loadouts";
 import { getOptionalUserId } from "@/lib/auth";
 import { SkinDetailView } from "@/components/gallery/SkinDetailView";
 
@@ -15,7 +16,15 @@ export default async function SkinDetailPage({ params, searchParams }: PageProps
 
   if (!skin) notFound();
 
-  const isWishlisted = userId ? await isSkinWishlisted(userId, skin.id) : false;
+  // Signed-out visitors get neither lookup - the wishlist button falls back
+  // to prompting sign-in, and the add-to-loadout control isn't rendered.
+  const [isWishlisted, loadouts, membership] = userId
+    ? await Promise.all([
+        isSkinWishlisted(userId, skin.id),
+        listLoadoutSummaries(userId),
+        getLoadoutMembership(userId, [skin.id]),
+      ])
+    : [false, null, new Map<string, string[]>()];
 
   // Optional preselection, used when returning from the buddy gallery's
   // pick mode: it sends the user back here with buddyId set, and carries
@@ -28,6 +37,8 @@ export default async function SkinDetailPage({ params, searchParams }: PageProps
       initialChromaId={first(sp.chromaId)}
       initialBuddyId={first(sp.buddyId)}
       wishlist={{ isWishlisted, isSignedIn: !!userId }}
+      loadouts={loadouts}
+      inLoadouts={membership.get(skin.id) ?? []}
     />
   );
 }

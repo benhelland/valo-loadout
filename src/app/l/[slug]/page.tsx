@@ -32,7 +32,7 @@ export default async function SharedLoadoutPage({ params }: PageProps<"/l/[slug]
         </div>
         <Link
           href="/"
-          className="clip-notch-sm bg-accent px-6 py-2 text-sm font-bold uppercase tracking-widest text-white hover:bg-accent-dark transition-colors"
+          className="clip-notch-sm bg-accent px-6 py-2 text-sm font-bold uppercase tracking-widest text-accent-contrast hover:bg-accent-dark transition-colors"
         >
           Build your own
         </Link>

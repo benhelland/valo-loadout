@@ -64,3 +64,33 @@ export async function listLoadoutSummaries(userId: string) {
     select: { id: true, name: true },
   });
 }
+
+/**
+ * Which of this user's loadouts each of the given skins is assigned in.
+ * Lets the wishlist and skin detail pages cross-reference the loadout
+ * builder instead of the three features being blind to each other ("is this
+ * one I've already picked?" was previously unanswerable without opening the
+ * board). One query for a whole page of cards, not one per card.
+ */
+export async function getLoadoutMembership(
+  userId: string,
+  skinIds: string[],
+): Promise<Map<string, string[]>> {
+  if (skinIds.length === 0) return new Map();
+
+  const items = await prisma.loadoutItem.findMany({
+    where: { skinId: { in: skinIds }, loadout: { userId } },
+    select: { skinId: true, loadout: { select: { name: true } } },
+  });
+
+  const bySkin = new Map<string, string[]>();
+  for (const item of items) {
+    const names = bySkin.get(item.skinId) ?? [];
+    // The same skin can legitimately sit in several loadouts, but only once
+    // per loadout (the [loadoutId, weaponId] unique constraint) - so no
+    // dedupe is needed beyond grouping.
+    names.push(item.loadout.name);
+    bySkin.set(item.skinId, names);
+  }
+  return bySkin;
+}
