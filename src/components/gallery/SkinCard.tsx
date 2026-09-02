@@ -113,9 +113,19 @@ export async function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist
                 A "~" prefix marks an estimate, so a real Riot price and a
                 guess are never presented as the same thing. */}
             {price ? (
-              <span className="shrink-0 text-foreground/80" title={price.source === "estimate" ? "Estimated from rarity - not a confirmed price" : "Real price from Riot's store"}>
-                {price.source === "estimate" ? "~" : ""}
-                {price.vp.toLocaleString()} VP
+              <span
+                className="shrink-0 text-foreground/80"
+                title={
+                  price.source === "actual"
+                    ? "Confirmed price from Riot's store"
+                    : price.source === "range"
+                      ? "Every skin of this rarity we've seen priced fell in this range"
+                      : "Estimated from rarity - not a confirmed price"
+                }
+              >
+                {price.source === "actual" ? "" : "~"}
+                {price.vp.toLocaleString()}
+                {price.vpMax === undefined ? "" : `-${price.vpMax.toLocaleString()}`} VP
               </span>
             ) : null}
           </div>

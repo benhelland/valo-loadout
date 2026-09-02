@@ -24,10 +24,18 @@
 // from observations and can only ever assert a price Riot has actually been
 // seen to charge.
 
-export type PriceSource = "actual" | "estimate";
+export type PriceSource = "actual" | "estimate" | "range";
 
 export interface SkinPrice {
   vp: number;
+  /**
+   * Upper bound, present only when `source === "range"`. A range is what we
+   * show for a group whose observed prices genuinely disagree (Exclusive,
+   * where 2175 and 2375 are both real): every number in it has actually been
+   * charged by Riot, so it is honest in a way a single value can't be, and
+   * far more useful to a reader than "Unknown".
+   */
+  vpMax?: number;
   source: PriceSource;
 }
 
@@ -44,7 +52,13 @@ export interface PriceableSkin {
  * across weapon types at the same tier (Deluxe SMG 1275 = the Deluxe gun
  * price).
  */
-export type EstimateTable = ReadonlyMap<string, number>;
+/** min === max means we know the exact price for the group. */
+export interface PriceBand {
+  min: number;
+  max: number;
+}
+
+export type EstimateTable = ReadonlyMap<string, PriceBand>;
 
 export function estimateKey(tierDevName: string, isMelee: boolean): string {
   return `${tierDevName}:${isMelee ? "melee" : "gun"}`;
@@ -112,11 +126,15 @@ export function deriveEstimates(observations: PriceObservation[]): EstimateTable
     (themes.get(key) ?? themes.set(key, new Set()).get(key)!).add(o.themeId ?? `__none:${o.priceVp}`);
   }
 
-  const table = new Map<string, number>();
+  const table = new Map<string, PriceBand>();
   for (const [key, seen] of prices) {
-    if (seen.size !== 1) continue;
+    // Every band needs corroboration across bundles, exact or ranged alike -
+    // one bundle is one price decision however many skins it contains.
     if ((themes.get(key)?.size ?? 0) < MIN_THEMES_TO_ESTIMATE) continue;
-    table.set(key, [...seen][0]);
+    const values = [...seen].sort((a, b) => a - b);
+    // size === 1 -> an exact estimate; otherwise the observed spread, which
+    // is reported as a range rather than collapsed to a mean.
+    table.set(key, { min: values[0], max: values[values.length - 1] });
   }
   return applySeed(table, prices);
 }
@@ -128,14 +146,15 @@ export function deriveEstimates(observations: PriceObservation[]): EstimateTable
  * beats the assumption, including when it merely proves the group isn't
  * uniform.
  */
-function applySeed(table: Map<string, number>, observed: Map<string, Set<number>>): EstimateTable {
+function applySeed(table: Map<string, PriceBand>, observed: Map<string, Set<number>>): EstimateTable {
   for (const seed of SEED_ESTIMATES) {
     const key = estimateKey(seed.tierDevName, false);
     if (table.has(key)) continue; // real data already answered this
     const seenPrices = observed.get(key);
-    // Contradicted, or proven non-uniform -> no estimate at all.
+    // Contradicted, or proven non-uniform -> no seed. (A non-uniform group
+    // with enough themes already got a range above and never reaches here.)
     if (seenPrices && (seenPrices.size > 1 || !seenPrices.has(seed.priceVp))) continue;
-    table.set(key, seed.priceVp);
+    table.set(key, { min: seed.priceVp, max: seed.priceVp });
   }
   return table;
 }
@@ -151,15 +170,20 @@ export function resolveSkinPrice(skin: PriceableSkin, estimates: EstimateTable):
 
   const tier = skin.contentTier?.devName;
   if (!tier) return null;
-  const estimate = estimates.get(estimateKey(tier, skin.weapon?.category === "Melee"));
-  return estimate === undefined ? null : { vp: estimate, source: "estimate" };
+  const band = estimates.get(estimateKey(tier, skin.weapon?.category === "Melee"));
+  if (!band) return null;
+  return band.min === band.max
+    ? { vp: band.min, source: "estimate" }
+    : { vp: band.min, vpMax: band.max, source: "range" };
 }
 
 export interface PriceTotal {
   vp: number;
+  /** Upper bound of the total; equals `vp` unless some item was a range. */
+  vpMax: number;
   /** How many items contributed a real Riot price. */
   actualCount: number;
-  /** How many contributed an estimate. */
+  /** How many contributed an exact estimate or a range. */
   estimateCount: number;
   /** How many had no price at all and are missing from `vp` entirely. */
   unknownCount: number;
@@ -173,6 +197,7 @@ export interface PriceTotal {
  */
 export function totalSkinPrice(skins: PriceableSkin[], estimates: EstimateTable): PriceTotal {
   let vp = 0;
+  let vpMax = 0;
   let actualCount = 0;
   let estimateCount = 0;
   let unknownCount = 0;
@@ -183,12 +208,15 @@ export function totalSkinPrice(skins: PriceableSkin[], estimates: EstimateTable)
       unknownCount++;
       continue;
     }
+    // Ranges widen the total's bounds rather than being flattened to a
+    // midpoint - a total built from ranges is itself a range.
     vp += price.vp;
+    vpMax += price.vpMax ?? price.vp;
     if (price.source === "actual") actualCount++;
     else estimateCount++;
   }
 
-  return { vp, actualCount, estimateCount, unknownCount };
+  return { vp, vpMax, actualCount, estimateCount, unknownCount };
 }
 
 /**
@@ -200,7 +228,10 @@ export function totalSkinPrice(skins: PriceableSkin[], estimates: EstimateTable)
  * used to total 0 and look like a real answer).
  */
 export function formatPriceTotal(total: PriceTotal): string {
-  const amount = `${total.vp.toLocaleString()} VP`;
+  const amount =
+    total.vpMax > total.vp
+      ? `${total.vp.toLocaleString()}-${total.vpMax.toLocaleString()} VP`
+      : `${total.vp.toLocaleString()} VP`;
   const approximate = total.estimateCount > 0 ? `${amount} est.` : amount;
   return total.unknownCount > 0 ? `${approximate} + ${total.unknownCount} unpriced` : approximate;
 }

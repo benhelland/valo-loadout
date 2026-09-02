@@ -21,20 +21,20 @@ const melee = (tier: string, priceVp: number, themeId = "t1"): PriceObservation 
 describe("deriveEstimates", () => {
   it("estimates from a group that agrees across enough distinct themes", () => {
     const table = deriveEstimates([gun("Deluxe", 1275, "a"), gun("Deluxe", 1275, "b")]);
-    assert.equal(table.get(estimateKey("Deluxe", false)), 1275);
+    assert.deepEqual(table.get(estimateKey("Deluxe", false)), { min: 1275, max: 1275 });
   });
 
-  it("refuses to estimate when observations disagree", () => {
-    // Real data: Exclusive guns were seen at BOTH 2175 and 2375 on the same
-    // day. Any single number here would be wrong for some skins. Exclusive
-    // also has no seed, so this must yield nothing at all.
+  it("reports a range, not a mean, when observations disagree", () => {
+    // Real data: Exclusive guns were seen at BOTH 2175 and 2375. Collapsing
+    // that to one number would be wrong for some skins; a range is composed
+    // only of figures Riot has actually charged.
     const table = deriveEstimates([
       gun("Exclusive", 2175, "a"),
       gun("Exclusive", 2175, "b"),
       gun("Exclusive", 2375, "c"),
       gun("Exclusive", 2375, "d"),
     ]);
-    assert.equal(table.get(estimateKey("Exclusive", false)), undefined);
+    assert.deepEqual(table.get(estimateKey("Exclusive", false)), { min: 2175, max: 2375 });
   });
 
   it("does not treat many skins from ONE bundle as multiple data points", () => {
@@ -46,12 +46,28 @@ describe("deriveEstimates", () => {
     assert.equal(deriveEstimates(oneBundle).get(estimateKey("Exclusive", false)), undefined);
   });
 
+  it("needs two themes for a range too, not just for an exact estimate", () => {
+    const oneBundle = [melee("Exclusive", 3550, "a"), melee("Exclusive", 5350, "a")];
+    assert.equal(deriveEstimates(oneBundle).get(estimateKey("Exclusive", true)), undefined);
+  });
+
+  it("ranges melee separately from guns of the same tier", () => {
+    const table = deriveEstimates([
+      gun("Exclusive", 2175, "a"),
+      gun("Exclusive", 2375, "b"),
+      melee("Exclusive", 3550, "a"),
+      melee("Exclusive", 5350, "b"),
+    ]);
+    assert.deepEqual(table.get(estimateKey("Exclusive", false)), { min: 2175, max: 2375 });
+    assert.deepEqual(table.get(estimateKey("Exclusive", true)), { min: 3550, max: 5350 });
+  });
+
   it("seeds standard gun tiers so a cold start isn't all Unknown", () => {
     const table = deriveEstimates([]);
-    assert.equal(table.get(estimateKey("Select", false)), 875);
-    assert.equal(table.get(estimateKey("Deluxe", false)), 1275);
-    assert.equal(table.get(estimateKey("Premium", false)), 1775);
-    assert.equal(table.get(estimateKey("Ultra", false)), 2475);
+    assert.deepEqual(table.get(estimateKey("Select", false)), { min: 875, max: 875 });
+    assert.deepEqual(table.get(estimateKey("Deluxe", false)), { min: 1275, max: 1275 });
+    assert.deepEqual(table.get(estimateKey("Premium", false)), { min: 1775, max: 1775 });
+    assert.deepEqual(table.get(estimateKey("Ultra", false)), { min: 2475, max: 2475 });
   });
 
   it("never seeds Exclusive or melee - the two cases that were badly wrong", () => {
@@ -67,14 +83,16 @@ describe("deriveEstimates", () => {
   });
 
   it("drops a seed when real data proves the tier isn't uniform", () => {
+    // Two themes disagreeing produces a range instead of the seed's single
+    // value - the seed is superseded, never blended with real data.
     const table = deriveEstimates([gun("Select", 875, "a"), gun("Select", 950, "b")]);
-    assert.equal(table.get(estimateKey("Select", false)), undefined);
+    assert.deepEqual(table.get(estimateKey("Select", false)), { min: 875, max: 950 });
   });
 
   it("prefers derived data over the seed when both exist", () => {
     // Riot repriced a tier: two themes agree on a new value, so that wins.
     const table = deriveEstimates([gun("Deluxe", 1400, "a"), gun("Deluxe", 1400, "b")]);
-    assert.equal(table.get(estimateKey("Deluxe", false)), 1400);
+    assert.deepEqual(table.get(estimateKey("Deluxe", false)), { min: 1400, max: 1400 });
   });
 
   it("keeps melee separate from guns at the same tier", () => {
@@ -86,8 +104,8 @@ describe("deriveEstimates", () => {
       melee("Premium", 3550, "a"),
       melee("Premium", 3550, "b"),
     ]);
-    assert.equal(table.get(estimateKey("Premium", false)), 1775);
-    assert.equal(table.get(estimateKey("Premium", true)), 3550);
+    assert.deepEqual(table.get(estimateKey("Premium", false)), { min: 1775, max: 1775 });
+    assert.deepEqual(table.get(estimateKey("Premium", true)), { min: 3550, max: 3550 });
   });
 
   it("returns only seeded groups when there are no observations at all", () => {
@@ -150,7 +168,7 @@ describe("totalSkinPrice / formatPriceTotal", () => {
       ],
       estimates,
     );
-    assert.deepEqual(total, { vp: 5350, actualCount: 1, estimateCount: 0, unknownCount: 1 });
+    assert.deepEqual(total, { vp: 5350, vpMax: 5350, actualCount: 1, estimateCount: 0, unknownCount: 1 });
     assert.equal(formatPriceTotal(total), "5,350 VP + 1 unpriced");
   });
 
@@ -160,6 +178,20 @@ describe("totalSkinPrice / formatPriceTotal", () => {
       estimates,
     );
     assert.equal(formatPriceTotal(total), "2,175 VP");
+  });
+
+  it("widens a total into a range when a component is a range", () => {
+    const ranged = deriveEstimates([gun("Exclusive", 2175, "a"), gun("Exclusive", 2375, "b")]);
+    const total = totalSkinPrice(
+      [
+        { priceVp: null, contentTier: { devName: "Exclusive" }, weapon: { category: "Rifle" } },
+        { priceVp: null, contentTier: { devName: "Exclusive" }, weapon: { category: "Rifle" } },
+      ],
+      ranged,
+    );
+    assert.equal(total.vp, 4350);
+    assert.equal(total.vpMax, 4750);
+    assert.equal(formatPriceTotal(total), "4,350-4,750 VP est.");
   });
 
   it("marks the total as an estimate when any part is estimated", () => {

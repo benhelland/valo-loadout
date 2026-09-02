@@ -127,20 +127,29 @@ export async function SkinDetailView({
                 was off by thousands of VP. */}
             <div className="flex justify-between border-b border-border py-2.5">
               <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-                {price?.source === "estimate" ? "Price (est.)" : "Price"}
+                {price && price.source !== "actual" ? "Price (est.)" : "Price"}
               </dt>
               {/* "Unknown", not "not sold" - we genuinely can't tell those
                   apart. Riot withdrew the catalogue price endpoint, so an
                   absent price means "never observed in a shop or bundle we've
                   read", which includes plenty of skins that are on sale. */}
               <dd className="text-sm font-semibold text-accent">
-                {price ? `${price.vp.toLocaleString()} VP` : "Unknown"}
+                {price
+                  ? `${price.vp.toLocaleString()}${price.vpMax === undefined ? "" : `–${price.vpMax.toLocaleString()}`} VP`
+                  : "Unknown"}
               </dd>
             </div>
             {price?.source === "estimate" ? (
               <p className="pt-2 text-[11px] leading-snug text-muted">
                 Estimated from this skin&rsquo;s rarity. A confirmed price appears once this skin has shown up
                 in a shop or bundle we&rsquo;ve read.
+              </p>
+            ) : null}
+            {price?.source === "range" ? (
+              <p className="pt-2 text-[11px] leading-snug text-muted">
+                Skins of this rarity aren&rsquo;t all one price. Every one we&rsquo;ve seen Riot charge for has
+                fallen in this range; the exact figure appears once this skin itself shows up in a shop or
+                bundle we read.
               </p>
             ) : null}
             {!price ? (
