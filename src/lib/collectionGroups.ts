@@ -1,21 +1,29 @@
 import type { Prisma, Theme } from "@/generated/prisma/client";
 
-// valorant-api.com models each esports drop as its own theme, which makes
-// the Collection dropdown unusable: 142 VCT team-capsule themes across 56
-// names (one skin each) were roughly a third of its 441 entries while
-// accounting for ~10% of the catalog, burying every other collection.
+// Two distinct reasons a "collection" in the Collection dropdown might need
+// grouping, handled by two different mechanisms below:
 //
-// Such families collapse into a single browse-time option each. Nothing in
-// the database is merged: a skin's detail page still shows its real
-// collection ("VCT x 100T"), and the individual drops stay reachable through
-// search. Only the filter list is condensed.
+// 1. Esports drops (VCT, Champions) - valorant-api.com models each capsule/
+//    year as its own theme, producing dozens of near-identical single-skin
+//    entries that bury everything else. Fixed set of PREFIX groups, curated
+//    deliberately (see COLLECTION_GROUPS) because which esports families
+//    should or shouldn't merge is a judgment call, not something derivable
+//    from the data alone.
 //
-// VCT and Champions are kept as SEPARATE groups on purpose. Both are esports,
-// but they're different things to a player: VCT capsules are ~140 near-
-// identical team-branded sidearms, whereas Champions is five two-piece
-// collections containing some of the most sought-after skins in the game
-// (the Champions Vandal above all). Folding Champions into VCT would bury
-// exactly the skins people go looking for by name.
+// 2. Re-released collections - confirmed via a real duplicate-name audit
+//    (2026-09-02): 20 names ("Reaver", "Magepunk", "RGX 11z Pro", ...) map to
+//    44 theme rows total, because Riot re-releases a collection as a
+//    genuinely new theme with the same display name rather than versioning
+//    the original (Reaver alone is 3 separate skin lineups: the 2020
+//    original, a 2.0 wave, and a newest Bandit/Butterfly Knife drop - all
+//    literally named "Reaver"). Handled generically by exact-name dedup
+//    below, NOT a curated list: any name shared by more than one theme
+//    collapses automatically, so a future re-release needs no code change to
+//    stop showing as an unlabeled duplicate.
+//
+// Both are purely browse-time groupings. Nothing in the database is merged:
+// a skin's detail page always shows its own real theme, and per-release
+// browsing is still reachable through search ("Reaver Bandit").
 
 interface CollectionGroupDefinition {
   /** Synthetic themeId. Prefixed so it can never collide with a real uuid. */
@@ -26,7 +34,6 @@ interface CollectionGroupDefinition {
   label: (themeCount: number) => string;
 }
 
-// Order matters only for tie-breaking; the prefixes here are disjoint.
 const COLLECTION_GROUPS: readonly CollectionGroupDefinition[] = [
   {
     id: "group:vct",
@@ -43,55 +50,82 @@ const COLLECTION_GROUPS: readonly CollectionGroupDefinition[] = [
 export const VCT_COLLECTION_GROUP_ID = "group:vct";
 export const CHAMPIONS_COLLECTION_GROUP_ID = "group:champions";
 
-function matches(group: CollectionGroupDefinition, displayName: string): boolean {
-  return displayName.toUpperCase().startsWith(group.prefix.toUpperCase());
+// Namespace for the generic re-release groups. The synthetic id carries the
+// exact display name itself (URL-encoded) rather than a list of theme uuids -
+// simpler, and it's what the query side matches back against, so the two
+// can't drift the way a hand-maintained id list could.
+const NAME_GROUP_PREFIX = "group:name:";
+
+function nameGroupId(displayName: string): string {
+  return `${NAME_GROUP_PREFIX}${encodeURIComponent(displayName)}`;
 }
 
-/** The group a theme belongs to, or null if it stands on its own. */
+/** The curated (VCT/Champions) group a theme belongs to, or null. */
 export function collectionGroupFor(displayName: string): string | null {
-  return COLLECTION_GROUPS.find((group) => matches(group, displayName))?.id ?? null;
+  return COLLECTION_GROUPS.find((group) => displayName.toUpperCase().startsWith(group.prefix.toUpperCase()))?.id ?? null;
 }
 
 /**
- * The Prisma `where` fragment selecting every skin in a grouped collection,
- * or null when the id isn't a group.
- *
- * This and `groupCollections` below both derive from the same COLLECTION_GROUPS
- * definitions, which is the point: if the dropdown's notion of a group ever
- * drifted from the query's, the option would silently filter to something
- * other than the themes it replaced.
+ * The Prisma `where` fragment selecting every skin in a grouped collection -
+ * curated prefix group or generic same-name group alike - or null when the
+ * id isn't a group (a real theme uuid, queried normally by the caller).
  */
 export function collectionGroupFilter(themeId: string): Prisma.SkinWhereInput | null {
+  if (themeId.startsWith(NAME_GROUP_PREFIX)) {
+    const displayName = decodeURIComponent(themeId.slice(NAME_GROUP_PREFIX.length));
+    return { theme: { displayName: { equals: displayName, mode: "insensitive" } } };
+  }
   const group = COLLECTION_GROUPS.find((candidate) => candidate.id === themeId);
-  if (!group) return null;
-  return { theme: { displayName: { startsWith: group.prefix, mode: "insensitive" } } };
+  return group ? { theme: { displayName: { startsWith: group.prefix, mode: "insensitive" } } } : null;
 }
 
 /**
- * Replaces each family of grouped themes with one entry, keeping the list
- * alphabetical. Themes belonging to no group pass through untouched.
+ * Replaces each curated family and each set of same-named themes with one
+ * entry, keeping the list alphabetical. A name appearing exactly once passes
+ * through untouched - most collections aren't re-released, and this must
+ * never turn "Elderflame" into a one-item group.
  */
 export function groupCollections(themes: Theme[]): Theme[] {
   const kept: Theme[] = [];
-  const membersByGroup = new Map<string, Theme[]>();
+  const membersByPrefixGroup = new Map<string, Theme[]>();
+  const membersByName = new Map<string, Theme[]>();
 
   for (const theme of themes) {
-    const groupId = collectionGroupFor(theme.displayName);
-    if (!groupId) {
-      kept.push(theme);
+    const prefixGroupId = collectionGroupFor(theme.displayName);
+    if (prefixGroupId) {
+      const members = membersByPrefixGroup.get(prefixGroupId) ?? [];
+      members.push(theme);
+      membersByPrefixGroup.set(prefixGroupId, members);
       continue;
     }
-    const members = membersByGroup.get(groupId) ?? [];
+    const members = membersByName.get(theme.displayName) ?? [];
     members.push(theme);
-    membersByGroup.set(groupId, members);
+    membersByName.set(theme.displayName, members);
   }
 
   for (const group of COLLECTION_GROUPS) {
-    const members = membersByGroup.get(group.id);
+    const members = membersByPrefixGroup.get(group.id);
     if (!members?.length) continue;
     kept.push({
       id: group.id,
       displayName: group.label(members.length),
+      displayIconUrl: members.find((theme) => theme.displayIconUrl)?.displayIconUrl ?? null,
+    });
+  }
+
+  for (const [displayName, members] of membersByName) {
+    if (members.length === 1) {
+      kept.push(members[0]);
+      continue;
+    }
+    // Deliberately no "(3 releases)" suffix here, unlike the curated groups
+    // above. This isn't an aggregate bucket a user should be aware spans
+    // multiple things - it's the same collection they already know, just
+    // fixing a data-modeling artifact where Riot re-releases got separate
+    // rows. The plain name is the honest label.
+    kept.push({
+      id: nameGroupId(displayName),
+      displayName,
       displayIconUrl: members.find((theme) => theme.displayIconUrl)?.displayIconUrl ?? null,
     });
   }
