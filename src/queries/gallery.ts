@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { VIBE_TAGS } from "@/lib/vibeTagging";
 import { fuzzyScore } from "@/lib/fuzzyMatch";
 import { DEFAULT_SKIN_PAGE_SIZE } from "@/lib/pageSize";
+import { VCT_COLLECTION_GROUP_ID, groupCollections, vctThemeFilter } from "@/lib/collectionGroups";
 
 export const PAGE_SIZE = DEFAULT_SKIN_PAGE_SIZE;
 
@@ -87,7 +88,12 @@ function buildWhere(filters: Omit<GalleryFilters, "search">): Prisma.SkinWhereIn
 
   if (filters.weaponId) where.weaponId = filters.weaponId;
   if (filters.tierId) where.contentTierId = filters.tierId;
-  if (filters.themeId) where.themeId = filters.themeId;
+  if (filters.themeId === VCT_COLLECTION_GROUP_ID) {
+    // A synthetic id, not a real theme row - see src/lib/collectionGroups.ts.
+    where.theme = vctThemeFilter.theme;
+  } else if (filters.themeId) {
+    where.themeId = filters.themeId;
+  }
 
   if (filters.color) {
     where.OR = [{ colorFamily: filters.color }, { chromas: { some: { colorFamily: filters.color } } }];
@@ -211,7 +217,9 @@ export async function getFilterOptions() {
     }),
   ]);
 
-  return { weapons, tiers, themes, vibeTags: VIBE_TAGS };
+  // VCT team capsules are collapsed into a single option here - the raw
+  // list is a third VCT by row count. See src/lib/collectionGroups.ts.
+  return { weapons, tiers, themes: groupCollections(themes), vibeTags: VIBE_TAGS };
 }
 
 export async function listBuddies() {
