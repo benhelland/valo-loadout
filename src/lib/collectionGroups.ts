@@ -1,59 +1,100 @@
-import type { Theme } from "@/generated/prisma/client";
+import type { Prisma, Theme } from "@/generated/prisma/client";
 
-// valorant-api.com models every VCT team capsule as its own theme, so the
-// catalog carries 142 of them across 56 distinct names ("VCT x G2",
-// "VCT x FNC", "VCT26 x EG", ...) - each holding a single skin. Listed
-// individually they were roughly a third of the Collection dropdown's 441
-// entries while accounting for ~10% of the catalog, burying every other
-// collection.
+// valorant-api.com models each esports drop as its own theme, which makes
+// the Collection dropdown unusable: 142 VCT team-capsule themes across 56
+// names (one skin each) were roughly a third of its 441 entries while
+// accounting for ~10% of the catalog, burying every other collection.
 //
-// They're collapsed into one synthetic option instead. The underlying theme
-// rows are untouched: this is purely a browse-time grouping, so a skin still
-// knows its real collection on its detail page, and the per-team distinction
-// is still reachable through search ("VCT x G2").
+// Such families collapse into a single browse-time option each. Nothing in
+// the database is merged: a skin's detail page still shows its real
+// collection ("VCT x 100T"), and the individual drops stay reachable through
+// search. Only the filter list is condensed.
 //
-// Deliberately NOT included: the "Champions 20xx" collections. Those are
-// esports too, but Champions skins (the Champions Vandal especially) are
-// famous collections people look for by name - folding them into a generic
-// bucket would hide them rather than tidy them.
+// VCT and Champions are kept as SEPARATE groups on purpose. Both are esports,
+// but they're different things to a player: VCT capsules are ~140 near-
+// identical team-branded sidearms, whereas Champions is five two-piece
+// collections containing some of the most sought-after skins in the game
+// (the Champions Vandal above all). Folding Champions into VCT would bury
+// exactly the skins people go looking for by name.
 
-export const VCT_COLLECTION_GROUP_ID = "group:vct";
-
-const VCT_NAME_PREFIX = "VCT";
-
-/**
- * The single predicate for "is this a VCT capsule theme". Both the dropdown
- * (which hides the individuals) and the query (which has to match them all)
- * derive from this, so the two can't drift apart and leave a group option
- * that filters to something different from what it replaced.
- */
-export function isVctThemeName(displayName: string): boolean {
-  return displayName.toUpperCase().startsWith(VCT_NAME_PREFIX);
+interface CollectionGroupDefinition {
+  /** Synthetic themeId. Prefixed so it can never collide with a real uuid. */
+  id: string;
+  /** Case-insensitive display-name prefix identifying members. */
+  prefix: string;
+  /** Dropdown label, given how many real themes it stands in for. */
+  label: (themeCount: number) => string;
 }
 
-/** Prisma filter matching every skin in any VCT capsule theme. */
-export const vctThemeFilter = {
-  theme: { displayName: { startsWith: VCT_NAME_PREFIX, mode: "insensitive" as const } },
-};
+// Order matters only for tie-breaking; the prefixes here are disjoint.
+const COLLECTION_GROUPS: readonly CollectionGroupDefinition[] = [
+  {
+    id: "group:vct",
+    prefix: "VCT",
+    label: (n) => `VCT — all ${n} team capsules`,
+  },
+  {
+    id: "group:champions",
+    prefix: "Champions",
+    label: (n) => `Champions — all ${n} years`,
+  },
+];
+
+export const VCT_COLLECTION_GROUP_ID = "group:vct";
+export const CHAMPIONS_COLLECTION_GROUP_ID = "group:champions";
+
+function matches(group: CollectionGroupDefinition, displayName: string): boolean {
+  return displayName.toUpperCase().startsWith(group.prefix.toUpperCase());
+}
+
+/** The group a theme belongs to, or null if it stands on its own. */
+export function collectionGroupFor(displayName: string): string | null {
+  return COLLECTION_GROUPS.find((group) => matches(group, displayName))?.id ?? null;
+}
 
 /**
- * Replaces the individual VCT themes with one grouped entry, keeping the
- * list alphabetical. Returns the input untouched when there are none.
+ * The Prisma `where` fragment selecting every skin in a grouped collection,
+ * or null when the id isn't a group.
+ *
+ * This and `groupCollections` below both derive from the same COLLECTION_GROUPS
+ * definitions, which is the point: if the dropdown's notion of a group ever
+ * drifted from the query's, the option would silently filter to something
+ * other than the themes it replaced.
+ */
+export function collectionGroupFilter(themeId: string): Prisma.SkinWhereInput | null {
+  const group = COLLECTION_GROUPS.find((candidate) => candidate.id === themeId);
+  if (!group) return null;
+  return { theme: { displayName: { startsWith: group.prefix, mode: "insensitive" } } };
+}
+
+/**
+ * Replaces each family of grouped themes with one entry, keeping the list
+ * alphabetical. Themes belonging to no group pass through untouched.
  */
 export function groupCollections(themes: Theme[]): Theme[] {
-  const vct = themes.filter((theme) => isVctThemeName(theme.displayName));
-  if (vct.length === 0) return themes;
+  const kept: Theme[] = [];
+  const membersByGroup = new Map<string, Theme[]>();
 
-  const grouped: Theme[] = [
-    ...themes.filter((theme) => !isVctThemeName(theme.displayName)),
-    {
-      id: VCT_COLLECTION_GROUP_ID,
-      // Says plainly that it's a bucket, so nobody reads it as a single
-      // capsule that happens to have 142 skins in it.
-      displayName: `VCT — all ${vct.length} team capsules`,
-      displayIconUrl: vct.find((theme) => theme.displayIconUrl)?.displayIconUrl ?? null,
-    },
-  ];
+  for (const theme of themes) {
+    const groupId = collectionGroupFor(theme.displayName);
+    if (!groupId) {
+      kept.push(theme);
+      continue;
+    }
+    const members = membersByGroup.get(groupId) ?? [];
+    members.push(theme);
+    membersByGroup.set(groupId, members);
+  }
 
-  return grouped.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  for (const group of COLLECTION_GROUPS) {
+    const members = membersByGroup.get(group.id);
+    if (!members?.length) continue;
+    kept.push({
+      id: group.id,
+      displayName: group.label(members.length),
+      displayIconUrl: members.find((theme) => theme.displayIconUrl)?.displayIconUrl ?? null,
+    });
+  }
+
+  return kept.sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
