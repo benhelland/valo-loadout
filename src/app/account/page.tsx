@@ -8,6 +8,7 @@ import { maskEmail } from "@/lib/maskEmail";
 import { UnlinkRiotAccountButton } from "@/components/account/UnlinkRiotAccountButton";
 import { CheckShopNowButton } from "@/components/account/CheckShopNowButton";
 import { LinkRiotAccountForm } from "@/components/account/LinkRiotAccountForm";
+import { isNotificationDeliveryConfigured } from "@/discord/bot";
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   ACTIVE: { label: "Active", tone: "text-green-400" },
@@ -22,6 +23,7 @@ export default async function AccountPage() {
   const userId = await getCurrentUserId();
   const session = await auth();
   const linkedAccounts = await prisma.linkedRiotAccount.findMany({ where: { userId } });
+  const deliveryConfigured = isNotificationDeliveryConfigured();
 
   // The four most recently seen skins per linked account - the visible payoff
   // that a shop check actually ran, and the fastest way to eyeball whether the
@@ -133,6 +135,25 @@ export default async function AccountPage() {
                 </div>
               );
             })}
+          </div>
+        ) : !deliveryConfigured ? (
+          // Linking costs the user a real stored Riot credential and buys
+          // them shop notifications. With delivery unconfigured, no
+          // notification can ever arrive, so the trade is all cost and no
+          // benefit - don't offer it. Re-enables itself once the bot env
+          // vars exist; see isNotificationDeliveryConfigured().
+          <div className="mt-4">
+            <p className="text-sm text-muted">
+              Shop notifications aren&rsquo;t switched on yet. Once they are, you&rsquo;ll be able to link a
+              Riot account here and get a Discord DM whenever a wishlisted skin shows up in your daily
+              shop.
+            </p>
+            <div className="clip-notch-sm mt-4 border border-border bg-background p-4 text-xs text-muted">
+              <p>
+                Your wishlist still works in the meantime - add skins to it now and they&rsquo;ll be
+                waiting when notifications go live.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="mt-4">

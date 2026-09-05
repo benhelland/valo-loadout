@@ -31,6 +31,22 @@ function getGuildId(): string | null {
 }
 
 /**
+ * Whether a notification can actually be delivered. Both values are required:
+ * the bot token to call Discord at all, and the guild id because a bot cannot
+ * DM a user it shares no server with.
+ *
+ * Exported so the UI can avoid offering a feature that cannot work. Linking a
+ * Riot account exists to enable shop notifications, and it costs the user a
+ * real stored credential to do - so with delivery unconfigured, offering it
+ * would collect that credential in exchange for nothing. `/account` uses this
+ * to hide the linking flow until delivery is possible, and it re-enables
+ * itself as soon as both env vars are set, with no code change.
+ */
+export function isNotificationDeliveryConfigured(): boolean {
+  return getBotToken() !== null && getGuildId() !== null;
+}
+
+/**
  * Adds a user to this app's Discord server using the access token from their
  * most recent Discord sign-in (must carry the `guilds.join` scope - see
  * src/auth.ts). Safe to call on every sign-in: Discord returns 204 if
