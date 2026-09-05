@@ -7,26 +7,22 @@ import type { PrismaClient } from "@/generated/prisma/client";
 // (or a copy-pasted .env file) could put in the wrong place.
 //
 // Deliberately does NOT parse, hash, or otherwise touch DATABASE_URL. Every
-// value this file can ever log or throw is one of exactly three: the literal
-// words "development", "production", and whatever `name` a future
-// EnvironmentMarker row happens to hold - itself always one of those first
-// two by construction (see src/scripts/setEnvironmentMarker.ts, the only
-// thing that ever writes it). There is no code path here capable of leaking
-// a hostname, a credential, or anything derived from the connection string,
-// because it never reads that variable at all - this is a structural
-// property of the design, not a promise about how carefully it's written.
+// value this file can log or throw is one of exactly two literals,
+// "development" or "production" - the only values setEnvironmentMarker.ts
+// ever writes. Since it never reads the connection string at all, no code
+// path here can leak a hostname or credential.
 //
-// The two signals compared come from genuinely independent places, which is
-// what makes this a real check rather than a circular one: NODE_ENV is set
-// by tooling (`next dev` vs. a real build), never typed by a human into an
-// env file, so it can't be copy-paste-mismatched the way DATABASE_URL can.
-// The EnvironmentMarker row lives IN the database, planted once, so it
-// travels with the database rather than with whatever connection string
-// currently points at it - if DATABASE_URL is ever pointed at the wrong
-// database, the row read back is still that database's real answer.
-// Both dependencies are injectable, defaulting to the real ones - purely so
-// this can be unit-tested (src/lib/verifyEnvironment.test.ts) without a live
-// database, the same pattern already used for src/lib/authAdapter.ts.
+// The two signals compared are independent, which is what makes this a real
+// check rather than a circular one: NODE_ENV is set by tooling (`next dev`
+// vs. a real build), never typed into an env file, so it can't be
+// copy-paste-mismatched the way DATABASE_URL can. The EnvironmentMarker row
+// lives IN the database, so it travels with the database rather than with
+// whatever connection string points at it - pointed at the wrong database,
+// the row read back is still that database's own answer.
+//
+// Both dependencies are injectable so this can be unit-tested without a live
+// database (src/lib/verifyEnvironment.test.ts), the same pattern used for
+// src/lib/authAdapter.ts.
 export async function verifyEnvironment(
   deps: {
     prisma?: Pick<PrismaClient, "environmentMarker">;

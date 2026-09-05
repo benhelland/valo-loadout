@@ -3,7 +3,7 @@ import type { Palette, Swatch } from "@vibrant/color";
 import { HUE_FAMILY_DEGREES } from "@/lib/colorFamilies";
 
 // Best-effort dominant-color bucketing for gallery filtering - not ground
-// truth. See docs/ARCHITECTURE.md "Color and vibe tagging pipeline".
+// truth. See docs/ARCHITECTURE.md "Color and vibe tagging".
 
 const HUE_FAMILIES: { name: string; hue: number }[] = Object.entries(HUE_FAMILY_DEGREES).map(([name, hue]) => ({ name, hue }));
 

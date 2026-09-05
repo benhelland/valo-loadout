@@ -4,7 +4,7 @@ import { exchangeCodeForTokens, refreshTokens, type OAuthTokens } from "@/riot/o
 
 // Builds a usable VALORANT session out of OAuth tokens. This subsystem never
 // accepts, transmits, or stores a Riot password - see docs/ARCHITECTURE.md
-// "Store-check subsystem detail" for why the documented password flow was
+// "Store-check subsystem" for why the documented password flow was
 // abandoned (it now requires an hCaptcha token, which this project will not
 // solve) and why OAuth replaced the interim ssid-cookie approach.
 

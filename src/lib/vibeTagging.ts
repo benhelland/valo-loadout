@@ -4,7 +4,7 @@ import { z } from "zod";
 import { Jimp } from "jimp";
 
 // Fixed vocabulary - not freeform, so gallery filters stay consistent.
-// See docs/ARCHITECTURE.md "Color and vibe tagging pipeline".
+// See docs/ARCHITECTURE.md "Color and vibe tagging".
 export const VIBE_TAGS = [
   "dark",
   "sleek",

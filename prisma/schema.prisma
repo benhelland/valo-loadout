@@ -20,9 +20,7 @@ model User {
   // sign-in path (handle-login.js in @auth/core) unconditionally passes
   // `emailVerified: null` to createUser even for OAuth-only setups with no
   // email provider configured. Without this column the very first Discord
-  // sign-in throws a Prisma "unknown argument" error - confirmed by reading
-  // the adapter's actual source rather than assuming the schema was already
-  // adapter-compatible just because it looked complete.
+  // sign-in throws a Prisma "unknown argument" error.
   image     String?
   createdAt DateTime @default(now())
 
@@ -265,7 +263,7 @@ model LinkedRiotAccount {
   user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   // AES-256-GCM ciphertext (src/lib/crypto.ts) of the Riot OAuth *refresh*
   // token. Never a password - we never receive one; see docs/ARCHITECTURE.md
-  // "Store-check subsystem detail" for why the password flow was abandoned.
+  // "Store-check subsystem" for why the password flow was abandoned.
   //
   // Riot rotates this on every use, so it is rewritten on every successful
   // refresh. Two concurrent refreshes would each invalidate the other's token

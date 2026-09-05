@@ -117,9 +117,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // access_token. That token is NOT the same one persisted to the
       // `accounts` table: @auth/core only calls the adapter's linkAccount
       // (and so only ever writes access_token) the first time an account is
-      // created, never again on a returning sign-in - confirmed by reading
-      // handle-login.ts rather than assuming. Reusing a stale, possibly
-      // long-expired DB token here would silently break the join. Also
+      // created, never again on a returning sign-in (see @auth/core's
+      // handle-login.ts). Reusing a stale, possibly long-expired DB token
+      // here would silently break the join. Also
       // idempotent and self-healing: a user who left the server gets
       // re-added on their next sign-in, with no support request needed.
       if (account.access_token) {

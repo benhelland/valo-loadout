@@ -8,7 +8,7 @@ import { safeEqual } from "@/lib/crypto";
 //
 // Whether this route is the right trigger is an open question: Riot fronts
 // these endpoints with Cloudflare, which is hardest on datacenter IPs, and
-// Vercel is datacenter IPs. See docs/ARCHITECTURE.md "Where the poller runs".
+// Vercel is datacenter IPs. See docs/ARCHITECTURE.md "Store-check subsystem".
 
 export const dynamic = "force-dynamic";
 

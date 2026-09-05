@@ -30,10 +30,9 @@ import type { PrismaClient } from "@/generated/prisma/client";
 // `id_token`, `session_state` - are nulled out before the row is ever
 // written.
 //
-// Safe to spread PrismaAdapter's return value: read its actual source
-// first rather than assuming - node_modules/@auth/prisma-adapter/index.js
-// returns a plain object of arrow functions closing over the prisma client
-// variable, never `this`, so every other method keeps working unmodified.
+// Safe to spread PrismaAdapter's return value: it returns a plain object of
+// arrow functions closing over the prisma client variable, never `this`, so
+// every other method keeps working unmodified.
 export function buildAuthAdapter(prisma: PrismaClient): Adapter {
   const base = PrismaAdapter(prisma);
 
