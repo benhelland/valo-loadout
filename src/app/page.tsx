@@ -1,5 +1,6 @@
 import { listSkins, getFilterOptions, resolveSort } from "@/queries/gallery";
 import { getWishlistedSkinIds } from "@/queries/wishlist";
+import { resolveCatalogId, resolveThemeId, resolveColor, resolveVibe, resolveSearch } from "@/lib/filterParams";
 import { getOptionalUserId } from "@/lib/auth";
 import { SkinCard } from "@/components/gallery/SkinCard";
 import { FilterBar } from "@/components/gallery/FilterBar";
@@ -22,13 +23,15 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
   // as a phantom selection, and isn't carried into pagination links either.
   const sort = resolveSort(first(sp.sort));
   const flatParams: Record<string, string | undefined> = {
-    weaponId: first(sp.weaponId),
-    tierId: first(sp.tierId),
-    themeId: first(sp.themeId),
-    color: first(sp.color),
-    vibe: first(sp.vibe),
+    // Validated, not trusted - these reach Prisma `where` clauses. See
+    // src/lib/filterParams.ts for what an unvalidated value did.
+    weaponId: resolveCatalogId(first(sp.weaponId)),
+    tierId: resolveCatalogId(first(sp.tierId)),
+    themeId: resolveThemeId(first(sp.themeId)),
+    color: resolveColor(first(sp.color)),
+    vibe: resolveVibe(first(sp.vibe)),
     hasAnimation: first(sp.hasAnimation),
-    search: first(sp.search),
+    search: resolveSearch(first(sp.search)),
     sort,
     page: first(sp.page),
     pageSize: first(sp.pageSize),

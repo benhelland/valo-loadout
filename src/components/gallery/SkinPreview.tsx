@@ -64,7 +64,8 @@ export function SkinPreview({
   // needs to be an explicit way to just look at the flat render. Video is
   // opt-in via the Animation tab below.
   const [showVideo, setShowVideo] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
+  const [shareState, setShareState] = useState<"idle" | "copied" | "failed">("idle");
+  const [shareUrl, setShareUrl] = useState("");
 
   const activeChroma = skin.chromas.find((c) => c.id === selectedChromaId);
   const activeLevel = skin.levels.find((l) => l.id === selectedLevelId);
@@ -176,21 +177,35 @@ export function SkinPreview({
       buddyId: selectedBuddyId || null,
     });
     const url = `${window.location.origin}/combo/${encoded}`;
+    setShareUrl(url);
     try {
       await navigator.clipboard.writeText(url);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 1500);
+      setShareState("copied");
+      setTimeout(() => setShareState("idle"), 1500);
     } catch {
-      window.prompt("Copy this link:", url);
+      // The clipboard API is genuinely unavailable in real situations - a
+      // denied permission, a non-secure context, some in-app webviews. The
+      // old fallback was window.prompt(), which browsers increasingly
+      // suppress; when that happened the button did nothing at all and the
+      // feature just looked broken. Render the link inline instead so it's
+      // always selectable by hand.
+      setShareState("failed");
     }
   }
 
+  // min-w-0 on both grid columns below is load-bearing, not defensive: grid
+  // items default to `min-width: auto`, so they refuse to shrink below their
+  // content's intrinsic minimum. The buddy <select> carries every buddy in
+  // the catalogue (885 options), and its longest option name ("Gravitational
+  // Uranium Neuroblaster Buddy") forced the sidebar 18px wider than its own
+  // column - pushing the whole page 2px past the viewport on a 375px phone
+  // and leaving it scrolling sideways.
   return (
     <div className="grid lg:grid-cols-[1fr_420px] gap-8 items-start">
       {/* Media - the hero. Fixed tall height on large screens instead of a
           16:9 crop, so it reads as the star of the page rather than sharing
           the spotlight evenly with the sidebar. */}
-      <div>
+      <div className="min-w-0">
         {hasVideo ? (
           <div className="mb-3 flex gap-5 text-xs font-semibold uppercase tracking-widest">
             <button
@@ -272,7 +287,7 @@ export function SkinPreview({
       {/* Sidebar - skin info up top, then the interactive controls, all in
           one panel so it fills out next to the (much taller) media area
           instead of trailing off short. */}
-      <aside className="border border-border bg-surface p-6">
+      <aside className="min-w-0 border border-border bg-surface p-6">
         {children}
 
         {skin.levels.length > 0 ? (
@@ -430,8 +445,21 @@ export function SkinPreview({
           onClick={copyShareLink}
           className="clip-notch-sm mt-6 w-full border border-border py-2.5 text-xs font-semibold uppercase tracking-widest text-muted hover:text-foreground hover:border-foreground/30 transition-colors"
         >
-          {linkCopied ? "Copied!" : "Copy share link"}
+          {shareState === "copied" ? "Copied!" : "Copy share link"}
         </button>
+
+        {shareState === "failed" ? (
+          <div className="mt-2">
+            <p className="text-[11px] text-muted">Couldn&rsquo;t reach your clipboard. Copy this link:</p>
+            <input
+              readOnly
+              value={shareUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              aria-label="Share link"
+              className="mt-1 w-full rounded-none border border-border bg-background px-2 py-1.5 text-[11px] text-foreground focus:border-accent focus:outline-none"
+            />
+          </div>
+        ) : null}
       </aside>
     </div>
   );

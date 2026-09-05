@@ -6,6 +6,7 @@ import { GalleryTabs } from "@/components/gallery/GalleryTabs";
 import { Pagination } from "@/components/gallery/Pagination";
 import { BUDDY_PAGE_SIZES, DEFAULT_BUDDY_PAGE_SIZE, resolvePageSize } from "@/lib/pageSize";
 import { safeReturnTo, withParam } from "@/lib/safeReturnTo";
+import { resolveCatalogId, resolveColor, resolveSearch } from "@/lib/filterParams";
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -18,11 +19,12 @@ export default async function BuddiesPage({ searchParams }: PageProps<"/buddies"
   // carries where to return to (and what's already equipped). Validated
   // rather than trusted - see src/lib/safeReturnTo.ts.
   const returnTo = safeReturnTo(first(sp.returnTo));
-  const currentBuddyId = first(sp.currentBuddyId);
+  const currentBuddyId = resolveCatalogId(first(sp.currentBuddyId));
 
   const flatParams: Record<string, string | undefined> = {
-    search: first(sp.search),
-    color: first(sp.color),
+    // Validated, not trusted - see src/lib/filterParams.ts.
+    search: resolveSearch(first(sp.search)),
+    color: resolveColor(first(sp.color)),
     page: first(sp.page),
     pageSize: first(sp.pageSize),
     returnTo: returnTo ?? undefined,

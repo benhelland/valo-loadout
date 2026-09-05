@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getCurrentUserId } from "@/lib/auth";
 import { getLoadout } from "@/queries/loadouts";
 import { listSkins, getFilterOptions, resolveSort } from "@/queries/gallery";
+import { resolveCatalogId, resolveThemeId, resolveColor, resolveVibe, resolveSearch } from "@/lib/filterParams";
 import { prisma } from "@/lib/db";
 import { FilterBar } from "@/components/gallery/FilterBar";
 import { SkinCard } from "@/components/gallery/SkinCard";
@@ -31,12 +32,13 @@ export default async function LoadoutWeaponPickerPage({
   // see the comment there.
   const sort = resolveSort(first(sp.sort));
   const flatParams: Record<string, string | undefined> = {
-    tierId: first(sp.tierId),
-    themeId: first(sp.themeId),
-    color: first(sp.color),
-    vibe: first(sp.vibe),
+    // Validated, not trusted - see src/lib/filterParams.ts.
+    tierId: resolveCatalogId(first(sp.tierId)),
+    themeId: resolveThemeId(first(sp.themeId)),
+    color: resolveColor(first(sp.color)),
+    vibe: resolveVibe(first(sp.vibe)),
     hasAnimation: first(sp.hasAnimation),
-    search: first(sp.search),
+    search: resolveSearch(first(sp.search)),
     sort,
     page: first(sp.page),
   };

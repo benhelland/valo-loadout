@@ -30,17 +30,41 @@ export function encodeCombo(selection: ComboSelection): string {
   return toBase64Url(raw);
 }
 
+// Every id packed into a combo link is a valorant-api.com UUID. Decoded
+// values are checked against that shape rather than trusted, because
+// base64 decoding is not itself a validation step:
+// `Buffer.from(x, "base64")` silently *ignores* invalid characters instead
+// of throwing, so the try/catch below never fires for junk input - it just
+// yields arbitrary bytes. Those bytes reached a Prisma lookup, and any NUL
+// among them made Postgres reject the query outright (`invalid byte
+// sequence for encoding "UTF8": 0x00`), turning a garbled share link into a
+// 500 rather than the intended 404.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function optionalId(value: string | undefined): string | null | undefined {
+  if (!value) return null;
+  // `undefined` signals "present but malformed" so the caller can reject the
+  // whole token, rather than silently dropping one field of it.
+  return UUID.test(value) ? value : undefined;
+}
+
 export function decodeCombo(encoded: string): ComboSelection | null {
   try {
     const raw = fromBase64Url(encoded);
-    const [skinId, levelId, chromaId, buddyId] = raw.split("|");
-    if (!skinId) return null;
-    return {
-      skinId,
-      levelId: levelId || null,
-      chromaId: chromaId || null,
-      buddyId: buddyId || null,
-    };
+    const parts = raw.split("|");
+    // Exactly the four fields encodeCombo writes. A different count means
+    // this wasn't produced by us.
+    if (parts.length !== 4) return null;
+
+    const [skinId, levelId, chromaId, buddyId] = parts;
+    if (!UUID.test(skinId ?? "")) return null;
+
+    const level = optionalId(levelId);
+    const chroma = optionalId(chromaId);
+    const buddy = optionalId(buddyId);
+    if (level === undefined || chroma === undefined || buddy === undefined) return null;
+
+    return { skinId, levelId: level, chromaId: chroma, buddyId: buddy };
   } catch {
     return null;
   }
