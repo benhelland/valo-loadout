@@ -140,6 +140,19 @@ Implementation notes worth keeping:
 - Totals (`totalSkinPrice`/`formatPriceTotal`) carry counts of actual/estimate/unknown rather than a bare number. The old `reduce((sum, s) => sum + (price ?? 0))` counted an unpriced skin as 0 VP, so a loadout of five knives totalled 0 and looked like a real answer.
 - "Unknown" deliberately does **not** say "not sold for VP" — with the catalogue endpoint gone we can't distinguish "unpurchasable" from "not observed yet", and most unknowns are ordinary on-sale skins.
 
+## Environment self-check (startup)
+
+The one failure mode dev/prod separation can't structurally prevent: a connection string copy-pasted into the wrong place. There's no shared infrastructure to misconfigure (see the top-level shape above - each environment is just a different `DATABASE_URL`/`DIRECT_URL` pair, in a different location), so the only realistic way to "jumble" dev and prod is a human error in exactly that one value.
+
+`src/lib/verifyEnvironment.ts`, run once per process from `src/instrumentation.ts` (Next.js's own startup hook - stable in this version, no config flag needed), catches this at boot rather than leaving it to be discovered via mixed data later:
+
+- A new `environment_marker` table holds a single row containing nothing but the literal word `"development"` or `"production"` - planted once per database via `src/scripts/setEnvironmentMarker.ts`. Deliberately holds nothing else: no hostname, no project id, nothing that turns a log line into something worth hiding.
+- At startup, that word is compared against `NODE_ENV` (`"development"` for `next dev`, `"production"` for any real build/deployment) - a value tooling sets automatically and a human never types into an env file, so it can't be copy-paste-mismatched the way `DATABASE_URL` can.
+- These two signals are genuinely independent, which is what makes this a real check rather than a circular one: the marker lives *in* the database, so it travels with whichever database `DATABASE_URL` actually resolves to, rather than being derived from that same copy-paste-able string. A wrong connection string still reads back that database's own true answer.
+- On a mismatch, the process throws during startup - verified for real, not assumed: deliberately set dev's marker to `"production"` and confirmed the entire dev server refused to start, then restored it and confirmed a clean boot.
+
+**What this can log or throw, by construction, not just by care taken**: the literal words `"development"`/`"production"`, and nothing else - the module never reads `DATABASE_URL` at all, so there is no code path capable of leaking a hostname or credential. `src/lib/verifyEnvironment.test.ts` includes a test that greps every logged string for a URL or hostname shape as a standing regression guard on that property, not just a one-time inspection.
+
 ## Notifications subsystem detail
 
 **The original "webhook URL" design didn't actually satisfy the product requirement.** `notifications_sent`/`NotificationChannel` existed from the start, and `linked_riot_accounts.discord_webhook_url` was the planned delivery mechanism - a user would paste a webhook URL from a Discord server/channel of their choosing. That's a manual setup step, which conflicts directly with the explicit requirement: notifications go out automatically the moment a user has signed up (Discord OAuth) and linked a Riot account, nothing else. Caught and resolved before writing notification code, not after - `discord_webhook_url` was removed (migration `20260831180000_notifications_via_discord_bot`) rather than built out and left unused.

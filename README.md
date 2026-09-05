@@ -32,7 +32,7 @@ npm run sync                 # populate the skin/buddy catalog from valorant-api
 npm run dev
 ```
 
-**If you fork this to run your own instance, keep dev and production on separate databases from the start.** There's no shared infrastructure to accidentally cross - each environment is just a different `DATABASE_URL`/`DIRECT_URL` pair, set in a different place (`.env.local` locally, your hosting platform's environment variables in production) - but a copy-pasted connection string is the one way to actually jumble them, so treat those values with the same care as any other credential.
+**If you fork this to run your own instance, keep dev and production on separate databases from the start.** There's no shared infrastructure to accidentally cross - each environment is just a different `DATABASE_URL`/`DIRECT_URL` pair, set in a different place (`.env.local` locally, your hosting platform's environment variables in production) - but a copy-pasted connection string is the one way to actually jumble them. After running migrations against a new database, run `npx tsx src/scripts/setEnvironmentMarker.ts <development|production>` once against it - the app then refuses to start if it's ever pointed at a database whose marker doesn't match, catching a swapped connection string at boot instead of silently mixing data. See `docs/ARCHITECTURE.md` "Environment self-check" for exactly what that check does and does not log.
 
 ## License
 

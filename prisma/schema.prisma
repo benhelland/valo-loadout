@@ -339,3 +339,19 @@ model NotificationSent {
   @@index([userId, skinId, sentAt])
   @@map("notifications_sent")
 }
+
+// A single row, manually planted once per database via
+// src/scripts/setEnvironmentMarker.ts, holding nothing but the literal word
+// "development" or "production". See src/lib/verifyEnvironment.ts for why:
+// it's the one signal that travels WITH the database itself rather than
+// with whatever DATABASE_URL happens to point at it, so it still catches a
+// misconfiguration even if the connection string itself looks plausible.
+//
+// Deliberately holds nothing else - no hostname, no project id, nothing
+// that could turn a startup log line into something worth hiding.
+model EnvironmentMarker {
+  id   String @id @default(cuid())
+  name String // exactly "development" or "production", nothing else
+
+  @@map("environment_marker")
+}
