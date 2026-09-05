@@ -17,6 +17,20 @@ const TAG_BYTES = 16;
 
 let cachedKey: Buffer | undefined;
 
+// Exported so src/scripts/rotateEncryptionKey.ts can validate an arbitrary
+// key string (the old and new keys, neither of which is the live
+// RIOT_TOKEN_ENCRYPTION_KEY) the exact same way getKey() validates the env
+// one, rather than a second, possibly-drifting copy of this check.
+export function parseKey(raw: string): Buffer {
+  const key = Buffer.from(raw, "base64");
+  if (key.length !== KEY_BYTES) {
+    // Fail loudly rather than padding/hashing a short key into shape - a
+    // silently-weakened key is worse than a startup crash.
+    throw new Error(`Key must decode to exactly ${KEY_BYTES} bytes (got ${key.length}). Generate one with: openssl rand -base64 32`);
+  }
+  return key;
+}
+
 function getKey(): Buffer {
   if (cachedKey) return cachedKey;
 
@@ -25,24 +39,24 @@ function getKey(): Buffer {
     throw new Error("RIOT_TOKEN_ENCRYPTION_KEY is not set - refusing to handle Riot session data without it");
   }
 
-  const key = Buffer.from(raw, "base64");
-  if (key.length !== KEY_BYTES) {
-    // Fail loudly rather than padding/hashing a short key into shape - a
-    // silently-weakened key is worse than a startup crash.
-    throw new Error(
-      `RIOT_TOKEN_ENCRYPTION_KEY must decode to exactly ${KEY_BYTES} bytes (got ${key.length}). Generate one with: openssl rand -base64 32`,
-    );
+  try {
+    cachedKey = parseKey(raw);
+  } catch (err) {
+    throw new Error(`RIOT_TOKEN_ENCRYPTION_KEY: ${(err as Error).message}`);
   }
-
-  cachedKey = key;
-  return key;
+  return cachedKey;
 }
 
 // Returns "v1.<iv>.<tag>.<ciphertext>", all base64url. The version prefix is
 // cheap now and makes a future key rotation or algorithm change detectable
 // instead of ambiguous.
-export function encryptSecret(plaintext: string): string {
-  const key = getKey();
+//
+// `key` defaults to the cached RIOT_TOKEN_ENCRYPTION_KEY and is what every
+// existing call site keeps using unmodified. The explicit override exists
+// for src/scripts/rotateEncryptionKey.ts, which needs to hold both an old
+// and a new key live in one process - something the env-cached default
+// can't do, since it's one process-wide value.
+export function encryptSecret(plaintext: string, key: Buffer = getKey()): string {
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, key, iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
@@ -51,8 +65,7 @@ export function encryptSecret(plaintext: string): string {
   return ["v1", iv.toString("base64url"), tag.toString("base64url"), ciphertext.toString("base64url")].join(".");
 }
 
-export function decryptSecret(encoded: string): string {
-  const key = getKey();
+export function decryptSecret(encoded: string, key: Buffer = getKey()): string {
   const parts = encoded.split(".");
   if (parts.length !== 4 || parts[0] !== "v1") {
     throw new Error("Malformed encrypted value");

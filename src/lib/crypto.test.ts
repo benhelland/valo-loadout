@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { encryptSecret, decryptSecret, safeEqual } from "@/lib/crypto";
+import { randomBytes } from "node:crypto";
+import { encryptSecret, decryptSecret, safeEqual, parseKey } from "@/lib/crypto";
 
 // First real tests in the repo - CLAUDE.md's bar for adding a runner is
 // "real logic worth testing", and encrypting other people's Riot session
@@ -72,6 +73,56 @@ describe("encryptSecret / decryptSecret", () => {
     assert.throws(() => decryptSecret("not-encrypted-at-all"));
     assert.throws(() => decryptSecret("v1.only.three"));
     assert.throws(() => decryptSecret("v2.aaaa.bbbb.cccc"), /Malformed/);
+  });
+});
+
+// Added for src/scripts/rotateEncryptionKey.ts, which needs an old and a new
+// key alive in the same process - something the env-cached default key
+// (used everywhere else, and by every test above) can't do on its own.
+describe("encryptSecret / decryptSecret with an explicit key", () => {
+  const keyA = randomBytes(32);
+  const keyB = randomBytes(32);
+
+  it("round-trips when the same explicit key is used both ways", () => {
+    const secret = "rotate-me";
+    assert.equal(decryptSecret(encryptSecret(secret, keyA), keyA), secret);
+  });
+
+  it("fails to decrypt under a different key - this IS the rotation script's own signal for 'already on the new key'", () => {
+    const ciphertext = encryptSecret("rotate-me", keyA);
+    assert.throws(() => decryptSecret(ciphertext, keyB));
+  });
+
+  it("an explicit key and the env-default key produce mutually unreadable ciphertext", () => {
+    // Cross-check against the default (env-key) path exercised by every
+    // test above, so "explicit key" and "no argument" are confirmed to
+    // actually be different code paths, not the same one in disguise.
+    const secret = "cross-path-check";
+    const viaDefault = encryptSecret(secret);
+    const viaExplicit = encryptSecret(secret, keyA);
+    assert.throws(() => decryptSecret(viaDefault, keyA));
+    assert.throws(() => decryptSecret(viaExplicit));
+    assert.equal(decryptSecret(viaDefault), secret);
+    assert.equal(decryptSecret(viaExplicit, keyA), secret);
+  });
+});
+
+describe("parseKey", () => {
+  it("accepts a valid 32-byte base64 key", () => {
+    const key = randomBytes(32);
+    assert.deepEqual(parseKey(key.toString("base64")), key);
+  });
+
+  it("rejects a key of the wrong length rather than padding it", () => {
+    // A silently-weakened key is worse than a startup crash - same
+    // philosophy as the env-key path's own validation.
+    assert.throws(() => parseKey(randomBytes(16).toString("base64")), /32 bytes/);
+    assert.throws(() => parseKey(randomBytes(48).toString("base64")), /32 bytes/);
+  });
+
+  it("rejects garbage input", () => {
+    assert.throws(() => parseKey("not-base64-and-not-32-bytes"));
+    assert.throws(() => parseKey(""));
   });
 });
 

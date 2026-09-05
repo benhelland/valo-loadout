@@ -30,6 +30,8 @@ Guidance for Claude (Claude Code / Cowork) when working in this repo. Read this 
 - **Never store a user's raw Riot password.** Only ever handle it in-memory for the length of the auth handshake (or better, use cookie/token-based re-auth so the password is never touched by our servers at all). Persist only the resulting session token, encrypted at rest.
 - **Rate-limit anything that talks to Riot's servers.** Poll per-user shop state on a sane interval (think: a few times a day, not continuously) and back off hard on errors. This isn't just politeness — aggressive polling is the kind of behavior that gets unofficial integrations noticed.
 - **Treat the store-checking subsystem as an isolated, swappable module.** If Riot's internal endpoints change, get locked down, or this approach becomes untenable, the rest of the app (gallery, loadout builder, wishlist) should keep working with that one piece disabled.
+- **The app's `DATABASE_URL` connects as a least-privilege role (`valo_app`), not the Neon owner role.** `DIRECT_URL` (Prisma CLI/migrations only) stays on the owner role. Don't "simplify" by pointing the app at the owner role again - see `docs/RISKS.md` "What a database breach would actually expose" for why, and `src/scripts/setupAppRole.ts` to (re)provision the role for a new database.
+- **Discord OAuth tokens (`accounts.refresh_token`/`access_token`/`id_token`/`session_state`) are deliberately never persisted** — `src/lib/authAdapter.ts` strips them before the row is written. Nothing in this app reads them back; don't add a feature that reads them from the database without first re-reading `docs/RISKS.md`'s reasoning, since restoring that would reintroduce a stored credential this project specifically removed.
 
 ## Working conventions
 

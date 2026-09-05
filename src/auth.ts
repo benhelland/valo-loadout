@@ -1,9 +1,9 @@
 import NextAuth from "next-auth";
 import Discord, { type DiscordProfile } from "next-auth/providers/discord";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
 import { authConfig } from "@/auth.config";
 import { joinGuild } from "@/discord/bot";
+import { buildAuthAdapter } from "@/lib/authAdapter";
 
 // Avatar-URL logic copied verbatim from @auth/core's default Discord
 // provider (node_modules/@auth/core/providers/discord.js) - only the `name`
@@ -48,7 +48,11 @@ function discordProfile(profile: DiscordProfile) {
 // would 500 on every sign-in attempt.
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  adapter: PrismaAdapter(prisma),
+  // Not PrismaAdapter(prisma) directly - see src/lib/authAdapter.ts for why:
+  // this app never reads a Discord OAuth token back out of the database, so
+  // the wrapper stops writing the actual credential fields at all rather
+  // than storing (or encrypting) something with no reader.
+  adapter: buildAuthAdapter(prisma),
   session: { strategy: "jwt" },
   providers: [
     Discord({
