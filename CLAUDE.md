@@ -78,4 +78,4 @@ The same voice rule applies to the docs: they're reference material, not a devel
 ## Open questions
 
 - Whether skin "animation" playback means the hosted showcase clips valorant-api.com exposes for some tiers, or something more produced. Start with what the API gives for free; treat anything fancier as a stretch goal.
-- Vercel Hobby-tier cron granularity, which affects whether the poll trigger uses Vercel Cron directly or a GitHub Actions workflow as a fallback.
+- **Where the shop-check poller runs.** Vercel Cron is ruled out on the free tier: Hobby accounts allow only once-daily schedules, and once daily is too coarse here because shop resets are per-account and spread across the day. The open choice is a scheduled GitHub Actions workflow versus `npm run check-shops` on a non-datacenter machine, and it can't be settled until the datacenter-IP question is answered. See `docs/ARCHITECTURE.md` → "Store-check subsystem".
