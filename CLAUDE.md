@@ -39,7 +39,7 @@ Don't assume any framework, package, or file structure beyond what's written in 
 ## Working conventions
 
 - `npm run dev` — dev server (Turbopack)
-- `npm run build` — production build (also type-checks)
+- `npm run build` — production build (also type-checks). Runs `prisma generate` first, and must keep doing so: `src/generated/prisma` is gitignored, so any build from a fresh clone — every Git-triggered Vercel deploy — has no client and fails with `Can't resolve '@/generated/prisma/client'`. A CLI `vercel deploy` uploads the local directory and masks this, so it can pass while the Git integration fails
 - `npm run lint` — ESLint
 - `npx tsc --noEmit` — type-check only
 - `npx prisma generate` — regenerate the Prisma client after any `prisma/schema.prisma` change. Output goes to `src/generated/prisma` (gitignored); import from `@/generated/prisma/client`, not the bare path — there's no barrel file
