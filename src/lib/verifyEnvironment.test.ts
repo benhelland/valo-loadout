@@ -41,6 +41,68 @@ describe("verifyEnvironment", () => {
     );
   });
 
+  // Vercel sets NODE_ENV=production for preview builds as well as real ones,
+  // so VERCEL_ENV is the only signal that separates them. These cover the
+  // deployment matrix that distinction exists for.
+
+  it("expects the development marker on a preview deployment", async () => {
+    // NODE_ENV is "production" here, exactly as Vercel sets it for previews.
+    await assert.doesNotReject(() =>
+      verifyEnvironment({
+        prisma: fakePrisma({ name: "development" }),
+        nodeEnv: "production",
+        vercelEnv: "preview",
+      }),
+    );
+  });
+
+  it("throws when a preview deployment reads the production marker", async () => {
+    // The mistake this newly catches: a feature branch wired to the real
+    // database, where a preview would write to live user data.
+    await assert.rejects(
+      () =>
+        verifyEnvironment({
+          prisma: fakePrisma({ name: "production" }),
+          nodeEnv: "production",
+          vercelEnv: "preview",
+        }),
+      /Environment mismatch/,
+    );
+  });
+
+  it("still expects the production marker on a production deployment", async () => {
+    await assert.doesNotReject(() =>
+      verifyEnvironment({
+        prisma: fakePrisma({ name: "production" }),
+        nodeEnv: "production",
+        vercelEnv: "production",
+      }),
+    );
+  });
+
+  it("throws when a production deployment reads the development marker", async () => {
+    await assert.rejects(
+      () =>
+        verifyEnvironment({
+          prisma: fakePrisma({ name: "development" }),
+          nodeEnv: "production",
+          vercelEnv: "production",
+        }),
+      /Environment mismatch/,
+    );
+  });
+
+  it("falls back to NODE_ENV when VERCEL_ENV is absent", async () => {
+    // Local dev, CI, and `npm run check-shops` all run with no VERCEL_ENV.
+    await assert.rejects(
+      () => verifyEnvironment({ prisma: fakePrisma({ name: "development" }), nodeEnv: "production", vercelEnv: undefined }),
+      /Environment mismatch/,
+    );
+    await assert.doesNotReject(() =>
+      verifyEnvironment({ prisma: fakePrisma({ name: "development" }), nodeEnv: "development", vercelEnv: undefined }),
+    );
+  });
+
   it("does not throw when no marker exists yet (fresh database)", async () => {
     const warn = mock.method(console, "warn", () => {});
     try {

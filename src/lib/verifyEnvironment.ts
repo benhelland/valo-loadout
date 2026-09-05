@@ -23,14 +23,36 @@ import type { PrismaClient } from "@/generated/prisma/client";
 // Both dependencies are injectable so this can be unit-tested without a live
 // database (src/lib/verifyEnvironment.test.ts), the same pattern used for
 // src/lib/authAdapter.ts.
+// Which marker this process should be reading back.
+//
+// NODE_ENV alone is not enough on Vercel: it is "production" for BOTH real
+// production deployments and preview deployments, so a preview pointed at
+// the dev database would be judged a mismatch and refuse to boot. VERCEL_ENV
+// is the value that actually distinguishes the three, so prefer it and fall
+// back to NODE_ENV everywhere else (local dev, CI, `npm run check-shops`).
+//
+// Only "production" maps to the production database. Preview deployments are
+// expected to run against the dev database, which means this still catches
+// the inverse and more dangerous mistake - a preview wired to production,
+// where a feature branch would write to real user data.
+export function expectedMarkerFor(vercelEnv: string | undefined, nodeEnv: string | undefined): string {
+  if (vercelEnv === "production") return "production";
+  if (vercelEnv === "preview" || vercelEnv === "development") return "development";
+  return nodeEnv === "production" ? "production" : "development";
+}
+
 export async function verifyEnvironment(
   deps: {
     prisma?: Pick<PrismaClient, "environmentMarker">;
     nodeEnv?: string;
+    vercelEnv?: string;
   } = {},
 ): Promise<void> {
   const prisma = deps.prisma ?? defaultPrisma;
-  const expected = (deps.nodeEnv ?? process.env.NODE_ENV) === "production" ? "production" : "development";
+  const expected = expectedMarkerFor(
+    deps.vercelEnv ?? process.env.VERCEL_ENV,
+    deps.nodeEnv ?? process.env.NODE_ENV,
+  );
 
   const marker = await prisma.environmentMarker.findFirst();
 
@@ -52,9 +74,10 @@ export async function verifyEnvironment(
     // this exists to catch. Crashing on cold start is the correct
     // consequence: no request should be served against the wrong database.
     console.error(
-      `[env-check] FATAL: this database self-identifies as "${marker.name}", but this process is running with ` +
-        `NODE_ENV indicating "${expected}". Refusing to start - this almost always means DATABASE_URL/DIRECT_URL ` +
-        `point at the wrong environment's database.`,
+      `[env-check] FATAL: this database self-identifies as "${marker.name}", but this process expected ` +
+        `"${expected}". Refusing to start - this almost always means DATABASE_URL points at the wrong ` +
+        `environment's database. A preview deployment is expected to use the development database; only a ` +
+        `production deployment should reach the production one.`,
     );
     throw new Error(`Environment mismatch: database is "${marker.name}", process expected "${expected}".`);
   }
