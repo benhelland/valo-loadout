@@ -184,7 +184,7 @@ Both are browse-time grouping only — no rows are merged, a skin's detail page 
 
 **Default sort is rarity (highest first).** Sort options are rarity, price and alphabetical — all exact functions of data we actually have.
 
-**Performance:** the catalog is large enough (1500+ skins, plus levels and chromas as separate rows) to need virtualization and lazy-loaded images from day one. Video never autoplays across a grid — load on hover or on opening the detail view, both for user bandwidth and to avoid hammering the upstream CDN.
+**Performance:** the catalog is large enough (1500+ skins, plus levels and chromas as separate rows) that the grid is never rendered whole. Pagination caps a page at 192 skins / 384 buddies (`src/lib/pageSize.ts`), and cards use `next/image`, which lazy-loads below the fold — together that removes the need for a virtualized grid at this catalog size. Video never autoplays across a grid; it loads on opening the detail view, both for user bandwidth and to avoid hammering the upstream CDN.
 
 ## Buddies
 
