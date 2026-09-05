@@ -67,6 +67,8 @@ Add the wishlist and Discord notifications
 
 The same voice rule applies to the docs: they're reference material, not a development diary. Record what is true now, not the story of arriving at it.
 
+**`vercel deploy` deploys to PRODUCTION, not to a preview.** With no Git connection there is no branch to infer a preview from, so the CLI targets production by default — `--prod` is not required, and omitting it is not a safeguard. Use `npx vercel deploy --target=preview` for anything that must not touch the production database. Confirm what you got with `npx vercel inspect <url>` and check the `target` line before assuming.
+
 **Restart `npm run dev` after any schema change.** The dev server holds a generated Prisma client in memory and does not pick up a regenerated one on hot reload. The error never names the real cause — symptoms include `Unknown argument` on a field that clearly exists, and `The column '(not available)' does not exist in the current database` on a column that was just dropped. Before debugging either, run the same query from a fresh `tsx` script; if that works, the code is fine and the server is stale.
 
 **Local setup:** copy `.env.example` to `.env.local` and fill in real values. `DATABASE_URL` (pooled) and `DIRECT_URL` (direct) both need a real Neon project — the CLI uses `DIRECT_URL` via `prisma.config.ts`, the app uses the pooled `DATABASE_URL` via `src/lib/db.ts`. Nothing works end-to-end without a real database; don't stub around it. `DISCORD_BOT_TOKEN`/`DISCORD_GUILD_ID` are the exception — optional at the code level (`src/discord/bot.ts` no-ops without them), needed only to actually see notifications fire.
