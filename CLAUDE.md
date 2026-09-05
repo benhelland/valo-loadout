@@ -47,6 +47,26 @@ Don't assume any framework, package, or file structure beyond what's written in 
 - `npm test` — unit tests via Node's built-in runner (no Jest/Vitest). Focused on the security controls where a silent regression would be worst — encryption, OAuth parsing, the auth adapter, the environment check. Add tests in that category; don't chase coverage on UI or glue code
 - `npm run check-shops` — run the store-check poll for every account whose `nextPollAt` has passed (the same job as `/api/cron/check-shops`)
 
+### Commit messages
+
+A subject line, then a plain list of what changed. Nothing else.
+
+```
+Add the wishlist and Discord notifications
+
+- Add wishlist actions, toggle button and the /wishlist page
+- Add a Discord bot client with guild join and DM send
+- Add wishlist-match and link-expiry notifications
+- Remove the webhook URL column; add migration
+```
+
+- **List what changed, not why, and not how it was found.** No rationale essays, no post-mortems, no "this was measured / verified / caught before shipping".
+- **One bullet per meaningful change**, not per file. Four or five bullets is plenty; a commit needing fifteen is usually two commits.
+- **No first person, no session or workflow references** — nothing about what was tried, what was learned, how many attempts it took, or what tooling produced the change.
+- Rationale that's worth keeping goes in the docs or a code comment, where it can be maintained. A commit message is a changelog entry, not a write-up.
+
+The same voice rule applies to the docs: they're reference material, not a development diary. Record what is true now, not the story of arriving at it.
+
 **Restart `npm run dev` after any schema change.** The dev server holds a generated Prisma client in memory and does not pick up a regenerated one on hot reload. The error never names the real cause — symptoms include `Unknown argument` on a field that clearly exists, and `The column '(not available)' does not exist in the current database` on a column that was just dropped. Before debugging either, run the same query from a fresh `tsx` script; if that works, the code is fine and the server is stale.
 
 **Local setup:** copy `.env.example` to `.env.local` and fill in real values. `DATABASE_URL` (pooled) and `DIRECT_URL` (direct) both need a real Neon project — the CLI uses `DIRECT_URL` via `prisma.config.ts`, the app uses the pooled `DATABASE_URL` via `src/lib/db.ts`. Nothing works end-to-end without a real database; don't stub around it. `DISCORD_BOT_TOKEN`/`DISCORD_GUILD_ID` are the exception — optional at the code level (`src/discord/bot.ts` no-ops without them), needed only to actually see notifications fire.
