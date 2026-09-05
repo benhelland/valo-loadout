@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Valoadout mark: a clipped-corner tile in the app's own palette
+       (--background #0f1923, --accent #ff4655), carrying a condensed "V"
+       that echoes the header wordmark's angular display type. -->
+  <path d="M0 0 H52 L64 12 V64 H12 L0 52 Z" fill="#0f1923"/>
+  <path d="M0 0 H52 L64 12 V16 H0 Z" fill="#ff4655"/>
+  <path d="M16 24 L32 52 L48 24 H39 L32 37 L25 24 Z" fill="#ece8e1"/>
+</svg>

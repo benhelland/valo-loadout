@@ -1,4 +1,4 @@
-// Prisma schema for valo-loadout.
+// Prisma schema for Valoadout.
 // Mirrors the data model documented in docs/ARCHITECTURE.md - keep both in sync.
 
 generator client {

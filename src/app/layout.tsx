@@ -21,7 +21,7 @@ const rajdhani = Rajdhani({
 });
 
 export const metadata: Metadata = {
-  title: "valo-loadout",
+  title: "Valoadout",
   description: "Build your ideal VALORANT loadout, browse every skin, and get notified when one hits your shop.",
 };
 
@@ -41,7 +41,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="border-t border-border">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 text-xs text-muted">
             <p>
-              valo-loadout is not affiliated with or endorsed by Riot Games, Inc. VALORANT and all
+              Valoadout is not affiliated with or endorsed by Riot Games, Inc. VALORANT and all
               associated logos, names, and assets are trademarks or registered trademarks of Riot
               Games, Inc.
             </p>

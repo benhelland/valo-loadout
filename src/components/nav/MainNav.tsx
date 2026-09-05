@@ -36,7 +36,7 @@ export function MainNav({ authControl }: { authControl: React.ReactNode }) {
     <>
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="shrink-0 font-display text-3xl uppercase leading-none tracking-wide">
-          valo<span className="text-accent">loadout</span>
+          valo<span className="text-accent">adout</span>
         </Link>
 
         <div className="flex items-center gap-8">

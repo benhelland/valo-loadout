@@ -4,9 +4,9 @@ Guidance for Claude when working in this repo. Read this first, every session.
 
 ## Project
 
-**valo-loadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
+**Valoadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
 
-**Status: Phases 1–3 feature-complete, not deployed.** The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. Two things remain open: nothing is deployed yet (`docs/LAUNCH_CHECKLIST.md`), and the Discord delivery path plus the datacenter-IP question are both unverified (`docs/ROADMAP.md` Phase 3).
+**Status: Phases 1–3 feature-complete and deployed** at https://valo-loadout.vercel.app (Vercel, production). The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. What's still open: store notifications can't actually deliver (no Discord bot or server provisioned, and no poller runs — Vercel Cron is ruled out on the free tier), and whether Riot's Cloudflare permits the poller from a datacenter IP is unanswered. See `docs/ROADMAP.md` Phase 3.
 
 Don't assume any framework, package, or file structure beyond what's written in these docs — propose a change to the docs before writing code that contradicts them.
 

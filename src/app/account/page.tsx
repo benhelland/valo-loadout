@@ -137,7 +137,7 @@ export default async function AccountPage() {
         ) : (
           <div className="mt-4">
             <p className="text-sm text-muted">
-              Linking a Riot account lets valo-loadout check your daily shop and DM you on Discord when a
+              Linking a Riot account lets Valoadout check your daily shop and DM you on Discord when a
               wishlisted skin shows up in it - automatic, using the Discord account you already signed in
               with. No webhook or extra setup needed.
             </p>

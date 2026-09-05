@@ -1,8 +1,8 @@
-# valo-loadout
+# Valoadout
 
 A webapp for VALORANT cosmetics: build your ideal loadout across every weapon, wishlist the skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get a Discord DM the moment something on your wishlist shows up in your daily store.
 
-**Status:** feature-complete through Phase 3, not yet deployed. See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what's done and what's left, and [`docs/LAUNCH_CHECKLIST.md`](./docs/LAUNCH_CHECKLIST.md) for the remaining deploy steps.
+**Status:** live at [valo-loadout.vercel.app](https://valo-loadout.vercel.app). Feature-complete through Phase 3, with store notifications not yet wired to a Discord bot. See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what's done and what's left, and [`docs/LAUNCH_CHECKLIST.md`](./docs/LAUNCH_CHECKLIST.md) for the remaining deploy steps.
 
 Not affiliated with or endorsed by Riot Games. VALORANT and all associated assets are property of Riot Games, Inc. Skin and cosmetic data courtesy of [valorant-api.com](https://valorant-api.com), an unofficial community project.
 

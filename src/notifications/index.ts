@@ -98,7 +98,7 @@ export async function notifyRiotLinkExpired(linkedAccountId: string): Promise<vo
   if (!discordUserId) return;
 
   const who = account.riotGameName ? `${account.riotGameName}#${account.riotTagLine ?? "?"}` : "Your Riot account";
-  const content = `⚠️ ${who}'s login expired, so valo-loadout can't check your shop anymore. Re-link it to keep wishlist notifications going: ${APP_URL}/account`;
+  const content = `⚠️ ${who}'s login expired, so Valoadout can't check your shop anymore. Re-link it to keep wishlist notifications going: ${APP_URL}/account`;
 
   const delivered = await sendDirectMessage(discordUserId, content);
   if (!delivered) return;

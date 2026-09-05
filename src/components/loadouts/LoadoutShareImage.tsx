@@ -148,7 +148,7 @@ export function LoadoutShareImage({ loadout, weapons }: LoadoutShareImageProps) 
       </div>
 
       <p style={{ margin: "24px 0 0", fontSize: 11, color: "#8b978f" }}>
-        Built with valo-loadout · not affiliated with or endorsed by Riot Games
+        Built with Valoadout · not affiliated with or endorsed by Riot Games
       </p>
     </div>
   );
