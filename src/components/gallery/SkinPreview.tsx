@@ -9,6 +9,11 @@ import { setLoadoutItem } from "@/actions/loadouts";
 import { DraggableBuddyBadge } from "@/components/gallery/DraggableBuddyBadge";
 import type { Prisma, Buddy } from "@/generated/prisma/client";
 
+// Per-viewer convenience only: which is why localStorage is the right home
+// for it rather than the database. Nothing breaks if it is missing, cleared
+// or unreadable.
+const BUDDY_TIP_KEY = "valoadout:buddy-tip-seen";
+
 type SkinDetail = Prisma.SkinGetPayload<{
   include: { weapon: true; contentTier: true; theme: true; levels: true; chromas: true; vibeTags: true };
 }>;
@@ -64,8 +69,49 @@ export function SkinPreview({
   // needs to be an explicit way to just look at the flat render. Video is
   // opt-in via the Animation tab below.
   const [showVideo, setShowVideo] = useState(false);
+  // Once the user has actually seen the animation, the play overlay has done
+  // its job and becomes pure obstruction - it sits dead centre of the frame,
+  // over the buddy badge's drag area. Never show it again this visit.
+  const [hasPlayedAnimation, setHasPlayedAnimation] = useState(false);
+  // Shown once, the first time they come back to the still image having
+  // watched the animation - the moment the frame is theirs to play with and
+  // the buddy controls are worth pointing at.
+  const [buddyTip, setBuddyTip] = useState(false);
   const [shareState, setShareState] = useState<"idle" | "copied" | "failed">("idle");
   const [shareUrl, setShareUrl] = useState("");
+
+  // Read in the event handler rather than an effect. Doing it on mount would
+  // mean setting state inside an effect (which this codebase lints against,
+  // and which would desync the first client paint from the server HTML);
+  // doing it during render would touch localStorage on the server. By the
+  // time this runs we are unambiguously on the client, in a user gesture.
+  function tipAlreadySeen(): boolean {
+    try {
+      return window.localStorage.getItem(BUDDY_TIP_KEY) === "1";
+    } catch {
+      // Private browsing and blocked site-data both throw. Treat it as
+      // unseen: showing a dismissible tip twice is a far smaller failure
+      // than a crash, and the page must not depend on storage being readable.
+      return false;
+    }
+  }
+
+  function dismissBuddyTip() {
+    setBuddyTip(false);
+    try {
+      window.localStorage.setItem(BUDDY_TIP_KEY, "1");
+    } catch {
+      // Non-fatal - the tip may reappear on a future visit.
+    }
+  }
+
+  function selectMedia(video: boolean) {
+    setShowVideo(video);
+    if (video) setHasPlayedAnimation(true);
+    // Coming back to the still image after watching is the teachable moment:
+    // the play overlay has retired and the frame is free to experiment in.
+    else if (hasPlayedAnimation && !tipAlreadySeen()) setBuddyTip(true);
+  }
 
   const activeChroma = skin.chromas.find((c) => c.id === selectedChromaId);
   const activeLevel = skin.levels.find((l) => l.id === selectedLevelId);
@@ -221,7 +267,7 @@ export function SkinPreview({
             <button
               role="tab"
               aria-selected={!showVideo}
-              onClick={() => setShowVideo(false)}
+              onClick={() => selectMedia(false)}
               className={`px-4 py-1.5 transition-colors ${
                 !showVideo ? "bg-accent text-accent-contrast" : "text-muted hover:text-foreground"
               }`}
@@ -231,7 +277,7 @@ export function SkinPreview({
             <button
               role="tab"
               aria-selected={showVideo}
-              onClick={() => setShowVideo(true)}
+              onClick={() => selectMedia(true)}
               className={`flex items-center gap-2 px-4 py-1.5 transition-colors ${
                 showVideo ? "bg-accent text-accent-contrast" : "text-muted hover:text-foreground"
               }`}
@@ -275,16 +321,36 @@ export function SkinPreview({
               button is a contained circle rather than a full-frame overlay
               on purpose: the frame is also the buddy badge's drag surface,
               and a full-bleed click target would swallow those drags. */}
-          {hasVideo && !showVideo ? (
+          {hasVideo && !showVideo && !hasPlayedAnimation ? (
             <button
               type="button"
-              onClick={() => setShowVideo(true)}
+              onClick={() => selectMedia(true)}
               aria-label="Play animation"
               className="group absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-foreground/40 bg-background/60 backdrop-blur transition-all hover:scale-105 hover:border-accent hover:bg-background/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               <svg viewBox="0 0 10 12" aria-hidden="true" className="h-7 w-6 translate-x-0.5 fill-foreground transition-colors group-hover:fill-accent">
                 <path d="M0 0 L10 6 L0 12 Z" />
               </svg>
+            </button>
+          ) : null}
+
+          {/* Small dismissible flag, not a modal: it sits inside the media
+              frame, steals no focus and blocks nothing. Shown once ever (the
+              dismissal is remembered), the first time someone comes back to
+              the still image after watching an animation - by then the play
+              overlay is gone and the frame is free to experiment in. */}
+          {buddyTip && !showVideo ? (
+            <button
+              type="button"
+              onClick={dismissBuddyTip}
+              className="clip-notch-sm absolute bottom-3 left-1/2 z-20 flex max-w-[min(92%,26rem)] -translate-x-1/2 items-center gap-2 border border-accent/40 bg-background/90 px-3 py-2 text-left text-xs text-muted backdrop-blur transition-colors hover:border-accent hover:text-foreground"
+            >
+              <span aria-hidden className="text-sm leading-none">🎏</span>
+              <span>
+                <span className="font-semibold uppercase tracking-wider text-foreground">Try a buddy on it</span>{" "}
+                &mdash; pick one below, then drag it anywhere on the gun and resize it.
+              </span>
+              <span aria-hidden className="ml-1 shrink-0 text-muted">&times;</span>
             </button>
           ) : null}
 
