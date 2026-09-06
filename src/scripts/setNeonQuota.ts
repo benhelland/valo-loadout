@@ -2,8 +2,15 @@
  * Reads, and optionally sets, the hard consumption ceiling on the Neon
  * project. Also prints this billing period's usage against that ceiling.
  *
- *   npm run neon-quota             # show the current ceiling and usage
- *   npm run neon-quota -- --apply  # write the ceiling from the env vars below
+ *   npm run neon-quota                  # show the ceiling, usage and computes
+ *   npm run neon-quota -- --apply       # write the ceiling from the env vars below
+ *   npm run neon-quota -- --suspend 60  # set the scale-to-zero delay
+ *
+ * The two levers are different in kind. The quota decides *when the site gets
+ * cut off*; the scale-to-zero delay decides *how fast the meter runs*. Idle-
+ * but-awake time dominates the bill when visits are spread out, so lowering
+ * the delay from the 300s default to 60s cuts compute roughly 5x for the same
+ * traffic - a bigger win than any quota change, and it costs no availability.
  *
  * Why this exists: Neon's console has no spend cap. It has *spending
  * notifications* - email at 80% and 100% of a threshold - which report that a
@@ -157,12 +164,78 @@ interface ProjectResponse {
   };
 }
 
+interface Endpoint {
+  id: string;
+  branch_id: string;
+  type: string;
+  current_state?: string;
+  suspend_timeout_seconds?: number;
+  autoscaling_limit_min_cu?: number;
+  autoscaling_limit_max_cu?: number;
+}
+
+interface EndpointsResponse {
+  endpoints: Endpoint[];
+}
+
+// Neon's own encoding for the two special values of suspend_timeout_seconds.
+const SUSPEND_DEFAULT = 0; // "use the platform default" (300s / 5 min)
+const SUSPEND_NEVER = -1; // never scale to zero - the expensive one
+const SUSPEND_MIN_SECONDS = 60;
+const SUSPEND_MAX_SECONDS = 604_800;
+
+function describeSuspend(seconds: number | undefined): string {
+  if (seconds === undefined || seconds === SUSPEND_DEFAULT) return "300s (platform default)";
+  if (seconds === SUSPEND_NEVER) return "NEVER  <-- never scales to zero";
+  return `${seconds}s`;
+}
+
+/**
+ * `--suspend <seconds>` - the scale-to-zero delay.
+ *
+ * Worth having here rather than as a one-off curl because it takes *two*
+ * calls that are easy to conflate: the project-level default applies only to
+ * computes created later, and does nothing to the compute already running.
+ * Setting one and assuming the other followed is the obvious way to think the
+ * delay changed when it did not.
+ *
+ * It is also the biggest lever on cost. Idle-but-awake time dominates the bill
+ * when visits are spread out, so dropping 300s to 60s cuts compute roughly 5x
+ * for the same traffic - far more than tightening the quota, which only
+ * decides when the site gets cut off.
+ */
+function parseSuspendFlag(): number | null {
+  const i = process.argv.indexOf("--suspend");
+  if (i === -1) return null;
+
+  const raw = process.argv[i + 1];
+  if (!raw) throw new Error("--suspend needs a value in seconds, e.g. --suspend 60");
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed)) throw new Error(`--suspend must be a whole number, got: ${raw}`);
+  if (parsed === SUSPEND_NEVER) {
+    throw new Error(
+      "--suspend -1 disables scale to zero entirely, which bills compute around the clock. " +
+        "Refusing: set it in the Neon console if that is genuinely wanted.",
+    );
+  }
+  if (parsed < SUSPEND_MIN_SECONDS || parsed > SUSPEND_MAX_SECONDS) {
+    throw new Error(
+      `--suspend must be between ${SUSPEND_MIN_SECONDS} and ${SUSPEND_MAX_SECONDS} seconds, got: ${parsed}`,
+    );
+  }
+  return parsed;
+}
+
 const gb = (bytes: number) => `${(bytes / GB).toFixed(2)} GB`;
 const hrs = (seconds: number) => `${(seconds / HOUR).toFixed(1)} h`;
 
 async function main() {
   const projectId = requireEnv("NEON_PROD_PROJECT_ID");
   const apply = process.argv.includes("--apply");
+  // Parsed before any network call so a bad value fails instantly rather than
+  // after the project has already been touched.
+  const suspendSeconds = parseSuspendFlag();
 
   // Identify the target BEFORE mutating it. NEON_PROD_PROJECT_ID selects which
   // project is *administered*, which is a different axis from DATABASE_URL /
@@ -224,6 +297,61 @@ async function main() {
   if (unset.length > 0) {
     console.log(`\nNo ceiling set for: ${unset.join(", ")}`);
     console.log("Set the NEON_QUOTA_* vars in .env.local, then run with --apply.");
+  }
+
+  await handleComputes(projectId, suspendSeconds);
+}
+
+/**
+ * Shows every compute in the project and, with --suspend, sets the
+ * scale-to-zero delay.
+ *
+ * Two writes, not one. Neon's project-level `default_endpoint_settings`
+ * applies only to computes created afterwards and leaves the running compute
+ * untouched, so setting just that would look successful while changing
+ * nothing about today's bill. Each existing compute is patched individually.
+ */
+async function handleComputes(projectId: string, suspendSeconds: number | null): Promise<void> {
+  let { endpoints } = (await api(`/projects/${projectId}/endpoints`)) as EndpointsResponse;
+
+  if (suspendSeconds !== null) {
+    console.log(`\nSetting scale-to-zero delay to ${suspendSeconds}s...`);
+
+    // 1. The project default, so computes created later inherit it.
+    await api(`/projects/${projectId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        project: { default_endpoint_settings: { suspend_timeout_seconds: suspendSeconds } },
+      }),
+    });
+    console.log("  project default updated (applies to computes created from now on)");
+
+    // 2. Every existing compute, which the project default does NOT cover.
+    for (const endpoint of endpoints) {
+      await api(`/projects/${projectId}/endpoints/${endpoint.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ endpoint: { suspend_timeout_seconds: suspendSeconds } }),
+      });
+      console.log(`  ${endpoint.id} updated`);
+    }
+
+    ({ endpoints } = (await api(`/projects/${projectId}/endpoints`)) as EndpointsResponse);
+  }
+
+  console.log("\nComputes:");
+  for (const endpoint of endpoints) {
+    const min = endpoint.autoscaling_limit_min_cu ?? "?";
+    const max = endpoint.autoscaling_limit_max_cu ?? "?";
+    console.log(`  ${endpoint.id}  (${endpoint.type}, branch ${endpoint.branch_id})`);
+    console.log(`    scale to zero after: ${describeSuspend(endpoint.suspend_timeout_seconds)}`);
+    console.log(`    autoscaling:         ${min} - ${max} CU`);
+  }
+
+  const neverSuspends = endpoints.filter((e) => e.suspend_timeout_seconds === SUSPEND_NEVER);
+  if (neverSuspends.length > 0) {
+    console.warn(
+      `\nWarning: ${neverSuspends.length} compute(s) never scale to zero and bill around the clock.`,
+    );
   }
 }
 
