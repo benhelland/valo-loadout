@@ -47,6 +47,33 @@ Don't assume any framework, package, or file structure beyond what's written in 
 - `npm test` — unit tests via Node's built-in runner (no Jest/Vitest). Focused on the security controls where a silent regression would be worst — encryption, OAuth parsing, the auth adapter, the environment check. Add tests in that category; don't chase coverage on UI or glue code
 - `npm run check-shops` — run the store-check poll for every account whose `nextPollAt` has passed (the same job as `/api/cron/check-shops`)
 
+### Never open a pull request unless asked
+
+Commit and push to a feature branch freely. **Do not run `gh pr create`, or
+open a PR by any other means, unless the user explicitly asks for one.** Push
+the branch, say it is ready, and let them open it.
+
+The reason is asymmetric consequences on a public repo. A branch can be
+deleted: its commits become unreachable and are garbage-collected. A pull
+request cannot be deleted by anyone but GitHub Support, and `refs/pull/N/head`
+keeps every commit and the full diff publicly readable forever, even after the
+branch is gone. Anything that reaches a PR is effectively published.
+
+The same asymmetry applies to what goes in a commit at all:
+
+- **Operational and account detail stays out of version control.** Which
+  services are used, how environments are wired, dashboard URLs, per-plan
+  quotas, DNS records, recovery runbooks. That is the user's context, not part
+  of the software. `docs/OPERATIONS.md` is gitignored for exactly this reason -
+  do not re-add it, reference it from tracked files, or reproduce its contents
+  in code comments.
+- **Schema, code and their rationale are fine.** `prisma/schema.prisma` is
+  source; documenting its columns in `ARCHITECTURE.md` publishes nothing new.
+  The test is whether it describes *the software* or *the person running it*.
+
+When in doubt about whether something belongs in the repo, ask before
+committing, not after pushing.
+
 ### Commit messages
 
 A subject line, then a plain list of what changed. Nothing else.
