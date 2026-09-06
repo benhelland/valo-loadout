@@ -206,22 +206,39 @@ export function SkinPreview({
           16:9 crop, so it reads as the star of the page rather than sharing
           the spotlight evenly with the sidebar. */}
       <div className="min-w-0">
+        {/* A filled segmented control rather than two small underlined text
+            links. Animation is the thing this gallery exists to show off and
+            the old treatment read as incidental caption text - easy to miss
+            entirely on a page whose hero is a large still image. Paired with
+            the play overlay on the image itself below, which is the
+            affordance people actually recognise. */}
         {hasVideo ? (
-          <div className="mb-3 flex gap-5 text-xs font-semibold uppercase tracking-widest">
+          <div
+            role="tablist"
+            aria-label="Media type"
+            className="clip-notch-sm mb-3 inline-flex border border-border bg-surface p-1 text-sm font-semibold uppercase tracking-widest"
+          >
             <button
+              role="tab"
+              aria-selected={!showVideo}
               onClick={() => setShowVideo(false)}
-              className={`border-b-2 pb-1 transition-colors ${
-                !showVideo ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"
+              className={`px-4 py-1.5 transition-colors ${
+                !showVideo ? "bg-accent text-accent-contrast" : "text-muted hover:text-foreground"
               }`}
             >
               Image
             </button>
             <button
+              role="tab"
+              aria-selected={showVideo}
               onClick={() => setShowVideo(true)}
-              className={`border-b-2 pb-1 transition-colors ${
-                showVideo ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"
+              className={`flex items-center gap-2 px-4 py-1.5 transition-colors ${
+                showVideo ? "bg-accent text-accent-contrast" : "text-muted hover:text-foreground"
               }`}
             >
+              <svg viewBox="0 0 10 12" aria-hidden="true" className="h-3 w-2.5 fill-current">
+                <path d="M0 0 L10 6 L0 12 Z" />
+              </svg>
               Animation
             </button>
           </div>
@@ -250,6 +267,25 @@ export function SkinPreview({
               className="object-contain p-10"
               priority
             />
+          ) : null}
+
+          {/* The discoverability fix. A play button over the still render is
+              the affordance people already know, so the animation stops
+              depending on someone noticing a control above the image. The
+              button is a contained circle rather than a full-frame overlay
+              on purpose: the frame is also the buddy badge's drag surface,
+              and a full-bleed click target would swallow those drags. */}
+          {hasVideo && !showVideo ? (
+            <button
+              type="button"
+              onClick={() => setShowVideo(true)}
+              aria-label="Play animation"
+              className="group absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-foreground/40 bg-background/60 backdrop-blur transition-all hover:scale-105 hover:border-accent hover:bg-background/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              <svg viewBox="0 0 10 12" aria-hidden="true" className="h-7 w-6 translate-x-0.5 fill-foreground transition-colors group-hover:fill-accent">
+                <path d="M0 0 L10 6 L0 12 Z" />
+              </svg>
+            </button>
           ) : null}
 
           {/* Targeting-bracket corner accents - purely decorative, echoes the
