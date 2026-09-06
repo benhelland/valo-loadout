@@ -155,22 +155,35 @@ const hrs = (seconds: number) => `${(seconds / HOUR).toFixed(1)} h`;
 
 async function main() {
   const projectId = requireEnv("NEON_PROJECT_ID");
+  const apply = process.argv.includes("--apply");
 
-  if (process.argv.includes("--apply")) {
+  // Identify the target BEFORE mutating it. NEON_PROJECT_ID selects which
+  // project is *administered*, which is a different axis from DATABASE_URL /
+  // DIRECT_URL selecting which database the app *talks to* - so the two
+  // routinely point at different environments in the same .env.local (dev
+  // database, production project, because production is the one that bills).
+  // That is intentional, but it means a mix-up is easy and invisible, so the
+  // project is named before anything is written rather than after.
+  let { project } = (await api(`/projects/${projectId}`)) as ProjectResponse;
+
+  console.log(`Project: ${project.name}  (${projectId})`);
+  console.log("  ^ from NEON_PROJECT_ID - unrelated to DATABASE_URL / DIRECT_URL.\n");
+
+  if (apply) {
     const quota = readQuotaFromEnv();
-    console.log("Applying ceiling:");
+    console.log(`Applying ceiling to "${project.name}":`);
     for (const [field, value] of Object.entries(quota)) console.log(`  ${field} = ${value}`);
     await api(`/projects/${projectId}`, {
       method: "PATCH",
       body: JSON.stringify({ project: { settings: { quota } } }),
     });
     console.log("\nApplied.\n");
+    // Re-read so the table below reflects what was just written.
+    ({ project } = (await api(`/projects/${projectId}`)) as ProjectResponse);
   }
 
-  const { project } = (await api(`/projects/${projectId}`)) as ProjectResponse;
   const quota = project.settings?.quota ?? {};
 
-  console.log(`Project: ${project.name}`);
   console.log(
     `Billing period: ${project.consumption_period_start ?? "?"} -> ${project.consumption_period_end ?? "?"}\n`,
   );
