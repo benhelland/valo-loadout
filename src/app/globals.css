@@ -10,10 +10,11 @@
         This app's main view is a dense grid of cards; at the original
         near-identical pair (#16212c on #0f1923) the cards didn't visually
         separate from the page and the whole grid read as one flat sheet.
-     2. `--muted` used to be #8b978f, which is *green*-dominant (R139 G151
-        B143) sitting in an otherwise blue-navy palette - it made every
-        piece of secondary text read faintly olive. It's now a blue-gray of
-        the same lightness, so it reads as "quiet" rather than "off". */
+     2. `--muted` is a blue-gray, not one of the client's green-leaning
+        grays. A green-dominant value (e.g. #8b978f, R139 G151 B143) in an
+        otherwise blue-navy palette makes every piece of secondary text read
+        faintly olive; matching the palette's hue at the same lightness
+        reads as "quiet" rather than "off". */
   --background: #0f1923;
   --surface: #1a2632;
   --surface-hover: #22303e;

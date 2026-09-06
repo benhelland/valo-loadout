@@ -101,8 +101,8 @@ const REFRESH_LOCK_MS = 60_000;
  * Takes an exclusive lease on refreshing this account, refreshes, and stores
  * the rotated token.
  *
- * Exported (as `acquireSession`) because there is now more than one job that
- * needs an authenticated session - the daily shop check and the price sync.
+ * Exported (as `acquireSession`) because more than one job needs an
+ * authenticated session - the daily shop check and the price sync.
  * Every such job must go through this, never `createSessionFromRefreshToken`
  * directly: the rotation hazard below is not specific to shop checks, and a
  * second entry point that skipped the lease would reintroduce it.

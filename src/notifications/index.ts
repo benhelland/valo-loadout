@@ -10,9 +10,9 @@ import { siteUrl } from "@/lib/siteUrl";
 // (or sign-in) into a reported failure.
 
 // Shared with robots.txt/sitemap.xml so there is one answer to "what is this
-// deployment's public origin". Notably this now resolves on a preview
-// deployment too, where NEXT_PUBLIC_APP_URL is deliberately unset - a DM
-// linking to localhost would be useless.
+// deployment's public origin". It resolves on a preview deployment too, where
+// NEXT_PUBLIC_APP_URL is deliberately unset - a DM linking to localhost would
+// be useless.
 const APP_URL = siteUrl();
 
 // A shop's contents reset roughly every 24h - this window is what "already

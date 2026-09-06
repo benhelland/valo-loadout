@@ -10,9 +10,9 @@ import type { Prisma } from "@/generated/prisma/client";
 //    should or shouldn't merge is a judgment call, not something derivable
 //    from the data alone.
 //
-// 2. Re-released collections - confirmed via a real duplicate-name audit
-//    (2026-09-02): 20 names ("Reaver", "Magepunk", "RGX 11z Pro", ...) map to
-//    44 theme rows total, because Riot re-releases a collection as a
+// 2. Re-released collections. As of 2026-09-02, 20 duplicated names
+//    ("Reaver", "Magepunk", "RGX 11z Pro", ...) map to 44 theme rows in
+//    total, because Riot re-releases a collection as a
 //    genuinely new theme with the same display name rather than versioning
 //    the original (Reaver alone is 3 separate skin lineups: the 2020
 //    original, a 2.0 wave, and a newest Bandit/Butterfly Knife drop - all

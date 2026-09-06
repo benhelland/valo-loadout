@@ -25,7 +25,7 @@ export interface DailyShop {
    * while `/store/v1/wallet` still works, so it was withdrawn rather than
    * merely re-versioned). Harvesting from a response we already fetch is
    * therefore the only remaining route to real prices, and it costs no extra
-   * calls - this data was previously parsed and thrown away.
+   * calls: the response is already fetched for the shop itself.
    */
   prices: Map<string, number>;
 }

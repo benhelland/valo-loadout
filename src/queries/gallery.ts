@@ -8,13 +8,12 @@ import { collectionGroupFilter, groupCollections } from "@/lib/collectionGroups"
 
 export const PAGE_SIZE = DEFAULT_SKIN_PAGE_SIZE;
 
-// No "newest". `skins.firstSeenInSyncAt` is our own insert timestamp, not a
-// release date (valorant-api.com has none - re-confirmed 2026-09-02), and the
-// entire launch catalog was backfilled inside a single 15-second sync run on
-// 2026-08-28. Sorting by it therefore ordered 1,365 skins by *millisecond of
-// insertion*, i.e. the order the upstream API happened to return them - which
-// surfaced a clump of melee skins at the top and read as authoritative. A
-// sort has to order the whole catalog to be meaningful, and this one couldn't.
+// No "newest". `skins.firstSeenInSyncAt` is this app's own insert timestamp,
+// not a release date - valorant-api.com exposes none as of 2026-09-02 - and
+// the entire launch catalog landed inside a single 15-second backfill window.
+// Ordering by it therefore sorts the catalog by *millisecond of insertion*,
+// which is just the order the upstream API returned them in. A sort has to
+// order the whole catalog to mean anything, and this column cannot.
 //
 // The column stays: it's accurate for anything added *after* the backfill, so
 // the "what's new" intent is better served later by a "New" badge on skins
@@ -26,9 +25,9 @@ export type SortOption = "price" | "alphabetical" | "rarity";
 export const SORT_OPTIONS: readonly SortOption[] = ["rarity", "price", "alphabetical"];
 
 /**
- * Validates a raw `?sort=` value against the allowlist, same treatment
- * `pageSize` already gets (src/lib/pageSize.ts) - callers previously cast it
- * with `as SortOption`, which told the type system a lie about
+ * Validates a raw `?sort=` value against the allowlist, the same treatment
+ * `pageSize` gets (src/lib/pageSize.ts). Casting the raw value with
+ * `as SortOption` instead would tell the type system a lie about
  * attacker-controllable input. Returns undefined for anything unrecognised
  * (including the removed "newest"), so the caller can drop it from the URL
  * rather than carrying a dead param around forever.

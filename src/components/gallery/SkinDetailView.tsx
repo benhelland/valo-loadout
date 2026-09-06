@@ -123,10 +123,10 @@ export async function SkinDetailView({
               <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">Collection</dt>
               <dd className="text-sm font-semibold">{skin.theme?.displayName ?? "—"}</dd>
             </div>
-            {/* The label is now conditional. It used to always read
-                "Price (est.)" - which was both wrong when we have a real
-                Riot price, and misleadingly reassuring when the estimate
-                was off by thousands of VP. */}
+            {/* The label is conditional because a fixed "Price (est.)" is
+                wrong in both directions: it understates a real Riot price,
+                and it lends false confidence to an estimate that can be off
+                by thousands of VP. */}
             <div className="flex justify-between border-b border-border py-2.5">
               <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted">
                 {price && price.source !== "actual" ? "Price (est.)" : "Price"}
