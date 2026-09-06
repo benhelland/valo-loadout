@@ -298,6 +298,46 @@ thrown Server Action error's message in production, so a throw would reach the
 user as an opaque "something went wrong" - useless for a limit, whose whole
 value is saying which limit was hit and what to do about it.
 
+## Maintenance mode
+
+A global off switch, handled in `src/proxy.ts` before any route renders.
+`MAINTENANCE_MODE=1` makes every request answer with a 503 maintenance page;
+any other value is off, including `true`, `yes` and `0` - taking the site down
+by accident is its own kind of outage, so the check is deliberately exact.
+
+The point is that it runs *before the database*. Nothing in `src/lib/maintenance.ts`
+imports Prisma or opens a connection, so a site in maintenance mode generates
+no database compute at all. A switch implemented inside a page or layout would
+already have woken the database to get there, which would defeat the purpose.
+
+The page is self-contained HTML with inline styles and no external references,
+because the proxy blocks every path while the switch is on - including
+`/_next/*`. A test pins that property.
+
+It answers 503 with `Retry-After`, not 200. A 200 would tell search engines the
+notice *is* the page and let it be indexed in place of real content; 503 is the
+documented "temporarily down" signal and preserves existing rankings. There is
+deliberately no `noindex` header, which would actively remove pages rather than
+pause them. The response is `no-store` so a cached 503 can't outlive the window.
+
+`MAINTENANCE_BYPASS_SECRET` lets the operator through while everyone else sees
+the notice - without it the switch is blinding, with no way to confirm the site
+works before reopening it. Visiting any URL with `?maintenance-bypass=<secret>`
+sets an `httpOnly` cookie and redirects to strip the secret back out of the URL,
+so it stops appearing in the address bar, history and referrers. With no secret
+configured, nothing gets through: it fails closed.
+
+### Effect on route protection
+
+Maintenance mode needs to answer *every* path, so `config.matcher` is broad and
+the protected-path list moved into the proxy body as `PROTECTED_PREFIXES`. It
+previously lived in the matcher, which meant Auth.js ran only on protected paths
+and everything else skipped the proxy. The `authorized` callback in
+`auth.config.ts` redirects anyone without a session, so letting it see public
+paths would lock anonymous visitors out of the gallery - hence the explicit
+prefix test rather than a matcher-driven one. Behaviour is otherwise unchanged:
+public pages 200, protected pages 307 to `/sign-in` with a `callbackUrl`.
+
 ## Security notes
 
 - Encrypt linked-account tokens at rest; scope access to the store-check subsystem only.
