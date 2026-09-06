@@ -25,14 +25,27 @@ export async function listBuddiesPage(filters: BuddyFilters) {
   // ranked in SQL, so when there's search text we filter/sort/paginate in JS
   // over the color-filtered set, and otherwise let SQL do all three.
   if (trimmedSearch && trimmedSearch.length >= 2) {
-    const candidates = await prisma.buddy.findMany({ where, orderBy: { displayName: "asc" } });
+    // Two phases, as in listSkins. Ranking needs every candidate but
+    // rendering needs one page, so phase one selects only the two columns
+    // scoring and tie-breaking read.
+    const candidates = await prisma.buddy.findMany({
+      where,
+      orderBy: { displayName: "asc" },
+      select: { id: true, displayName: true },
+    });
     const ranked = candidates
       .map((buddy) => ({ buddy, score: fuzzyScore(trimmedSearch, buddy.displayName) }))
       .filter((x): x is { buddy: (typeof candidates)[number]; score: number } => x.score !== null)
       .sort((a, b) => b.score - a.score || a.buddy.displayName.localeCompare(b.buddy.displayName));
 
     const total = ranked.length;
-    const buddies = ranked.slice((page - 1) * pageSize, page * pageSize).map((r) => r.buddy);
+    const pageIds = ranked.slice((page - 1) * pageSize, page * pageSize).map((r) => r.buddy.id);
+
+    // payload-ok: bounded by pageIds, which is one page window at most.
+    const hydrated = await prisma.buddy.findMany({ where: { id: { in: pageIds } } });
+    const byId = new Map(hydrated.map((b) => [b.id, b]));
+    const buddies = pageIds.map((id) => byId.get(id)).filter((b): b is (typeof hydrated)[number] => b !== undefined);
+
     return { buddies, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
   }
 

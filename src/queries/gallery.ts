@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { VIBE_TAGS } from "@/lib/vibeTagging";
@@ -62,15 +63,31 @@ export interface GalleryFilters {
 // Exported so other query modules (e.g. src/queries/wishlist.ts) that also
 // feed SkinCard can reuse the exact same shape instead of a near-duplicate
 // that could silently drift from what SkinCard actually expects.
-export const listInclude = {
-  weapon: true,
-  contentTier: true,
-  theme: true,
-  levels: { orderBy: { levelIndex: "desc" as const }, take: 1 },
-  chromas: { orderBy: { chromaIndex: "asc" as const } },
-} satisfies Prisma.SkinInclude;
+// A select, not an include: `include` returns every column of every relation,
+// which cost ~3.3 KB per card. These are exactly the fields SkinCard and the
+// price helpers read - notably not `theme`, which no card renders at all.
+//
+// Kept as one shared shape so the wishlist and shop grids, which feed the
+// same card, cannot drift into a near-duplicate that quietly pulls more.
+export const listSelect = {
+  id: true,
+  displayName: true,
+  displayIconUrl: true,
+  priceVp: true,
+  weapon: { select: { displayName: true, category: true } },
+  contentTier: { select: { devName: true, displayName: true, displayIconUrl: true, highlightColor: true, rank: true } },
+  // Bounded to 1: a fallback image source for the 47 skins whose own
+  // displayIconUrl is null.
+  levels: { orderBy: { levelIndex: "desc" as const }, take: 1, select: { displayIconUrl: true } },
+  // Every chroma's colour, so a colour-filtered card can show the recolor
+  // that actually matched - but only the four fields that requires.
+  chromas: {
+    orderBy: { chromaIndex: "asc" as const },
+    select: { id: true, colorFamily: true, displayIconUrl: true, fullRenderUrl: true },
+  },
+} satisfies Prisma.SkinSelect;
 
-export type ListedSkin = Prisma.SkinGetPayload<{ include: typeof listInclude }>;
+export type ListedSkin = Prisma.SkinGetPayload<{ select: typeof listSelect }>;
 
 // Everything except the text search - that's handled separately (SQL
 // `contains` when there's no search text driving the normal indexed/
@@ -187,7 +204,8 @@ export async function listSkins(filters: GalleryFilters) {
 
     // Phase two hydrates only the page being shown. `in` returns them in
     // arbitrary order, so re-apply the ranked order rather than trusting it.
-    const hydrated = await prisma.skin.findMany({ where: { id: { in: pageIds } }, include: listInclude });
+    // payload-ok: bounded by pageIds, which is one page window at most.
+    const hydrated = await prisma.skin.findMany({ where: { id: { in: pageIds } }, select: listSelect });
     const byId = new Map(hydrated.map((s) => [s.id, s]));
     const skins = pageIds.map((id) => byId.get(id)).filter((s): s is ListedSkin => s !== undefined);
 
@@ -205,7 +223,7 @@ export async function listSkins(filters: GalleryFilters) {
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: listInclude,
+      select: listSelect,
     }),
     prisma.skin.count({ where }),
   ]);
@@ -227,22 +245,58 @@ export async function getSkinDetail(id: string) {
   });
 }
 
-export async function getFilterOptions() {
-  const [weapons, tiers, themes] = await Promise.all([
-    prisma.weapon.findMany({ orderBy: { displayName: "asc" } }),
-    prisma.contentTier.findMany({ orderBy: { rank: "asc" } }),
-    prisma.theme.findMany({
-      where: { skins: { some: {} } },
-      orderBy: { displayName: "asc" },
-    }),
-  ]);
+// Cached across requests: identical for every visitor, and only changes when
+// the sync job adds a weapon, tier or theme - i.e. at Riot's release cadence,
+// not per request. Everything returned here is plain arrays of strings, so it
+// survives serialization intact (unlike an EstimateTable - see
+// src/queries/prices.ts for why that one caches its rows instead).
+//
+// The tradeoff is accepted, not free: a newly synced collection can take up
+// to an hour to appear in the dropdown. That is the right trade for a catalog
+// that changes a few times a year.
+export const getFilterOptions = unstable_cache(
+  async () => {
+    // Selected down to what the controls render. These feed a weapon rail and
+    // three <select>s; pulling every column cost ~41 KB per gallery view, most
+    // of it theme rows nobody displays beyond the name.
+    const [weapons, tiers, themes] = await Promise.all([
+      prisma.weapon.findMany({
+        orderBy: { displayName: "asc" },
+        select: { id: true, displayName: true, displayIconUrl: true, category: true },
+      }),
+      prisma.contentTier.findMany({
+        orderBy: { rank: "asc" },
+        select: { id: true, displayName: true },
+      }),
+      prisma.theme.findMany({
+        where: { skins: { some: {} } },
+        orderBy: { displayName: "asc" },
+        select: { id: true, displayName: true },
+      }),
+    ]);
 
-  // Esports families (VCT capsules, Champions) each collapse into a single
-  // option here - the raw list is a third VCT by row count alone. See
-  // src/lib/collectionGroups.ts.
-  return { weapons, tiers, themes: groupCollections(themes), vibeTags: VIBE_TAGS };
-}
+    // Esports families (VCT capsules, Champions) each collapse into a single
+    // option here - the raw list is a third VCT by row count alone. See
+    // src/lib/collectionGroups.ts.
+    return { weapons, tiers, themes: groupCollections(themes), vibeTags: VIBE_TAGS };
+  },
+  ["gallery-filter-options"],
+  { revalidate: 3600 },
+);
 
-export async function listBuddies() {
-  return prisma.buddy.findMany({ orderBy: { displayName: "asc" } });
+/**
+ * One buddy, for pages that only ever display the currently-selected one.
+ *
+ * Replaces a `findMany()` over the whole table. Rendering all 884 buddies as
+ * <option> elements cost ~186 KB out of the database and ~260 KB of HTML on
+ * every skin page view - roughly 40x the skin being viewed - to duplicate the
+ * /buddies picker, which is better in every way. Choosing a buddy is a
+ * navigation now, so a page only ever needs the id already in its own URL.
+ */
+export async function getBuddy(id: string | null | undefined) {
+  if (!id) return null;
+  return prisma.buddy.findUnique({
+    where: { id },
+    select: { id: true, displayName: true, displayIconUrl: true },
+  });
 }

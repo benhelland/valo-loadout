@@ -20,6 +20,7 @@ async function loadoutPriceTotal(
 }
 
 export async function listLoadouts(userId: string) {
+  // payload-ok: scoped to one user's own loadouts, which they create by hand.
   const loadouts = await prisma.loadout.findMany({
     where: { userId },
     orderBy: { createdAt: "asc" },
@@ -48,7 +49,10 @@ export async function getLoadout(id: string, userId: string) {
 }
 
 export async function listAllWeapons() {
-  return prisma.weapon.findMany({ orderBy: { displayName: "asc" } });
+  return prisma.weapon.findMany({
+    orderBy: { displayName: "asc" },
+    select: { id: true, displayName: true, displayIconUrl: true, category: true },
+  });
 }
 
 // Public, unauthenticated lookup for /l/:shareSlug. Deliberately takes no

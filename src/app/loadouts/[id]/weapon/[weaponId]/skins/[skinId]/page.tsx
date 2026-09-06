@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth";
 import { getLoadout } from "@/queries/loadouts";
-import { getSkinDetail, listBuddies } from "@/queries/gallery";
+import { getSkinDetail, getBuddy } from "@/queries/gallery";
 import { SkinDetailView } from "@/components/gallery/SkinDetailView";
 
 // Reuses the same skin-detail UI as the main gallery, just with an extra
@@ -19,7 +19,7 @@ export default async function LoadoutAssignSkinPage({
   const sp = await searchParams;
   const userId = await getCurrentUserId();
 
-  const [loadout, skin, buddies] = await Promise.all([getLoadout(id, userId), getSkinDetail(skinId), listBuddies()]);
+  const [loadout, skin, buddy] = await Promise.all([getLoadout(id, userId), getSkinDetail(skinId), getBuddy(first(sp.buddyId))]);
 
   if (!loadout) notFound();
   if (!skin) notFound();
@@ -38,7 +38,7 @@ export default async function LoadoutAssignSkinPage({
   return (
     <SkinDetailView
       skin={skin}
-      buddies={buddies}
+      buddy={buddy}
       initialLevelId={first(sp.levelId) ?? preserved?.levelId}
       initialChromaId={first(sp.chromaId) ?? preserved?.chromaId}
       initialBuddyId={first(sp.buddyId) ?? preserved?.buddyId}
