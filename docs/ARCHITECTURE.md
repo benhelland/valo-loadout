@@ -266,9 +266,41 @@ Runs as part of the sync job, per new skin/chroma only.
 
 Both are best-effort classification, not ground truth — fine for browse and filter, not something another feature should depend on for correctness.
 
+## Per-user limits
+
+Every ceiling on what one signed-in user can create or trigger lives in
+`src/lib/limits.ts`, and each is enforced in the Server Action - the only
+place a client cannot skip.
+
+| Limit | Value | Why |
+| --- | --- | --- |
+| Loadouts per user | 25 | Bounds row growth. Checked on both create *and* duplicate; duplicate is a create too, and checking only one leaves the cap bypassable. |
+| Wishlist items per user | 300 | The unique `(userId, skinId)` index already caps this at the catalog size; 300 is the tighter, more useful bound. Only counted when the row would be new, so re-toggling an existing entry still works at the cap. |
+| Name length | 60 chars | A row cap bounds how *many* names exist but says nothing about how *big* one is. Applied via `normalizeName`, which also handles non-string input - Server Action arguments are deserialized from the client and are not runtime-checked by the type system. |
+| Linked Riot accounts per user | 3 | More than a couple is indistinguishable from farming shop data. Applied to the create half of the upsert only, so re-linking to recover an expired token is never blocked by the limit. |
+| Manual shop check | 5 min per account | See below. |
+
+The manual shop-check cooldown is the one that isn't about storage. It is the
+only path where a user action directly causes outbound Riot traffic, and each
+run refreshes (and therefore rotates) the OAuth token as well as reading the
+shop - so an unthrottled button is precisely the "aggressive polling" pattern
+`RISKS.md` warns draws attention to unofficial integrations. A shop rotates
+once a day, so a second check inside the window cannot return anything new.
+
+The cooldown is stamped in `lastManualCheckAt` *before* the call, and is
+deliberately not derived from `lastSyncedAt`: that column only moves on
+success, which would leave the retry-after-failure path unthrottled - the case
+most likely to be hammered, and the one most likely to already be hitting a
+block.
+
+Limits are returned as a result object rather than thrown. Next.js redacts a
+thrown Server Action error's message in production, so a throw would reach the
+user as an opaque "something went wrong" - useless for a limit, whose whole
+value is saying which limit was hit and what to do about it.
+
 ## Security notes
 
 - Encrypt linked-account tokens at rest; scope access to the store-check subsystem only.
 - Never log raw credentials or tokens, including in error reporting.
-- Rate-limit and monitor outbound calls to Riot so a bug can't become an accidental hammering incident.
+- Rate-limit and monitor outbound calls to Riot so a bug can't become an accidental hammering incident. The user-triggerable path is capped per account - see "Per-user limits".
 - The runtime `DATABASE_URL` uses a least-privilege role (SELECT/INSERT/UPDATE/DELETE only, no DDL). `DIRECT_URL`, used by the Prisma CLI for migrations, stays on the owner role. See `RISKS.md`.

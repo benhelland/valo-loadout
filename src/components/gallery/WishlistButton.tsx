@@ -19,6 +19,10 @@ interface WishlistButtonProps {
 // should feel instant, not round-trip-gated.
 export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant = "icon" }: WishlistButtonProps) {
   const [wishlisted, setWishlisted] = useState(initialWishlisted);
+  // Only ever set by the wishlist-full case. Surfaced as a title/aria hint
+  // rather than new layout, because this button is overlaid on a gallery card
+  // where there is nowhere to put a message without shifting the grid.
+  const [limitMessage, setLimitMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const pathname = usePathname();
@@ -42,9 +46,18 @@ export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant 
 
     const next = !wishlisted;
     setWishlisted(next);
+    setLimitMessage(null);
     startTransition(async () => {
       try {
-        await (next ? addToWishlist(skinId) : removeFromWishlist(skinId));
+        if (next) {
+          const result = await addToWishlist(skinId);
+          if (!result.ok) {
+            setWishlisted(false);
+            setLimitMessage(result.message);
+          }
+        } else {
+          await removeFromWishlist(skinId);
+        }
       } catch {
         setWishlisted(!next);
       }
@@ -57,8 +70,10 @@ export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant 
         type="button"
         onClick={toggle}
         disabled={isPending}
+        title={limitMessage ?? undefined}
         aria-label={
-          !isSignedIn ? "Sign in to wishlist" : wishlisted ? "Remove from wishlist" : "Add to wishlist"
+          limitMessage ??
+          (!isSignedIn ? "Sign in to wishlist" : wishlisted ? "Remove from wishlist" : "Add to wishlist")
         }
         aria-pressed={isSignedIn ? wishlisted : undefined}
         className={`group/heart absolute top-2 left-2 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur-sm transition-[background-color,transform,box-shadow] duration-150 hover:scale-110 active:scale-95 disabled:opacity-50 ${
@@ -96,7 +111,7 @@ export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant 
           : "border-border text-muted hover:border-accent hover:text-foreground hover:shadow-[0_0_14px_-4px_var(--accent)]"
       } ${isPending ? "animate-pulse" : ""}`}
     >
-      {!isSignedIn ? "☆ Add to wishlist" : wishlisted ? "★ On your wishlist" : "☆ Add to wishlist"}
+      {limitMessage ?? (!isSignedIn ? "☆ Add to wishlist" : wishlisted ? "★ On your wishlist" : "☆ Add to wishlist")}
     </button>
   );
 }

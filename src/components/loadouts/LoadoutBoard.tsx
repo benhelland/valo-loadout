@@ -34,6 +34,7 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
   const [isRenaming, setIsRenaming] = useState(false);
   const [name, setName] = useState(loadout.name);
   const [openWeaponId, setOpenWeaponId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   function commitRename() {
     setIsRenaming(false);
@@ -46,8 +47,12 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
 
   function handleDuplicate() {
     startTransition(async () => {
-      const id = await duplicateLoadout(loadout.id);
-      router.push(`/loadouts/${id}`);
+      const result = await duplicateLoadout(loadout.id);
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      router.push(`/loadouts/${result.id}`);
     });
   }
 
@@ -131,6 +136,12 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
           </button>
         </div>
       </div>
+
+      {error ? (
+        <p role="alert" className="mt-4 text-xs font-semibold uppercase tracking-wider text-accent">
+          {error}
+        </p>
+      ) : null}
 
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-10">
         {BOARD_COLUMN_GROUPS.map((categoriesInColumn, colIndex) => (

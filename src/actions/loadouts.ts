@@ -4,6 +4,23 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth";
+import { MAX_LOADOUTS_PER_USER, normalizeName } from "@/lib/limits";
+
+// Create paths return a result rather than throwing. Next.js redacts a thrown
+// Server Action error's message in production, so a throw would reach the user
+// as an opaque "something went wrong" - useless for a limit, whose entire
+// value is telling them which limit and what to do about it.
+export type CreateLoadoutResult = { ok: true; id: string } | { ok: false; message: string };
+
+// Checked before every create path. Counting on each create is one extra
+// indexed count against a table already indexed by userId - cheap next to the
+// alternative of a user discovering the create button has no floor.
+async function hasLoadoutHeadroom(userId: string): Promise<boolean> {
+  const count = await prisma.loadout.count({ where: { userId } });
+  return count < MAX_LOADOUTS_PER_USER;
+}
+
+const LOADOUT_LIMIT_MESSAGE = `You've reached the limit of ${MAX_LOADOUTS_PER_USER} loadouts. Delete one to make room.`;
 
 async function requireOwnership(loadoutId: string, userId: string) {
   const loadout = await prisma.loadout.findUnique({ where: { id: loadoutId }, select: { userId: true } });
@@ -52,19 +69,20 @@ export async function disableLoadoutSharing(loadoutId: string): Promise<void> {
   revalidatePath("/loadouts");
 }
 
-export async function createLoadout(name: string): Promise<string> {
+export async function createLoadout(name: string): Promise<CreateLoadoutResult> {
   const userId = await getCurrentUserId();
+  if (!(await hasLoadoutHeadroom(userId))) return { ok: false, message: LOADOUT_LIMIT_MESSAGE };
   const loadout = await prisma.loadout.create({
-    data: { userId, name: name.trim() || "New Loadout" },
+    data: { userId, name: normalizeName(name, "New Loadout") },
   });
   revalidatePath("/loadouts");
-  return loadout.id;
+  return { ok: true, id: loadout.id };
 }
 
 export async function renameLoadout(loadoutId: string, name: string): Promise<void> {
   const userId = await getCurrentUserId();
   await requireOwnership(loadoutId, userId);
-  await prisma.loadout.update({ where: { id: loadoutId }, data: { name: name.trim() || "Untitled" } });
+  await prisma.loadout.update({ where: { id: loadoutId }, data: { name: normalizeName(name, "Untitled") } });
   revalidatePath("/loadouts");
   revalidatePath(`/loadouts/${loadoutId}`);
 }
@@ -76,15 +94,18 @@ export async function deleteLoadout(loadoutId: string): Promise<void> {
   revalidatePath("/loadouts");
 }
 
-export async function duplicateLoadout(loadoutId: string): Promise<string> {
+export async function duplicateLoadout(loadoutId: string): Promise<CreateLoadoutResult> {
   const userId = await getCurrentUserId();
   const original = await prisma.loadout.findUnique({ where: { id: loadoutId }, include: { items: true } });
   if (!original || original.userId !== userId) throw new Error("Loadout not found");
+  // Duplicating is a create too - without this the cap is trivially bypassed
+  // by copying an existing loadout instead of pressing "new".
+  if (!(await hasLoadoutHeadroom(userId))) return { ok: false, message: LOADOUT_LIMIT_MESSAGE };
 
   const copy = await prisma.loadout.create({
     data: {
       userId,
-      name: `${original.name} (copy)`,
+      name: normalizeName(`${original.name} (copy)`, "New Loadout"),
       items: {
         create: original.items.map((item) => ({
           weaponId: item.weaponId,
@@ -97,7 +118,7 @@ export async function duplicateLoadout(loadoutId: string): Promise<string> {
     },
   });
   revalidatePath("/loadouts");
-  return copy.id;
+  return { ok: true, id: copy.id };
 }
 
 export interface SetLoadoutItemInput {
