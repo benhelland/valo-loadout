@@ -7,16 +7,12 @@ import Link from "next/link";
 import { encodeCombo } from "@/lib/comboLink";
 import { setLoadoutItem } from "@/actions/loadouts";
 import { DraggableBuddyBadge } from "@/components/gallery/DraggableBuddyBadge";
-import type { Prisma } from "@/generated/prisma/client";
+import type { SkinDetail } from "@/queries/gallery";
 
 // Per-viewer convenience only: which is why localStorage is the right home
 // for it rather than the database. Nothing breaks if it is missing, cleared
 // or unreadable.
 const BUDDY_TIP_KEY = "valoadout:buddy-tip-seen";
-
-type SkinDetail = Prisma.SkinGetPayload<{
-  include: { weapon: true; contentTier: true; theme: true; levels: true; chromas: true; vibeTags: true };
-}>;
 
 interface SkinPreviewProps {
   skin: SkinDetail;

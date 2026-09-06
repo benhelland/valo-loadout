@@ -5,11 +5,7 @@ import { WishlistButton } from "@/components/gallery/WishlistButton";
 import { resolveSkinPrice } from "@/lib/pricing";
 import { getPriceEstimates } from "@/queries/prices";
 import { tierColorToCss } from "@/lib/tierColor";
-import type { Prisma } from "@/generated/prisma/client";
-
-type SkinDetail = Prisma.SkinGetPayload<{
-  include: { weapon: true; contentTier: true; theme: true; levels: true; chromas: true; vibeTags: true };
-}>;
+import type { SkinDetail } from "@/queries/gallery";
 
 interface SkinDetailViewProps {
   skin: SkinDetail;

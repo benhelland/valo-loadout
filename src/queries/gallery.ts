@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { VIBE_TAGS } from "@/lib/vibeTagging";
 import { fuzzyScore } from "@/lib/fuzzyMatch";
-import { DEFAULT_SKIN_PAGE_SIZE } from "@/lib/pageSize";
+import { DEFAULT_SKIN_PAGE_SIZE, resolvePage } from "@/lib/pageSize";
 import { collectionGroupFilter, groupCollections } from "@/lib/collectionGroups";
 
 export const PAGE_SIZE = DEFAULT_SKIN_PAGE_SIZE;
@@ -168,7 +168,7 @@ function buildOrderBy(sort: SortOption | undefined): Prisma.SkinOrderByWithRelat
 }
 
 export async function listSkins(filters: GalleryFilters) {
-  const page = Math.max(1, filters.page ?? 1);
+  const page = resolvePage(filters.page);
   const pageSize = filters.pageSize ?? PAGE_SIZE;
   const trimmedSearch = filters.search?.trim();
 
@@ -213,6 +213,45 @@ export async function listSkins(filters: GalleryFilters) {
 
   // Normal path: no search text, so SQL does filtering, sorting, and
   // pagination directly - the efficient case, and the common one.
+  // Only validated fields reach the cache key, and each is passed explicitly.
+  // Handing the caller's whole `filters` object to a cached function would put
+  // the raw values in the key alongside the checked ones - the unclamped
+  // `filters.page`, and a `search` this path does not even use - which is an
+  // unbounded key space an anonymous request could grow at will.
+  return readSkinPage(
+    {
+      weaponId: filters.weaponId,
+      tierId: filters.tierId,
+      themeId: filters.themeId,
+      color: filters.color,
+      vibe: filters.vibe,
+      hasAnimation: filters.hasAnimation,
+      sort: filters.sort,
+    },
+    page,
+    pageSize,
+  );
+}
+
+/**
+ * The non-search listing, cached.
+ *
+ * Deliberately not applied to the search path above: its cache key would
+ * include the user's arbitrary search text, so the key space is unbounded and
+ * every novel query would add an entry that is unlikely ever to be read again.
+ * The non-search path has a small, bounded key space - the filter controls
+ * offer fixed values - and it is the path a crawler takes, since robots.txt
+ * disallows query strings and so only ever fetches the bare gallery.
+ */
+/** The subset of the filters that both affects the query and is safe to key on. */
+type CachedListingFilters = Omit<GalleryFilters, "search" | "page" | "pageSize">;
+
+/** Uncached, and exported for the same reason as querySkinDetail. */
+export async function querySkinPage(
+  filters: CachedListingFilters,
+  page: number,
+  pageSize: number,
+) {
   const where = buildWhere(filters);
   const orderBy = buildOrderBy(filters.sort);
 
@@ -230,18 +269,79 @@ export async function listSkins(filters: GalleryFilters) {
   return { skins, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-export async function getSkinDetail(id: string) {
-  return prisma.skin.findUnique({
-    where: { id },
-    include: {
-      weapon: true,
-      contentTier: true,
-      theme: true,
-      levels: { orderBy: { levelIndex: "asc" } },
-      chromas: { orderBy: { chromaIndex: "asc" } },
-      vibeTags: true,
+const readSkinPage = unstable_cache(querySkinPage, ["skin-page"], { revalidate: 3600 });
+
+// The columns the detail view reads, plus the identifiers its relations are
+// keyed by. `include` would instead pull every column of the skin and of all
+// six relations - levels and chromas are the expensive ones, since a skin can
+// have several of each.
+const detailSelect = {
+  id: true,
+  displayName: true,
+  displayIconUrl: true,
+  priceVp: true,
+  weaponId: true,
+  colorFamily: true,
+  weapon: { select: { id: true, displayName: true, category: true, displayIconUrl: true } },
+  contentTier: {
+    select: { id: true, displayName: true, devName: true, displayIconUrl: true, rank: true, highlightColor: true },
+  },
+  theme: { select: { id: true, displayName: true, displayIconUrl: true } },
+  levels: {
+    orderBy: { levelIndex: "asc" as const },
+    select: { id: true, levelIndex: true, displayIconUrl: true, videoUrl: true, levelItem: true },
+  },
+  chromas: {
+    orderBy: { chromaIndex: "asc" as const },
+    select: {
+      id: true,
+      chromaIndex: true,
+      displayName: true,
+      displayIconUrl: true,
+      fullRenderUrl: true,
+      swatchUrl: true,
+      colorFamily: true,
+      videoUrl: true,
     },
-  });
+  },
+  vibeTags: { select: { tag: true } },
+} satisfies Prisma.SkinSelect;
+
+// Cached because this is the single most-requested query in the app: there is
+// one of these pages per skin, every one is in the sitemap, and the answer is
+// identical for every visitor. Uncached, a crawler walking the catalog is one
+// database round-trip per page view.
+//
+// The window is an hour rather than minutes because the fields here change
+// rarely: the catalog itself only moves when the sync job runs, and `priceVp`
+// only when a shop check observes a real store price. A price can therefore be
+// up to an hour behind, which matches how long the estimate inputs in
+// src/queries/prices.ts are already cached for.
+/**
+ * Exported uncached so src/queries/queryShapes.test.ts can still execute the
+ * query and have Prisma validate its shape. A cached function raises
+ * "incrementalCache missing" outside a Next request context, which is not a
+ * validation error - so the shape test would pass without checking anything,
+ * which is the false negative that file exists to avoid. Not for callers:
+ * every caller should go through getSkinDetail.
+ */
+export async function querySkinDetail(id: string) {
+  return prisma.skin.findUnique({ where: { id }, select: detailSelect });
+}
+
+const readSkinDetail = unstable_cache(querySkinDetail, ["skin-detail"], { revalidate: 3600 });
+
+/**
+ * The detail-page projection. Exported so the views consume the shape the
+ * query actually returns, rather than each declaring their own payload type
+ * against the full model - which silently requires every column and makes
+ * narrowing the query a type error somewhere else. Same contract as
+ * `ListedSkin` for the gallery card.
+ */
+export type SkinDetail = Prisma.SkinGetPayload<{ select: typeof detailSelect }>;
+
+export async function getSkinDetail(id: string) {
+  return readSkinDetail(id);
 }
 
 // Cached across requests: identical for every visitor, and only changes when

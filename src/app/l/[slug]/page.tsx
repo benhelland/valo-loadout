@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { formatPriceTotal } from "@/lib/pricing";
 import Link from "next/link";
@@ -12,6 +13,28 @@ import { loadoutItemImageUrl } from "@/lib/loadoutItemImage";
 // its own read-only markup rather than reusing LoadoutBoard, which is built
 // entirely around mutations (rename/duplicate/delete/assign) that a viewer
 // must not be offered.
+/**
+ * Resolves the slug before the response streams, so a revoked or unknown link
+ * answers with a real 404 rather than the not-found UI under a 200 - see the
+ * note in src/app/skins/[id]/page.tsx for why the status is otherwise already
+ * committed. getSharedLoadout is request-cached, so the page body reuses this
+ * lookup rather than repeating it.
+ *
+ * noindex because a share link is a credential: it is unguessable so that it
+ * can be revoked, and indexing one would undo that. robots.txt disallows /l/
+ * as well; this covers a crawler that reaches the URL some other way.
+ */
+export async function generateMetadata({ params }: PageProps<"/l/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const loadout = await getSharedLoadout(slug);
+  if (!loadout) notFound();
+
+  return {
+    title: `${loadout.name} - shared loadout`,
+    robots: { index: false, follow: false },
+  };
+}
+
 export default async function SharedLoadoutPage({ params }: PageProps<"/l/[slug]">) {
   const { slug } = await params;
   const [loadout, allWeapons] = await Promise.all([getSharedLoadout(slug), listAllWeapons()]);

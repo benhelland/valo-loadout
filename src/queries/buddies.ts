@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { fuzzyScore } from "@/lib/fuzzyMatch";
-import { DEFAULT_BUDDY_PAGE_SIZE } from "@/lib/pageSize";
+import { DEFAULT_BUDDY_PAGE_SIZE, resolvePage } from "@/lib/pageSize";
 
 export const BUDDY_PAGE_SIZE = DEFAULT_BUDDY_PAGE_SIZE;
 
@@ -14,7 +14,9 @@ export interface BuddyFilters {
 }
 
 export async function listBuddiesPage(filters: BuddyFilters) {
-  const page = Math.max(1, filters.page ?? 1);
+  // Resolved rather than trusted, for the same reasons as the skin gallery:
+  // a non-numeric `?page=` would otherwise reach Prisma as `skip: NaN`.
+  const page = resolvePage(filters.page);
   const pageSize = filters.pageSize ?? BUDDY_PAGE_SIZE;
   const trimmedSearch = filters.search?.trim();
 

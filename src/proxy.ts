@@ -49,6 +49,25 @@ const authProxy = auth as unknown as ProxyHandler;
 // so running Auth.js on public paths would lock anonymous visitors out of the
 // gallery - hence the explicit test rather than letting it see everything.
 
+// A catalog id is a valorant-api.com UUID; anything else cannot name a real
+// skin. Rejected here rather than in the page because of the status: rendering
+// is streamed, so Next commits 200 before a page body or its metadata runs,
+// and a `notFound()` from either then draws the not-found UI under a 200 - a
+// soft 404, which a crawler may index as a real page. The proxy runs before
+// any of that, so a status set here is the one actually sent.
+const SKIN_PATH = /^\/skins\/(.+)$/;
+const CATALOG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUnresolvableSkinPath(pathname: string): boolean {
+  const match = SKIN_PATH.exec(pathname);
+  if (!match) return false;
+  try {
+    return !CATALOG_ID.test(decodeURIComponent(match[1]));
+  } catch {
+    return true; // undecodable, so certainly not an id
+  }
+}
+
 function maintenanceResponse(): NextResponse {
   return new NextResponse(maintenanceHtml(), {
     status: MAINTENANCE_STATUS,
@@ -106,6 +125,12 @@ export function proxy(req: NextRequest, event: NextFetchEvent) {
 
     if (!isValidBypass(fromCookie, secret)) return maintenanceResponse();
     // Valid bypass cookie - fall through and serve the site normally.
+  }
+
+  if (isUnresolvableSkinPath(req.nextUrl.pathname)) {
+    const notFoundUrl = req.nextUrl.clone();
+    notFoundUrl.pathname = "/_not-found";
+    return NextResponse.rewrite(notFoundUrl, { status: 404 });
   }
 
   if (!isProtected(req.nextUrl.pathname)) return NextResponse.next();

@@ -28,9 +28,20 @@ export type ShopView = {
 };
 
 export async function getShopForUser(userId: string): Promise<ShopView> {
+  // Named columns rather than the whole row: linked_riot_accounts holds
+  // `encryptedRefreshToken`, and there is no reason for the stored credential
+  // to travel into a page render that never reads it.
   const account = await prisma.linkedRiotAccount.findFirst({
     where: { userId },
     orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      riotGameName: true,
+      riotTagLine: true,
+      status: true,
+      lastSyncedAt: true,
+      nextPollAt: true,
+    },
   });
 
   if (!account) {
