@@ -6,6 +6,7 @@ import { fetchDailyShop } from "@/riot/store";
 import { RiotError, isRiotError } from "@/riot/errors";
 import { LinkedAccountStatus } from "@/generated/prisma/client";
 import { notifyWishlistMatches, notifyRiotLinkExpired } from "@/notifications";
+import { LimitExceededError, MAX_LINKED_RIOT_ACCOUNTS_PER_USER } from "@/lib/limits";
 
 // The seam between the isolated Riot client (src/riot/, no database access)
 // and this app's data. Everything that persists anything Riot-derived lives
@@ -28,6 +29,22 @@ export interface LinkResult {
 export async function linkRiotAccount(userId: string, pastedRedirect: string): Promise<LinkResult> {
   const code = extractAuthorizationCode(pastedRedirect);
   const session = await createSessionFromCode(code);
+
+  // Only the create half of the upsert is capped. Re-linking an account this
+  // user already has (a rotated or expired token) has to keep working even at
+  // the cap, or the recovery path would be blocked by the limit.
+  const alreadyLinked = await prisma.linkedRiotAccount.findUnique({
+    where: { userId_puuid: { userId, puuid: session.puuid } },
+    select: { id: true },
+  });
+  if (!alreadyLinked) {
+    const count = await prisma.linkedRiotAccount.count({ where: { userId } });
+    if (count >= MAX_LINKED_RIOT_ACCOUNTS_PER_USER) {
+      throw new LimitExceededError(
+        `You can link up to ${MAX_LINKED_RIOT_ACCOUNTS_PER_USER} Riot accounts. Unlink one first.`,
+      );
+    }
+  }
 
   const linked = await prisma.linkedRiotAccount.upsert({
     where: { userId_puuid: { userId, puuid: session.puuid } },

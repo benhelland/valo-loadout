@@ -15,13 +15,19 @@ export function LoadoutListClient({ loadouts, weapons }: { loadouts: LoadoutSumm
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   function handleCreate() {
     const name = newName.trim() || "New Loadout";
+    setError(null);
     startTransition(async () => {
-      const id = await createLoadout(name);
+      const result = await createLoadout(name);
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
       setNewName("");
-      router.push(`/loadouts/${id}`);
+      router.push(`/loadouts/${result.id}`);
     });
   }
 
@@ -46,6 +52,11 @@ export function LoadoutListClient({ loadouts, weapons }: { loadouts: LoadoutSumm
         >
           Create
         </button>
+        {error ? (
+          <p role="alert" className="w-full text-xs font-semibold uppercase tracking-wider text-accent">
+            {error}
+          </p>
+        ) : null}
       </div>
 
       {loadouts.length === 0 ? (
@@ -68,6 +79,7 @@ function LoadoutCard({ loadout, weapons }: { loadout: LoadoutSummary; weapons: W
   const [isPending, startTransition] = useTransition();
   const [isRenaming, setIsRenaming] = useState(false);
   const [name, setName] = useState(loadout.name);
+  const [error, setError] = useState<string | null>(null);
 
   function commitRename() {
     setIsRenaming(false);
@@ -79,9 +91,14 @@ function LoadoutCard({ loadout, weapons }: { loadout: LoadoutSummary; weapons: W
   }
 
   function handleDuplicate() {
+    setError(null);
     startTransition(async () => {
-      const id = await duplicateLoadout(loadout.id);
-      router.push(`/loadouts/${id}`);
+      const result = await duplicateLoadout(loadout.id);
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      router.push(`/loadouts/${result.id}`);
     });
   }
 
@@ -133,6 +150,11 @@ function LoadoutCard({ loadout, weapons }: { loadout: LoadoutSummary; weapons: W
           Delete
         </button>
       </div>
+      {error ? (
+        <p role="alert" className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-accent">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

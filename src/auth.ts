@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Discord, { type DiscordProfile } from "next-auth/providers/discord";
 import { prisma } from "@/lib/db";
+import type { PrismaClient } from "@/generated/prisma/client";
 import { authConfig } from "@/auth.config";
 import { joinGuild } from "@/discord/bot";
 import { buildAuthAdapter } from "@/lib/authAdapter";
@@ -52,7 +53,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // this app never reads a Discord OAuth token back out of the database, so
   // the wrapper stops writing the actual credential fields at all rather
   // than storing (or encrypting) something with no reader.
-  adapter: buildAuthAdapter(prisma),
+  // Cast because `prisma` is Prisma's *extended* client (src/lib/db.ts wraps
+  // every query with the environment check). It is structurally a PrismaClient
+  // minus lifecycle methods like $on, which PrismaAdapter never calls - it only
+  // touches model delegates. Casting here rather than handing the adapter the
+  // unextended client is deliberate: the adapter's own queries must go through
+  // the guard like everything else.
+  adapter: buildAuthAdapter(prisma as unknown as PrismaClient),
   session: { strategy: "jwt" },
   providers: [
     Discord({
