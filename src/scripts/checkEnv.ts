@@ -45,6 +45,10 @@ async function checkDatabase() {
     const [skins, marker] = await Promise.all([prisma.skin.count(), prisma.environmentMarker.findFirst()]);
     add({ name: "DATABASE_URL", state: "OK", detail: `connected; ${skins} skins; marker="${marker?.name ?? "none"}"` });
   } catch (err) {
+    // err.name, never err.message. A driver's connection error routinely
+    // embeds the connection string, and this output gets pasted into issues
+    // and chat. Widening this to err.message would leak DATABASE_URL - it
+    // looks like a harmless improvement to error reporting and is not.
     const kind = err instanceof Error ? err.name : "unknown";
     add({ name: "DATABASE_URL", state: "BROKEN", detail: `connection failed (${kind}) - check the Neon project and that the role still exists` });
   }
