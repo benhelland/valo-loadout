@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getSkinDetail, listBuddies } from "@/queries/gallery";
+import { getSkinDetail, getBuddy } from "@/queries/gallery";
 import { isSkinWishlisted } from "@/queries/wishlist";
 import { listLoadoutSummaries, getLoadoutMembership } from "@/queries/loadouts";
 import { getOptionalUserId } from "@/lib/auth";
@@ -12,7 +12,7 @@ function first(value: string | string[] | undefined): string | undefined {
 export default async function SkinDetailPage({ params, searchParams }: PageProps<"/skins/[id]">) {
   const { id } = await params;
   const sp = await searchParams;
-  const [skin, buddies, userId] = await Promise.all([getSkinDetail(id), listBuddies(), getOptionalUserId()]);
+  const [skin, buddy, userId] = await Promise.all([getSkinDetail(id), getBuddy(first(sp.buddyId)), getOptionalUserId()]);
 
   if (!skin) notFound();
 
@@ -32,7 +32,7 @@ export default async function SkinDetailPage({ params, searchParams }: PageProps
   return (
     <SkinDetailView
       skin={skin}
-      buddies={buddies}
+      buddy={buddy}
       initialLevelId={first(sp.levelId)}
       initialChromaId={first(sp.chromaId)}
       initialBuddyId={first(sp.buddyId)}

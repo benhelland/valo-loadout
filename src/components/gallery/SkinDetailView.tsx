@@ -5,7 +5,7 @@ import { WishlistButton } from "@/components/gallery/WishlistButton";
 import { resolveSkinPrice } from "@/lib/pricing";
 import { getPriceEstimates } from "@/queries/prices";
 import { tierColorToCss } from "@/lib/tierColor";
-import type { Prisma, Buddy } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 type SkinDetail = Prisma.SkinGetPayload<{
   include: { weapon: true; contentTier: true; theme: true; levels: true; chromas: true; vibeTags: true };
@@ -13,7 +13,9 @@ type SkinDetail = Prisma.SkinGetPayload<{
 
 interface SkinDetailViewProps {
   skin: SkinDetail;
-  buddies: Buddy[];
+  // Only the selected buddy - see getBuddy(). Narrowed to the fields
+  // actually rendered so this cannot drift back to a full-table read.
+  buddy: { id: string; displayName: string; displayIconUrl: string | null } | null;
   // Set when arriving via a /combo/:encoded share link, to pre-select that
   // exact level/chroma/buddy combo instead of the skin's defaults.
   initialLevelId?: string | null;
@@ -43,7 +45,7 @@ interface SkinDetailViewProps {
 // instead of splitting them across two mismatched columns.
 export async function SkinDetailView({
   skin,
-  buddies,
+  buddy,
   initialLevelId,
   initialChromaId,
   initialBuddyId,
@@ -70,7 +72,7 @@ export async function SkinDetailView({
         <SkinPreview
           key={skin.id}
           skin={skin}
-          buddies={buddies}
+          buddy={buddy}
           initialLevelId={initialLevelId}
           initialChromaId={initialChromaId}
           initialBuddyId={initialBuddyId}

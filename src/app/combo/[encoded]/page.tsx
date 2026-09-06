@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { decodeCombo } from "@/lib/comboLink";
-import { getSkinDetail, listBuddies } from "@/queries/gallery";
+import { getSkinDetail, getBuddy } from "@/queries/gallery";
 import { isSkinWishlisted } from "@/queries/wishlist";
 import { getOptionalUserId } from "@/lib/auth";
 import { SkinDetailView } from "@/components/gallery/SkinDetailView";
@@ -15,9 +15,9 @@ export default async function ComboPage({ params }: PageProps<"/combo/[encoded]"
   const combo = decodeCombo(encoded);
   if (!combo) notFound();
 
-  const [skin, buddies, userId] = await Promise.all([
+  const [skin, buddy, userId] = await Promise.all([
     getSkinDetail(combo.skinId),
-    listBuddies(),
+    getBuddy(combo.buddyId),
     getOptionalUserId(),
   ]);
   if (!skin) notFound();
@@ -31,7 +31,7 @@ export default async function ComboPage({ params }: PageProps<"/combo/[encoded]"
   return (
     <SkinDetailView
       skin={skin}
-      buddies={buddies}
+      buddy={buddy}
       initialLevelId={combo.levelId}
       initialChromaId={combo.chromaId}
       initialBuddyId={combo.buddyId}

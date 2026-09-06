@@ -243,6 +243,19 @@ export async function getFilterOptions() {
   return { weapons, tiers, themes: groupCollections(themes), vibeTags: VIBE_TAGS };
 }
 
-export async function listBuddies() {
-  return prisma.buddy.findMany({ orderBy: { displayName: "asc" } });
+/**
+ * One buddy, for pages that only ever display the currently-selected one.
+ *
+ * Replaces a `findMany()` over the whole table. Rendering all 884 buddies as
+ * <option> elements cost ~186 KB out of the database and ~260 KB of HTML on
+ * every skin page view - roughly 40x the skin being viewed - to duplicate the
+ * /buddies picker, which is better in every way. Choosing a buddy is a
+ * navigation now, so a page only ever needs the id already in its own URL.
+ */
+export async function getBuddy(id: string | null | undefined) {
+  if (!id) return null;
+  return prisma.buddy.findUnique({
+    where: { id },
+    select: { id: true, displayName: true, displayIconUrl: true },
+  });
 }
