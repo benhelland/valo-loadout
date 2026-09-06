@@ -67,3 +67,31 @@ body {
 .clip-notch-sm {
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
 }
+
+/* Skip layout, paint and (crucially) the per-card clip-path for anything
+   scrolled off-screen. A gallery page renders 48 by default and up to 192,
+   each with its own clipped corners, bordered image frame and hover shadow -
+   the browser was doing that work for every card in the document on every
+   frame, which is what made scrolling stutter.
+
+   contain-intrinsic-size supplies a placeholder box so skipped cards still
+   occupy the right space and the scrollbar does not jump. The value is the
+   real rendered card size: a 4/3 image area plus the name/meta footer.
+   Falls back to normal rendering in browsers without support. */
+.card-skip {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
+}
+
+/* Respect a reduced-motion preference: the hover lift and image zoom are
+   decorative, and this grid animates a lot of them at once. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
