@@ -280,6 +280,109 @@ export interface DueCheckSummary {
   attempted: number;
   succeeded: number;
   failed: number;
+  /** Links deleted for going unused - see STALE_LINK_DAYS. */
+  expired: number;
+}
+
+// How long a link may sit unused before it is dropped. A stored Riot
+// credential is the one thing in this database worth stealing (docs/RISKS.md),
+// so a link nobody is using is pure liability: it can still mint a live Riot
+// session but produces nothing for its owner. Six months is well past any
+// plausible "I'll come back to it", and re-linking costs the user one sign-in.
+const STALE_LINK_DAYS = 180;
+
+// Refuse to delete a majority of all links in one run. A filter that
+// accidentally matches everything - an inverted comparison, a cutoff computed
+// from the wrong units - is a plausible mistake, and the query it feeds
+// permanently destroys stored Riot credentials. A dry run against a healthy
+// database would not reveal it either, because the query is *supposed* to
+// return nothing there. Bounding the blast radius is the only cheap guard.
+//
+// Only applied once there are enough links for a proportion to mean anything.
+// Below that, "half the links" is one or two rows, and a legitimate cleanup of
+// a nearly-unused app would trip the guard on every run for no benefit.
+const EXPIRY_GUARD_MIN_LINKS = 5;
+const EXPIRY_GUARD_MAX_SHARE = 0.5;
+
+/**
+ * Which links count as abandoned.
+ *
+ * Stale means *every* trace of activity predates the cutoff, so the clauses are
+ * ANDed. Three independent signals, because each alone is misleading:
+ *
+ *   createdAt          Always required, so a link made moments ago can never
+ *                      match however the other columns look.
+ *   lastSyncedAt       Only moves on a SUCCESSFUL poll, so it is null for any
+ *                      link the scheduled poller has never reached.
+ *   lastManualCheckAt  Stamped on every manual "check shop now", success or
+ *                      failure. This is the signal that represents a user
+ *                      actually asking for something, which is why a link kept
+ *                      alive only by the button is not abandoned.
+ *
+ * Reading `lastSyncedAt: null` as evidence of abandonment on its own would be
+ * wrong: it is also the state of every link when no poller is running, so the
+ * first scheduled run after a long gap would delete links belonging to active
+ * users rather than the ones nobody wants.
+ *
+ * Deliberately not driven by `nextPollAt`: EXPIRED and CAPTCHA_BLOCKED accounts
+ * have theirs cleared and are never polled again, so they would otherwise sit
+ * forever - and those are exactly the abandoned ones most worth removing.
+ *
+ * Exported so the cutoff can be unit-tested without a database.
+ */
+export function buildStaleLinkFilter(now: Date = new Date()) {
+  const cutoff = new Date(now.getTime() - STALE_LINK_DAYS * 24 * 60 * 60 * 1000);
+  return {
+    AND: [
+      { createdAt: { lt: cutoff } },
+      { OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: cutoff } }] },
+      { OR: [{ lastManualCheckAt: null }, { lastManualCheckAt: { lt: cutoff } }] },
+    ],
+  };
+}
+
+/**
+ * True when deleting `stale` out of `total` links is too large a share to do
+ * unattended. Exported for tests: the whole point is that this decision is
+ * never exercised in normal operation, so it needs proving in isolation.
+ */
+export function exceedsExpiryGuard(stale: number, total: number): boolean {
+  if (total < EXPIRY_GUARD_MIN_LINKS) return false;
+  return stale / total > EXPIRY_GUARD_MAX_SHARE;
+}
+
+/**
+ * Deletes links that have gone unused, independently of the poll loop.
+ *
+ * Deleting matches what unlinkRiotAccount does, so the stored token goes with
+ * the row and the sighting stats cascade. Loadouts and wishlist items hang off
+ * the user rather than the link, so they are untouched - what a returning user
+ * loses is a connection they were not using, and re-linking is one sign-in.
+ */
+async function expireStaleLinks(): Promise<number> {
+  const where = buildStaleLinkFilter();
+
+  // Counted before deleting so the guard can weigh what is about to happen.
+  // The common case is nothing to do, so the second count is only paid for
+  // when there is actually something to delete - this runs on every poll
+  // batch.
+  const stale = await prisma.linkedRiotAccount.count({ where });
+  if (stale === 0) return 0;
+
+  const total = await prisma.linkedRiotAccount.count();
+
+  if (exceedsExpiryGuard(stale, total)) {
+    console.error(
+      `[check-shops] REFUSING to expire ${stale} of ${total} link(s) - more than ` +
+        `${EXPIRY_GUARD_MAX_SHARE * 100}% in one run. Nothing was deleted. This is either a genuine ` +
+        `mass abandonment or a bug in buildStaleLinkFilter; check before clearing it by hand.`,
+    );
+    return 0;
+  }
+
+  const { count } = await prisma.linkedRiotAccount.deleteMany({ where });
+  if (count > 0) console.log(`[check-shops] removed ${count} link(s) unused for ${STALE_LINK_DAYS}+ days`);
+  return count;
 }
 
 /**
@@ -294,6 +397,9 @@ export interface DueCheckSummary {
  * docs/RISKS.md warns against.
  */
 export async function runDueShopChecks(limit = 25): Promise<DueCheckSummary> {
+  // Before polling, so a stale link is never woken up just to be dropped.
+  const expired = await expireStaleLinks();
+
   const due = await prisma.linkedRiotAccount.findMany({
     where: {
       nextPollAt: { not: null, lte: new Date() },
@@ -321,7 +427,7 @@ export async function runDueShopChecks(limit = 25): Promise<DueCheckSummary> {
     }
   }
 
-  return { attempted: due.length, succeeded, failed };
+  return { attempted: due.length, succeeded, failed, expired };
 }
 
 async function recordFailure(linkedAccountId: string, err: unknown): Promise<void> {

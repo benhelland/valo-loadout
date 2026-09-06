@@ -103,6 +103,44 @@ This is the part that carries actual risk (see `RISKS.md`).
 
 **Data minimization:** fetch and store only what's needed to detect wishlist matches and update `skin_sighting_stats`, never a full account or inventory dump.
 
+### Expiring unused links
+
+`runDueShopChecks` deletes links that have gone unused before it polls, so a
+stale link is never woken up just to be dropped. A stored Riot refresh token is
+the highest-value thing in this database, and a link nobody uses is pure
+liability: it can still mint a live Riot session while producing nothing for its
+owner. The threshold is 180 days — well past any plausible "I'll come back to
+it", and re-linking costs one sign-in.
+
+Deleting matches what `unlinkRiotAccount` does: the encrypted token goes with
+the row and sighting stats cascade. Loadouts and wishlist items hang off the
+user rather than the link, so nothing a user authored is touched.
+
+**A link is stale only when every activity signal predates the cutoff**, so the
+clauses are ANDed:
+
+| Column | Why it alone is not enough |
+| --- | --- |
+| `createdAt` | Always required, so a link made moments ago can never match however the other columns look. |
+| `lastSyncedAt` | Moves only on a *successful* poll, so it is null for any link the scheduled poller has never reached — which is all of them while no poller runs. |
+| `lastManualCheckAt` | Stamped on every manual "check shop now", success or failure. This is the column that represents a user actually asking for something. |
+
+Reading `lastSyncedAt: null` as abandonment on its own would be wrong: it is
+also the state of every link when nothing is polling, so the first scheduled
+run after a long gap would delete active users' credentials rather than the
+ones nobody wants.
+
+**A guard bounds the blast radius.** The run refuses to delete more than half
+of all links at once, once there are at least five (below that a proportion
+means nothing and the guard would fire on every legitimate cleanup). A filter
+that accidentally matches everything is a plausible mistake and the query
+destroys credentials permanently — a dry run against a healthy database would
+not reveal it, because the query is *supposed* to return nothing there. On
+refusal it logs and deletes nothing, leaving the decision to a human.
+
+`buildStaleLinkFilter` and `exceedsExpiryGuard` are exported so both are unit
+tested without a database, against behaviour rather than filter shape.
+
 ## Pricing
 
 No public source exposes VALORANT prices, and Riot has withdrawn the bulk price endpoint: `GET /store/v1/offers/` 404s at v1–v5 while `GET /store/v1/wallet/{puuid}` still works, so it was removed rather than re-versioned. There is no bulk price load available.
@@ -390,8 +428,8 @@ configured, nothing gets through: it fails closed.
 
 Maintenance mode needs to answer *every* path, so `config.matcher` is broad and
 the protected-path list moved into the proxy body as `PROTECTED_PREFIXES`. It
-previously lived in the matcher, which meant Auth.js ran only on protected paths
-and everything else skipped the proxy. The `authorized` callback in
+lives there rather than in `config.matcher` because maintenance mode must answer
+every path, which a matcher cannot express. The `authorized` callback in
 `auth.config.ts` redirects anyone without a session, so letting it see public
 paths would lock anonymous visitors out of the gallery - hence the explicit
 prefix test rather than a matcher-driven one. Behaviour is otherwise unchanged:
