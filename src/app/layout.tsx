@@ -3,6 +3,7 @@ import { Bebas_Neue, Rajdhani } from "next/font/google";
 import { AuthControl } from "@/components/auth/AuthControl";
 import { MainNav } from "@/components/nav/MainNav";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 // Display font for big headers - the closest free stand-in for the VALORANT
@@ -70,6 +71,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             coming back" - the question that otherwise needs reading raw
             deployment logs to guess at. */}
         <Analytics />
+
+        {/* Real Experience Score from actual visits, rather than a synthetic
+            score from a lab run. Free on this plan and incapable of billing:
+            the allowance is 10,000 events per 30 days, and exceeding it pauses
+            collection for 14 days rather than charging for the overage. The
+            paid tier that does bill per event is a separate product that
+            cannot be enabled here. */}
+        <SpeedInsights />
       </body>
     </html>
   );
