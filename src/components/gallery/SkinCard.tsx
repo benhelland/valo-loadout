@@ -92,7 +92,7 @@ export async function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist
               alt={skin.displayName}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-              className="object-contain p-4 group-hover:scale-105 transition-transform duration-200"
+              className="fade-in-image object-contain p-4 transition-transform duration-200 group-hover:scale-105"
             />
           ) : null}
           {skin.contentTier?.displayIconUrl ? (

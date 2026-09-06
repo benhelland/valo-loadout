@@ -19,7 +19,7 @@ export function BuddyCard({ buddy, selectHref, isSelected }: BuddyCardProps) {
       <div className="relative aspect-square bg-black/20">
         {buddy.displayIconUrl ? (
           <Image src={buddy.displayIconUrl} alt={buddy.displayName} fill sizes="140px"
-          className="object-contain p-2" />
+          className="fade-in-image object-contain p-2" />
         ) : null}
       </div>
       <p className="mt-1.5 truncate text-center text-[11px] font-medium text-foreground">{buddy.displayName}</p>
