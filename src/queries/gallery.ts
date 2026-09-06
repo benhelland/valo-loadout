@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { VIBE_TAGS } from "@/lib/vibeTagging";
@@ -244,31 +245,44 @@ export async function getSkinDetail(id: string) {
   });
 }
 
-export async function getFilterOptions() {
-  // Selected down to what the controls render. These feed a weapon rail and
-  // three <select>s; pulling every column cost ~41 KB per gallery view, most
-  // of it theme rows nobody displays beyond the name.
-  const [weapons, tiers, themes] = await Promise.all([
-    prisma.weapon.findMany({
-      orderBy: { displayName: "asc" },
-      select: { id: true, displayName: true, displayIconUrl: true, category: true },
-    }),
-    prisma.contentTier.findMany({
-      orderBy: { rank: "asc" },
-      select: { id: true, displayName: true },
-    }),
-    prisma.theme.findMany({
-      where: { skins: { some: {} } },
-      orderBy: { displayName: "asc" },
-      select: { id: true, displayName: true },
-    }),
-  ]);
+// Cached across requests: identical for every visitor, and only changes when
+// the sync job adds a weapon, tier or theme - i.e. at Riot's release cadence,
+// not per request. Everything returned here is plain arrays of strings, so it
+// survives serialization intact (unlike an EstimateTable - see
+// src/queries/prices.ts for why that one caches its rows instead).
+//
+// The tradeoff is accepted, not free: a newly synced collection can take up
+// to an hour to appear in the dropdown. That is the right trade for a catalog
+// that changes a few times a year.
+export const getFilterOptions = unstable_cache(
+  async () => {
+    // Selected down to what the controls render. These feed a weapon rail and
+    // three <select>s; pulling every column cost ~41 KB per gallery view, most
+    // of it theme rows nobody displays beyond the name.
+    const [weapons, tiers, themes] = await Promise.all([
+      prisma.weapon.findMany({
+        orderBy: { displayName: "asc" },
+        select: { id: true, displayName: true, displayIconUrl: true, category: true },
+      }),
+      prisma.contentTier.findMany({
+        orderBy: { rank: "asc" },
+        select: { id: true, displayName: true },
+      }),
+      prisma.theme.findMany({
+        where: { skins: { some: {} } },
+        orderBy: { displayName: "asc" },
+        select: { id: true, displayName: true },
+      }),
+    ]);
 
-  // Esports families (VCT capsules, Champions) each collapse into a single
-  // option here - the raw list is a third VCT by row count alone. See
-  // src/lib/collectionGroups.ts.
-  return { weapons, tiers, themes: groupCollections(themes), vibeTags: VIBE_TAGS };
-}
+    // Esports families (VCT capsules, Champions) each collapse into a single
+    // option here - the raw list is a third VCT by row count alone. See
+    // src/lib/collectionGroups.ts.
+    return { weapons, tiers, themes: groupCollections(themes), vibeTags: VIBE_TAGS };
+  },
+  ["gallery-filter-options"],
+  { revalidate: 3600 },
+);
 
 /**
  * One buddy, for pages that only ever display the currently-selected one.
