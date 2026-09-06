@@ -72,12 +72,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             deployment logs to guess at. */}
         <Analytics />
 
-        {/* Real Experience Score from actual visits, rather than a synthetic
-            score from a lab run. Free on this plan and incapable of billing:
-            the allowance is 10,000 events per 30 days, and exceeding it pauses
-            collection for 14 days rather than charging for the overage. The
-            paid tier that does bill per event is a separate product that
-            cannot be enabled here. */}
+        {/* Core Web Vitals measured from real visits rather than a synthetic
+            lab run, so the score reflects the devices and networks people
+            actually use. Reporting only - it renders nothing. */}
         <SpeedInsights />
       </body>
     </html>
