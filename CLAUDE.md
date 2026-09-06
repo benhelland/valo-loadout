@@ -6,7 +6,7 @@ Guidance for Claude when working in this repo. Read this first, every session.
 
 **Valoadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
 
-**Status: Phases 1–3 feature-complete and deployed** at https://valo-loadout.vercel.app (Vercel, production). The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. What's still open: store notifications can't actually deliver (no Discord bot or server provisioned, and no poller runs — Vercel Cron is ruled out on the free tier), and whether Riot's Cloudflare permits the poller from a datacenter IP is unanswered. See `docs/ROADMAP.md` Phase 3.
+**Status: Phases 1–3 feature-complete.** The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. Two things are built but not yet verified against live conditions: Discord notification delivery, which no-ops until a bot token and guild id are supplied, and whether Riot's Cloudflare permits the poller from a datacenter IP. See `docs/ROADMAP.md` Phase 3.
 
 Don't assume any framework, package, or file structure beyond what's written in these docs — propose a change to the docs before writing code that contradicts them.
 
@@ -29,7 +29,10 @@ Don't assume any framework, package, or file structure beyond what's written in 
 
 ## Non-negotiables
 
-- **Never commit secrets.** Riot tokens, database URLs, service keys — all via environment variables, all covered by `.gitignore`. If you ever write a real credential into a file in this repo, stop and flag it instead of committing.
+- **A secret only ever exists in a gitignored env file, and nowhere else.** Not in a tracked file, not in a doc, not in a code comment, not in an example, not in a test fixture, not in a commit message, not in a script's default value, and not echoed into terminal output that gets pasted somewhere. The only homes for a real value are `.env.local` / `.env.*.local` (gitignored) and the hosting platform's own environment-variable store. This covers anything that authenticates or decrypts: database URLs, `RIOT_TOKEN_ENCRYPTION_KEY`, `AUTH_SECRET`, `CRON_SECRET`, OAuth client secrets, bot tokens, API keys.
+  - Tracked files may name a variable, never its value. `.env.example` lists keys with empty values, and that is the pattern everywhere else too.
+  - If a real credential ever ends up in a tracked file, **stop and say so before committing**. Once pushed to a public repo it must be treated as compromised and rotated, not quietly deleted — deleting it from the tip does not remove it from history.
+  - When a script must display a generated credential (e.g. `setupAppRole.ts` printing a new connection string), it prints to the operator's terminal only. Never write that output to a file in the repo.
 - **Never store a user's raw Riot password.** Persist only the OAuth refresh token, encrypted at rest.
 - **Rate-limit anything that talks to Riot.** Poll per-user shop state a few times a day at most, and back off hard on errors. This isn't just politeness — aggressive polling is what gets unofficial integrations noticed.
 - **Treat the store-check subsystem as an isolated, swappable module.** If Riot's endpoints change or the approach becomes untenable, the gallery, loadout builder and wishlist must keep working with that one piece disabled.
@@ -46,28 +49,6 @@ Don't assume any framework, package, or file structure beyond what's written in 
 - `npx prisma migrate dev` — create and apply a migration (needs a real `DIRECT_URL`). It refuses to run non-interactively, so when a change triggers a warning prompt, generate the SQL with `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script --config prisma.config.ts`, write it to `prisma/migrations/<timestamp>_<name>/migration.sql` by hand, then `npx prisma migrate deploy`
 - `npm test` — unit tests via Node's built-in runner (no Jest/Vitest). Focused on the security controls where a silent regression would be worst — encryption, OAuth parsing, the auth adapter, the environment check. Add tests in that category; don't chase coverage on UI or glue code
 - `npm run check-shops` — run the store-check poll for every account whose `nextPollAt` has passed (the same job as `/api/cron/check-shops`)
-
-### Commit messages
-
-A subject line, then a plain list of what changed. Nothing else.
-
-```
-Add the wishlist and Discord notifications
-
-- Add wishlist actions, toggle button and the /wishlist page
-- Add a Discord bot client with guild join and DM send
-- Add wishlist-match and link-expiry notifications
-- Remove the webhook URL column; add migration
-```
-
-- **List what changed, not why, and not how it was found.** No rationale essays, no post-mortems, no "this was measured / verified / caught before shipping".
-- **One bullet per meaningful change**, not per file. Four or five bullets is plenty; a commit needing fifteen is usually two commits.
-- **No first person, no session or workflow references** — nothing about what was tried, what was learned, how many attempts it took, or what tooling produced the change.
-- Rationale that's worth keeping goes in the docs or a code comment, where it can be maintained. A commit message is a changelog entry, not a write-up.
-
-The same voice rule applies to the docs: they're reference material, not a development diary. Record what is true now, not the story of arriving at it.
-
-**`vercel deploy` deploys to PRODUCTION, not to a preview.** With no Git connection there is no branch to infer a preview from, so the CLI targets production by default — `--prod` is not required, and omitting it is not a safeguard. Use `npx vercel deploy --target=preview` for anything that must not touch the production database. Confirm what you got with `npx vercel inspect <url>` and check the `target` line before assuming.
 
 **Restart `npm run dev` after any schema change.** The dev server holds a generated Prisma client in memory and does not pick up a regenerated one on hot reload. The error never names the real cause — symptoms include `Unknown argument` on a field that clearly exists, and `The column '(not available)' does not exist in the current database` on a column that was just dropped. Before debugging either, run the same query from a fresh `tsx` script; if that works, the code is fine and the server is stale.
 

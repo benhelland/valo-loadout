@@ -1,10 +1,9 @@
 // Rotates RIOT_TOKEN_ENCRYPTION_KEY in place, re-encrypting every linked
 // account's refresh token with a new key WITHOUT forcing anyone to re-link.
 //
-// Why this exists: docs/LAUNCH_CHECKLIST.md's existing guidance for changing
-// this key was "generate a fresh one... dev-linked accounts won't decrypt
-// [under it], that's expected, users re-link" - true for the dev/prod split
-// (different databases, no reason to share a key), but a bad default for
+// Why this exists: the obvious way to change this key is "generate a fresh
+// one and let everyone re-link" - fine for the dev/prod split (different
+// databases, no reason to share a key), but a bad default for
 // *rotating* the key on one already-live database, e.g. after a suspected
 // key exposure. Forcing every user to re-link their Riot account is a real
 // cost. It isn't necessary: with both the old and new key available at once,

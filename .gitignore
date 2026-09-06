@@ -36,3 +36,11 @@ next-env.d.ts
 .vercel
 
 /src/generated/prisma
+
+# Operational notes - services, env layout, DNS, quotas. Local only:
+# infrastructure detail, not something a public repo should ship.
+docs/OPERATIONS.md
+
+# Personal working preferences - about the maintainer, not the software.
+CLAUDE.local.md
+docs/LAUNCH_CHECKLIST.md

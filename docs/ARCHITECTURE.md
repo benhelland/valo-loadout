@@ -163,6 +163,30 @@ valorant-api.com covers weapons, skins, chromas, levels, buddies, content tiers,
   - **What could replace the intent:** a "New" badge or filter on skins first seen within the last N days. That only has to be right about genuinely-new skins, which is exactly what this column supports, and correctly never matches the backfill. Not built yet — there's nothing to surface until the sync job has been running against live content for a while.
   - **If real release dates are ever wanted:** the unit is `themeId`, not the skin, and themes are already per-*release* rather than per-franchise. "Reaver" is three distinct theme UUIDs, and Riot's own `assetPath` disambiguates them (`SoulStealer` → `Soulstealer2` → `Soulstealer3`), so re-releases can be ordered without guessing. 239 of 441 themes are bundle-shaped and cover ~83% of browsable skins, so a curated `theme_id -> released_on` seed of ~239 rows would do most of the job. The dates exist only in editorial tables, not as a structured dataset, and `assetPath` isn't currently synced. Deferred: it's a hand-curated dataset with ongoing per-release maintenance, for a sort nothing depends on.
 
+**Missing images and videos are upstream gaps, not sync failures.** Every null
+in our catalog was checked field-by-field against the live API: in all cases the
+value is null upstream too, and no row exists upstream that we failed to store
+(1,405 skins / 2,677 levels / 2,921 chromas, matching exactly). Re-running the
+sync will not fill any of these in.
+
+| field | null | share |
+|---|---|---|
+| `skins.displayIconUrl` | 47 | 3% |
+| `skin_levels.displayIconUrl` | 767 | 29% |
+| `skin_levels.videoUrl` | 837 | 31% |
+| `skin_chromas.displayIconUrl` | 227 | 8% |
+| `skin_chromas.swatchUrl` | 862 | 30% |
+| `skin_chromas.videoUrl` | 2,056 | 70% |
+| `skin_chromas.fullRenderUrl`, buddies, buddy levels | 0 | — |
+
+The two that look alarming are not. `fullRenderUrl` is populated on every
+chroma, which is why no skin is unrenderable: all 47 skins lacking their own
+icon still resolve an image through the level/chroma fallback chain, and the
+gallery's fallback ordering exists precisely for this. And most chromas having
+no video is expected rather than missing data - a recolor usually has no
+dedicated clip because the per-level videos already cover that colour, which is
+why the detail page falls through to the active level's video.
+
 **No 3D model data exists in any legitimate source.** A drag/rotate inspect view was considered and declined for that reason — see `RISKS.md`. Presentation stays 2D/video.
 
 ## Gallery

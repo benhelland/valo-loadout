@@ -18,7 +18,7 @@ export function BuddyCard({ buddy, selectHref, isSelected }: BuddyCardProps) {
     <>
       <div className="relative aspect-square bg-black/20">
         {buddy.displayIconUrl ? (
-          <Image src={buddy.displayIconUrl} alt={buddy.displayName} fill sizes="140px" quality={60}
+          <Image src={buddy.displayIconUrl} alt={buddy.displayName} fill sizes="140px"
           className="object-contain p-2" />
         ) : null}
       </div>
