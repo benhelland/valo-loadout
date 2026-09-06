@@ -38,11 +38,17 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Type-check
-        run: npx tsc --noEmit
-
+      # Must precede the type-check: Next.js generates the global PageProps
+      # and LayoutProps types into .next/types during a build, and every
+      # route file references them. A local `tsc` passes without this only
+      # because .next/ is left over from an earlier build.
       - name: Build
         run: npm run build
+
+      # Still worth running separately after the build - it covers test
+      # files and scripts that `next build` does not type-check.
+      - name: Type-check
+        run: npx tsc --noEmit
 
       # A throwaway key generated per run: src/lib/crypto.ts refuses to load
       # without one, and the tests only need *a* valid 32-byte key to
