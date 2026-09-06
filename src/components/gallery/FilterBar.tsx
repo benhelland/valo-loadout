@@ -85,10 +85,21 @@ export function FilterBar({
 
   // Active filters, resolved to human labels. Sort is excluded on purpose -
   // it always has a value, so showing it as a removable "filter" would be
-  // misleading. Weapon is excluded when the rail owns it, since the rail
-  // already shows its own selection state.
+  // misleading.
+  //
+  // Weapon gets a chip even when the rail owns the control. The rail shows
+  // *which* weapon is selected but no longer offers a way back to all of
+  // them - its "All" tile was removed so the tiles divide evenly into rows -
+  // and clicking the active tile to clear is a desktop-hover discovery that
+  // touch never surfaces. The chip is that affordance, in the one place every
+  // other filter is already cleared from.
+  //
+  // The loadout picker is unaffected: it passes an empty `weapons` array
+  // because its weapon is fixed by the route, so the lookup below finds
+  // nothing and no removable chip is offered for something that cannot be
+  // removed. Keep that guard.
   const activeChips: { key: string; label: string }[] = [];
-  if (!hideWeaponFilter && current.weaponId) {
+  if (current.weaponId) {
     const weapon = weapons.find((w) => w.id === current.weaponId);
     if (weapon) activeChips.push({ key: "weaponId", label: weapon.displayName });
   }

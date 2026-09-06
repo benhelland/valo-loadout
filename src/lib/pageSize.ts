@@ -8,7 +8,7 @@
 export const SKIN_PAGE_SIZES = [25, 50, 100, 200] as const;
 export const BUDDY_PAGE_SIZES = [50, 100, 200, 400] as const;
 
-export const DEFAULT_SKIN_PAGE_SIZE = 50;
+export const DEFAULT_SKIN_PAGE_SIZE = 25;
 // Denser than skins by default - buddy icons are small and low-res, so the
 // grid fits far more per row without hurting readability.
 export const DEFAULT_BUDDY_PAGE_SIZE = 100;
