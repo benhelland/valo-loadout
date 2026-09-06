@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bebas_Neue, Rajdhani } from "next/font/google";
 import { AuthControl } from "@/components/auth/AuthControl";
 import { MainNav } from "@/components/nav/MainNav";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 // Display font for big headers - the closest free stand-in for the VALORANT
@@ -59,6 +60,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </p>
           </div>
         </footer>
+
+        {/* Page-view counts only, no cookies and no cross-site tracking. It
+            exists to answer "is anyone actually using this, and are they
+            coming back" - the question that otherwise needs reading raw
+            deployment logs to guess at. */}
+        <Analytics />
       </body>
     </html>
   );
