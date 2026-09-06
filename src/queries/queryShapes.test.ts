@@ -64,6 +64,15 @@ async function assertQueryShapeValid(label: string, run: () => Promise<unknown>)
 test("gallery queries build valid Prisma queries", async () => {
   const gallery = await import("@/queries/gallery");
 
+  // The cached entry points cannot be exercised here: outside a Next request
+  // context they raise "incrementalCache missing", which is not a validation
+  // error, so they would pass without a query ever reaching Prisma. The
+  // uncached inners are exported for exactly this, and they are what actually
+  // builds the query.
+  await assertQueryShapeValid("querySkinPage (no filters)", () =>
+    gallery.querySkinPage({}, 1, 24),
+  );
+  await assertQueryShapeValid("querySkinDetail", () => gallery.querySkinDetail(ID));
   await assertQueryShapeValid("listSkins (no filters)", () => gallery.listSkins({}));
   await assertQueryShapeValid("listSkins (every filter)", () =>
     gallery.listSkins({
@@ -132,6 +141,8 @@ test("shop queries build valid Prisma queries", async () => {
 const COVERED = new Set([
   "listSkins",
   "getSkinDetail",
+  "querySkinPage",
+  "querySkinDetail",
   "getBuddy",
   "listBuddiesPage",
   "getBuddyColorOptions",
