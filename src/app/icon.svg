@@ -1,8 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Valoadout mark: a clipped-corner tile in the app's own palette
-       (--background #0f1923, --accent #ff4655), carrying a condensed "V"
-       that echoes the header wordmark's angular display type. -->
-  <path d="M0 0 H52 L64 12 V64 H12 L0 52 Z" fill="#0f1923"/>
-  <path d="M0 0 H52 L64 12 V16 H0 Z" fill="#ff4655"/>
-  <path d="M16 24 L32 52 L48 24 H39 L32 37 L25 24 Z" fill="#ece8e1"/>
+  <title>Valoadout</title>
+  <!-- Drawn for 16px first. Full-bleed accent red rather than the app's dark
+       background, because a navy tile disappears into a dark browser tab bar
+       and thin detail does not survive downscaling to favicon size. Solid red
+       reads against light and dark chrome alike. The clipped opposite corners
+       are the same notch used on cards and buttons across the UI, and are the
+       one brand cue that still registers this small.
+       NOTE: no double hyphens anywhere in this comment. XML forbids them
+       inside comments, and naming the CSS custom properties here (they use a
+       leading double hyphen) silently produced malformed SVG that browsers
+       declined to render as an icon at all. -->
+  <path d="M0 0 H56 L64 8 V64 H8 L0 56 Z" fill="#ff4655"/>
+  <!-- Thick chevron: 13-unit arms converging to a point, filling most of the
+       canvas so it stays a legible V rather than a hairline. -->
+  <path d="M12 15 H25 L32 34 L39 15 H52 L37 52 H27 Z" fill="#ffffff"/>
 </svg>
