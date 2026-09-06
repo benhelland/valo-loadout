@@ -116,7 +116,11 @@ function buildWhere(filters: Omit<GalleryFilters, "search">): Prisma.SkinWhereIn
 // JS equivalent of buildOrderBy, for the fuzzy-search path below where
 // ranking already has to happen in application code - used only as a
 // tiebreaker under fuzzy-match score, never on its own while searching.
-function compareBySort(a: ListedSkin, b: ListedSkin, sort: SortOption | undefined): number {
+// Structurally typed to only what it reads, so the fuzzy path can rank a
+// lightweight projection (id/name/tier rank) without loading full relations.
+type SortableSkin = { displayName: string; contentTier: { rank: number } | null };
+
+function compareBySort(a: SortableSkin, b: SortableSkin, sort: SortOption | undefined): number {
   switch (sort) {
     case "alphabetical":
       return a.displayName.localeCompare(b.displayName);
@@ -163,15 +167,30 @@ export async function listSkins(filters: GalleryFilters) {
     // memory is simple and still fast - the same approach the search bar's
     // predictive dropdown already uses (src/actions/search.ts).
     const where = buildWhere(filters);
-    const candidates = await prisma.skin.findMany({ where, include: listInclude });
+
+    // Two phases, because ranking needs every candidate but rendering needs
+    // only one page of them. Phase one selects just the three columns
+    // scoring and tie-breaking actually read - no relations, so none of the
+    // levels/chromas rows (several thousand across the catalog) are touched.
+    const candidates = await prisma.skin.findMany({
+      where,
+      select: { id: true, displayName: true, contentTier: { select: { rank: true } } },
+    });
 
     const ranked = candidates
       .map((skin) => ({ skin, score: fuzzyScore(trimmedSearch, skin.displayName) }))
-      .filter((x): x is { skin: ListedSkin; score: number } => x.score !== null)
+      .filter((x): x is { skin: (typeof candidates)[number]; score: number } => x.score !== null)
       .sort((a, b) => b.score - a.score || compareBySort(a.skin, b.skin, filters.sort));
 
     const total = ranked.length;
-    const skins = ranked.slice((page - 1) * pageSize, page * pageSize).map((r) => r.skin);
+    const pageIds = ranked.slice((page - 1) * pageSize, page * pageSize).map((r) => r.skin.id);
+
+    // Phase two hydrates only the page being shown. `in` returns them in
+    // arbitrary order, so re-apply the ranked order rather than trusting it.
+    const hydrated = await prisma.skin.findMany({ where: { id: { in: pageIds } }, include: listInclude });
+    const byId = new Map(hydrated.map((s) => [s.id, s]));
+    const skins = pageIds.map((id) => byId.get(id)).filter((s): s is ListedSkin => s !== undefined);
+
     return { skins, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
