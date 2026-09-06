@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { totalSkinPrice } from "@/lib/pricing";
 import { getPriceEstimates } from "@/queries/prices";
@@ -61,7 +62,9 @@ export async function listAllWeapons() {
 // Public, unauthenticated lookup for /l/:shareSlug. Deliberately takes no
 // userId: anyone with the link can view it. Requires isShareable to still
 // be true, so revoking works even if a slug were somehow retained.
-export async function getSharedLoadout(shareSlug: string) {
+// Wrapped in React's per-request cache so a route can resolve the loadout in
+// generateMetadata and again in the page body without querying twice.
+export const getSharedLoadout = cache(async (shareSlug: string) => {
   // payload-ok: bounded to one loadout's slots, and the shared page renders
   // the same tiles as the board. Share slugs are unguessable and robots.txt
   // disallows /l/, so this is not a crawlable surface.
@@ -71,7 +74,7 @@ export async function getSharedLoadout(shareSlug: string) {
   });
   if (!loadout || !loadout.isShareable) return null;
   return { ...loadout, priceTotal: await loadoutPriceTotal(loadout.items) };
-}
+});
 
 // Lightweight - just id/name, for the loadout switcher dropdown. Avoids
 // pulling every loadout's full item tree just to populate a <select>.
