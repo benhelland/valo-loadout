@@ -26,8 +26,15 @@
  * gitignored operations notes, not here.
  *
  * Required in .env.local (see CLAUDE.md - these are credentials):
- *   NEON_API_KEY     - Neon console -> Account settings -> API keys
- *   NEON_PROJECT_ID  - Neon console -> Project settings -> General
+ *   NEON_PROD_API_KEY     - Neon org Settings -> API keys -> Project-scoped
+ *   NEON_PROD_PROJECT_ID  - Neon console -> Project -> Settings -> General,
+ *                           or the last segment of the project's console URL
+ *
+ * The PROD_ in both names is load-bearing. These select which project is
+ * *administered*, a different axis from DATABASE_URL / DIRECT_URL selecting
+ * which database the app *talks to* - so pointing them at production while
+ * the database vars point at a dev branch is the normal, correct combination
+ * on a development machine. Capping a dev project would protect nothing.
  *
  * Required only for --apply:
  *   NEON_QUOTA_COMPUTE_SECONDS      CPU seconds; 1 CU-hour = 3600 at 1 CU
@@ -124,7 +131,7 @@ async function api(path: string, init?: RequestInit): Promise<unknown> {
   const res = await fetch(`${API}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${requireEnv("NEON_API_KEY")}`,
+      Authorization: `Bearer ${requireEnv("NEON_PROD_API_KEY")}`,
       "Content-Type": "application/json",
       ...init?.headers,
     },
@@ -154,10 +161,10 @@ const gb = (bytes: number) => `${(bytes / GB).toFixed(2)} GB`;
 const hrs = (seconds: number) => `${(seconds / HOUR).toFixed(1)} h`;
 
 async function main() {
-  const projectId = requireEnv("NEON_PROJECT_ID");
+  const projectId = requireEnv("NEON_PROD_PROJECT_ID");
   const apply = process.argv.includes("--apply");
 
-  // Identify the target BEFORE mutating it. NEON_PROJECT_ID selects which
+  // Identify the target BEFORE mutating it. NEON_PROD_PROJECT_ID selects which
   // project is *administered*, which is a different axis from DATABASE_URL /
   // DIRECT_URL selecting which database the app *talks to* - so the two
   // routinely point at different environments in the same .env.local (dev
@@ -167,7 +174,7 @@ async function main() {
   let { project } = (await api(`/projects/${projectId}`)) as ProjectResponse;
 
   console.log(`Project: ${project.name}  (${projectId})`);
-  console.log("  ^ from NEON_PROJECT_ID - unrelated to DATABASE_URL / DIRECT_URL.\n");
+  console.log("  ^ from NEON_PROD_PROJECT_ID - unrelated to DATABASE_URL / DIRECT_URL.\n");
 
   if (apply) {
     const quota = readQuotaFromEnv();
