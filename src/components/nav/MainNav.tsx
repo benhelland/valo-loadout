@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/", label: "Gallery" },
   { href: "/loadouts", label: "Loadouts" },
   { href: "/wishlist", label: "Wishlist" },
+  { href: "/shop", label: "Your Shop" },
 ];
 
 // The header used to be a single non-wrapping flex row. With three nav items
@@ -27,9 +28,16 @@ export function MainNav({ authControl }: { authControl: React.ReactNode }) {
   function linkClass(href: string): string {
     // "/" would prefix-match every route, so the gallery is an exact match.
     const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+    // Fixed-height box with the underline drawn inside it, so an active
+    // link occupies exactly the same space as an inactive one and neither
+    // shifts text relative to the auth controls beside them. A bare
+    // `border-b + pb` on the text itself pushes the baseline up and is what
+    // made this row read as misaligned.
+    const base =
+      "relative flex h-9 items-center after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:content-['']";
     return active
-      ? "border-b-2 border-accent pb-1 text-foreground"
-      : "border-b-2 border-transparent pb-1 text-muted hover:border-border hover:text-foreground transition-colors";
+      ? `${base} text-foreground after:bg-accent`
+      : `${base} text-muted transition-colors hover:text-foreground after:bg-transparent hover:after:bg-border`;
   }
 
   return (
@@ -39,14 +47,19 @@ export function MainNav({ authControl }: { authControl: React.ReactNode }) {
           valo<span className="text-accent">adout</span>
         </Link>
 
-        <div className="flex items-center gap-8">
-          <nav className="hidden items-center gap-8 text-sm font-semibold uppercase tracking-widest md:flex">
+        <div className="flex h-9 items-center gap-6">
+          <nav className="hidden h-9 items-center gap-8 text-sm font-semibold uppercase tracking-widest md:flex">
             {LINKS.map((link) => (
               <Link key={link.href} href={link.href} className={linkClass(link.href)}>
                 {link.label}
               </Link>
             ))}
           </nav>
+
+          {/* Separates navigation from account actions, which are a
+              different kind of control and were previously reading as a
+              fourth nav item. */}
+          <span className="hidden h-5 w-px bg-border md:block" />
 
           {authControl}
 

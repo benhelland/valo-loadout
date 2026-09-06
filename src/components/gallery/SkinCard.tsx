@@ -78,7 +78,12 @@ export async function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist
             "--tier-glow": tierGlow ?? "transparent",
           } as React.CSSProperties
         }
-        className="clip-notch-sm group block border border-border border-t-[3px] border-t-[var(--tier)] bg-surface transition-all hover:bg-surface-hover hover:border-[var(--tier)] hover:shadow-[0_0_0_1px_var(--tier-glow),0_6px_20px_-6px_var(--tier-glow)]"
+        // `card-skip` lets the browser skip layout and paint for cards that
+        // are off-screen (see globals.css) - the single biggest cost in a
+        // 48-to-192 card grid. The transition is enumerated rather than
+        // `transition-all`, which makes the browser watch every animatable
+        // property on every card and is a real cost during scroll.
+        className="clip-notch-sm card-skip group block border border-border border-t-[3px] border-t-[var(--tier)] bg-surface transition-[background-color,border-color,box-shadow] duration-150 hover:bg-surface-hover hover:border-[var(--tier)] hover:shadow-[0_0_0_1px_var(--tier-glow),0_6px_20px_-6px_var(--tier-glow)]"
       >
         <div className="relative aspect-[4/3] bg-black/20">
           {imageUrl ? (
@@ -87,6 +92,9 @@ export async function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist
               alt={skin.displayName}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+              // Thumbnails only - see the note on `qualities` in
+              // next.config.ts. Download volume is the gallery's real cost.
+              quality={60}
               className="object-contain p-4 group-hover:scale-105 transition-transform duration-200"
             />
           ) : null}

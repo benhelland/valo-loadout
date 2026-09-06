@@ -13,7 +13,7 @@ export async function AuthControl() {
     return (
       <Link
         href="/sign-in"
-        className="clip-notch-sm bg-accent px-4 py-2 text-xs font-bold uppercase tracking-widest text-accent-contrast transition-colors hover:bg-accent-dark"
+        className="clip-notch-sm flex h-9 items-center bg-accent px-4 text-xs font-bold uppercase tracking-widest text-accent-contrast transition-colors hover:bg-accent-dark"
       >
         Sign in
       </Link>
@@ -22,19 +22,28 @@ export async function AuthControl() {
 
   const { name, image } = session.user;
 
+  // h-9 on every child matches the nav links' box exactly, and one shared
+  // type scale (text-sm, tracking-widest) keeps this row on the same optical
+  // line as them - previously the avatar, name and sign-out were three
+  // different sizes sitting at three different heights.
   return (
-    <div className="flex items-center gap-3">
-      <Link href="/account" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+    <div className="flex h-9 items-center gap-4">
+      <Link
+        href="/account"
+        className="flex h-9 items-center gap-2 transition-opacity hover:opacity-80"
+        title={name ?? "Account"}
+      >
         {image ? (
-          <Image src={image} alt={name ?? "Account"} width={28} height={28} className="rounded-full" />
+          <Image src={image} alt="" width={24} height={24} className="rounded-full" />
         ) : (
-          <div className="h-7 w-7 rounded-full bg-accent/20" />
+          <div className="h-6 w-6 rounded-full bg-accent/20" />
         )}
-        <span className="hidden text-xs font-semibold uppercase tracking-wider text-foreground sm:inline">
+        <span className="hidden max-w-[10rem] truncate text-sm font-semibold uppercase tracking-widest text-foreground sm:inline">
           {name ?? "Account"}
         </span>
       </Link>
       <form
+        className="flex h-9 items-center"
         action={async () => {
           "use server";
           await signOut({ redirectTo: "/" });
@@ -42,7 +51,7 @@ export async function AuthControl() {
       >
         <button
           type="submit"
-          className="text-[11px] font-semibold uppercase tracking-widest text-muted hover:text-accent transition-colors"
+          className="flex h-9 items-center text-sm font-semibold uppercase tracking-widest text-muted transition-colors hover:text-accent"
         >
           Sign out
         </button>

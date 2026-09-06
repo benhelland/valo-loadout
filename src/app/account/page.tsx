@@ -136,32 +136,26 @@ export default async function AccountPage() {
               );
             })}
           </div>
-        ) : !deliveryConfigured ? (
-          // Linking costs the user a real stored Riot credential and buys
-          // them shop notifications. With delivery unconfigured, no
-          // notification can ever arrive, so the trade is all cost and no
-          // benefit - don't offer it. Re-enables itself once the bot env
-          // vars exist; see isNotificationDeliveryConfigured().
-          <div className="mt-4">
-            <p className="text-sm text-muted">
-              Shop notifications aren&rsquo;t switched on yet. Once they are, you&rsquo;ll be able to link a
-              Riot account here and get a Discord DM whenever a wishlisted skin shows up in your daily
-              shop.
-            </p>
-            <div className="clip-notch-sm mt-4 border border-border bg-background p-4 text-xs text-muted">
-              <p>
-                Your wishlist still works in the meantime - add skins to it now and they&rsquo;ll be
-                waiting when notifications go live.
-              </p>
-            </div>
-          </div>
         ) : (
           <div className="mt-4">
             <p className="text-sm text-muted">
-              Linking a Riot account lets Valoadout check your daily shop and DM you on Discord when a
-              wishlisted skin shows up in it - automatic, using the Discord account you already signed in
-              with. No webhook or extra setup needed.
+              Linking a Riot account lets Valoadout read your daily shop, so you can see it on the{" "}
+              <span className="text-foreground">Your Shop</span> page and get told when a wishlisted skin
+              shows up in it.
             </p>
+
+            {/* Notifications and shop viewing are independent: delivery needs
+                a Discord bot, reading the shop doesn't. Say which half works
+                rather than hiding the feature outright - linking still buys
+                the user something real without the bot. */}
+            {!deliveryConfigured ? (
+              <p className="clip-notch-sm mt-3 border border-border bg-background p-3 text-xs text-muted">
+                <span className="font-semibold uppercase tracking-wider text-foreground">Note:</span>{" "}
+                Discord notifications aren&rsquo;t switched on yet, so nothing will DM you for now. Linking
+                still works - you&rsquo;ll be able to view your shop in the app, and notifications will
+                start automatically once they&rsquo;re enabled.
+              </p>
+            ) : null}
 
             <div className="clip-notch-sm mt-4 border border-border bg-background p-4 text-xs text-muted">
               <p className="font-semibold uppercase tracking-wider text-foreground">Before you&rsquo;d link an account, know this:</p>

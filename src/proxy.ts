@@ -29,5 +29,5 @@ export const proxy = auth;
 // getCurrentUserId() (src/lib/auth.ts) independently verifies the session
 // too, in case a matcher ever drifts out of sync with a new call site.
 export const config = {
-  matcher: ["/loadouts/:path*", "/account/:path*", "/wishlist/:path*"],
+  matcher: ["/loadouts/:path*", "/account/:path*", "/wishlist/:path*", "/shop/:path*"],
 };

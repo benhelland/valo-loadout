@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { COLOR_FAMILIES } from "@/lib/colorFamilies";
 import { SearchAutocomplete } from "@/components/gallery/SearchAutocomplete";
@@ -66,12 +66,21 @@ export function FilterBar({
   // dropdowns to reach the content you came for.
   const [openOnMobile, setOpenOnMobile] = useState(false);
 
+  // Every filter change is a server round trip (state lives in the URL so
+  // views stay shareable). Wrapping the navigation in a transition is what
+  // keeps that from feeling like a freeze: React keeps the current results
+  // interactive and on screen while the next ones render, instead of
+  // blocking, and `isPending` gives us something honest to show meanwhile.
+  const [isPending, startTransition] = useTransition();
+
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (value) params.set(key, value);
     else params.delete(key);
     params.delete("page");
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   }
 
   // Active filters, resolved to human labels. Sort is excluded on purpose -
@@ -121,7 +130,17 @@ export function FilterBar({
       <div className={`${openOnMobile ? "block" : "hidden"} md:block`}>
         <div className="flex flex-wrap items-end gap-4 p-5">
           <label className="flex min-w-[200px] flex-1 flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
-            Search
+            <span className="flex items-center gap-2">
+              Search
+              {/* Only appears while a navigation is actually in flight.
+                  Without it a slow filter reads as a dead input. */}
+              <span
+                aria-live="polite"
+                className={`text-accent transition-opacity ${isPending ? "opacity-100" : "opacity-0"}`}
+              >
+                Updating&hellip;
+              </span>
+            </span>
             <SearchAutocomplete
               value={searchText}
               onChange={setSearchText}
