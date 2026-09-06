@@ -121,6 +121,44 @@ No public source exposes VALORANT prices, and Riot has withdrawn the bulk price 
 - **Totals carry counts of actual/estimate/unknown**, rendering as e.g. "8,200 VP est. + 3 unpriced". A bare `price ?? 0` sum counts an unpriced skin as free, so a loadout of five knives totals 0 VP while looking authoritative.
 - **"Unknown" does not mean "not sold for VP."** With the catalogue endpoint gone there's no way to distinguish "unpurchasable" from "not observed yet", and most unknowns are ordinary on-sale skins.
 
+## Environment self-check
+
+Compares two independent signals: where the process is running, and what the
+database says it is. The `EnvironmentMarker` row lives *in* the database, so it
+travels with the database rather than with whatever connection string points at
+it.
+
+Two properties are load-bearing, and both were learned the hard way:
+
+**It runs on the query path, not at startup.** It used to live only in
+`src/instrumentation.ts`, whose `register()` Next calls when a *server* boots.
+`next build` does not boot a server, so the check simply never ran during a
+build — which is exactly where it was needed. It now hangs off a Prisma client
+extension in `src/lib/db.ts`, so every path that reaches the database (dev
+server, build, `next start`, and the `tsx` scripts) is covered by construction.
+It is memoised, so it costs one await on a resolved promise per query after the
+first. `instrumentation.ts` still calls it, but only to fail early with a clear
+message; it is no longer the enforcement point.
+
+**`NODE_ENV` cannot select the production database.** `NODE_ENV=production`
+means "optimized build", not "production database" — `next build` and `next
+start` set it on a laptop too. Treating those as synonyms is what allowed a
+local build holding production credentials to pass the check. Only `VERCEL_ENV`
+says whether this is a real deployment, so off-platform the expected marker is
+`development` regardless of `NODE_ENV`. A local process may reach production
+only with `ALLOW_PRODUCTION_DB_LOCALLY=1`, which is deliberately absent from
+`.env.example` so it cannot be filled in out of habit, and which logs a warning
+on every start while set.
+
+Failures throw `EnvironmentMismatchError`, a distinct class rather than a plain
+`Error`. `src/app/sitemap.ts` swallows database errors on purpose — an
+unreachable database should degrade the sitemap, not fail the build — and a bare
+`catch` there turned the guard into a log line in a build that still exited 0.
+Any catch that wraps database access must re-throw via `isEnvironmentMismatch`.
+
+Verified end to end: a local build pointed at production exits 1; the same build
+against the development database exits 0.
+
 ## Environment self-check (startup)
 
 Dev and production share no infrastructure — each environment is just a different `DATABASE_URL`/`DIRECT_URL` pair, set in a different place. So the only realistic way to mix them is a connection string copy-pasted into the wrong place, which no amount of structure prevents.

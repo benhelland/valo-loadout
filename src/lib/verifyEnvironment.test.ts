@@ -1,6 +1,6 @@
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { verifyEnvironment } from "@/lib/verifyEnvironment";
+import { verifyEnvironment, isEnvironmentMismatch, EnvironmentMismatchError } from "@/lib/verifyEnvironment";
 import type { PrismaClient } from "@/generated/prisma/client";
 
 // The whole point of this check is catching "pointed at the wrong
@@ -19,9 +19,65 @@ describe("verifyEnvironment", () => {
     );
   });
 
-  it("passes silently when the marker matches a production process", async () => {
+  it("passes silently when the marker matches a real production deployment", async () => {
     await assert.doesNotReject(() =>
-      verifyEnvironment({ prisma: fakePrisma({ name: "production" }), nodeEnv: "production" }),
+      verifyEnvironment({
+        prisma: fakePrisma({ name: "production" }),
+        nodeEnv: "production",
+        vercelEnv: "production",
+      }),
+    );
+  });
+
+  // The regression this whole section exists for. NODE_ENV=production off a
+  // deployment means "optimized build", not "production database" - `next
+  // build` and `next start` set it on a laptop. This case used to PASS,
+  // which is how a local build came to query the live database.
+  it("throws when a LOCAL production build reaches the production database", async () => {
+    await assert.rejects(
+      () =>
+        verifyEnvironment({
+          prisma: fakePrisma({ name: "production" }),
+          nodeEnv: "production",
+          vercelEnv: undefined,
+        }),
+      /local process reached the production database/,
+    );
+  });
+
+  it("names the actual cause rather than a generic mismatch", async () => {
+    // The generic "expected development" wording would send you hunting a
+    // wrong connection string instead of the env file that supplied it.
+    await assert.rejects(
+      () =>
+        verifyEnvironment({
+          prisma: fakePrisma({ name: "production" }),
+          nodeEnv: "production",
+          vercelEnv: undefined,
+        }),
+      /ALLOW_PRODUCTION_DB_LOCALLY/,
+    );
+  });
+
+  it("allows a local production connection only with the explicit opt-in", async () => {
+    await assert.doesNotReject(() =>
+      verifyEnvironment({
+        prisma: fakePrisma({ name: "production" }),
+        nodeEnv: "production",
+        vercelEnv: undefined,
+        allowProductionDbLocally: true,
+      }),
+    );
+  });
+
+  it("still permits a local build against the development database", async () => {
+    // The ordinary case - `npm run build` on a laptop must keep working.
+    await assert.doesNotReject(() =>
+      verifyEnvironment({
+        prisma: fakePrisma({ name: "development" }),
+        nodeEnv: "production",
+        vercelEnv: undefined,
+      }),
     );
   });
 
@@ -32,11 +88,17 @@ describe("verifyEnvironment", () => {
     );
   });
 
-  it("throws when a production process reads a development marker", async () => {
+  it("throws when a real deployment reads a development marker", async () => {
     // The actual dangerous direction: a real deployment accidentally
-    // pointed at the dev database.
+    // pointed at the dev database. VERCEL_ENV is what makes it a deployment;
+    // without it this is just a local build, which legitimately uses dev.
     await assert.rejects(
-      () => verifyEnvironment({ prisma: fakePrisma({ name: "development" }), nodeEnv: "production" }),
+      () =>
+        verifyEnvironment({
+          prisma: fakePrisma({ name: "development" }),
+          nodeEnv: "production",
+          vercelEnv: "production",
+        }),
       /Environment mismatch/,
     );
   });
@@ -92,15 +154,52 @@ describe("verifyEnvironment", () => {
     );
   });
 
-  it("falls back to NODE_ENV when VERCEL_ENV is absent", async () => {
-    // Local dev, CI, and `npm run check-shops` all run with no VERCEL_ENV.
-    await assert.rejects(
-      () => verifyEnvironment({ prisma: fakePrisma({ name: "development" }), nodeEnv: "production", vercelEnv: undefined }),
-      /Environment mismatch/,
-    );
-    await assert.doesNotReject(() =>
-      verifyEnvironment({ prisma: fakePrisma({ name: "development" }), nodeEnv: "development", vercelEnv: undefined }),
-    );
+  it("expects the development database whenever VERCEL_ENV is absent", async () => {
+    // Local dev, local builds and CI all run with no VERCEL_ENV, and all of
+    // them belong on the development database.
+    //
+    // This replaces an earlier test asserting that NODE_ENV was the fallback
+    // signal. That was the blind spot: it made `nodeEnv: "production"` off a
+    // deployment expect the PRODUCTION database, so a local `next build`
+    // holding production credentials passed the check instead of failing it.
+    // NODE_ENV must not be able to select the production database on its own.
+    for (const nodeEnv of ["development", "production", "test", undefined]) {
+      await assert.doesNotReject(
+        () =>
+          verifyEnvironment({
+            prisma: fakePrisma({ name: "development" }),
+            nodeEnv,
+            vercelEnv: undefined,
+          }),
+        `development marker should be accepted with NODE_ENV=${nodeEnv}`,
+      );
+    }
+  });
+
+  // The error must be identifiable by type, not by message. src/app/sitemap.ts
+  // deliberately swallows database errors (an unreachable database should not
+  // fail a build), and before this distinction existed that catch turned the
+  // guard into a log line in a build that still exited 0 - the guard fired and
+  // the mistake shipped anyway.
+  it("throws a typed error both catchers and callers can distinguish", async () => {
+    for (const deps of [
+      { prisma: fakePrisma({ name: "production" }), nodeEnv: "production", vercelEnv: undefined },
+      { prisma: fakePrisma({ name: "development" }), nodeEnv: "production", vercelEnv: "production" },
+    ]) {
+      const err = await verifyEnvironment(deps).then(
+        () => null,
+        (e: unknown) => e,
+      );
+      assert.ok(err instanceof EnvironmentMismatchError, "must be an EnvironmentMismatchError");
+      assert.ok(isEnvironmentMismatch(err), "isEnvironmentMismatch must recognise it");
+    }
+  });
+
+  it("does not mistake an ordinary database error for an environment mismatch", async () => {
+    // A bare `catch` must still be free to swallow a genuine outage.
+    assert.equal(isEnvironmentMismatch(new Error("connection refused")), false);
+    assert.equal(isEnvironmentMismatch(undefined), false);
+    assert.equal(isEnvironmentMismatch({ name: "EnvironmentMismatchError" }), false);
   });
 
   it("does not throw when no marker exists yet (fresh database)", async () => {

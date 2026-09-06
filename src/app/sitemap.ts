@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/db";
+import { isEnvironmentMismatch } from "@/lib/verifyEnvironment";
 import { siteUrl } from "@/lib/siteUrl";
 
 // Cached for a day. This is the one route that reads the whole skin table,
@@ -32,7 +33,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.5,
       })),
     ];
-  } catch {
+  } catch (err) {
+    // Never swallow "wrong database". This runs at build time, and a bare
+    // catch here is what let a local build read production and still exit 0 -
+    // the guard fired, logged FATAL, and the build passed anyway. An
+    // environment mismatch must fail the build loudly.
+    if (isEnvironmentMismatch(err)) throw err;
+
     // A sitemap is a nicety. If the database is unreachable, serve the static
     // entries rather than failing the route and giving crawlers a 500 to
     // retry against.
