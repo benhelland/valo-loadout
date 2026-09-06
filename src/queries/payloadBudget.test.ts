@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// Guards against the class of bug that consumed this project's monthly Neon
-// transfer allowance: a query returning rows the UI never reads.
+// Guards against a query returning rows the UI never reads.
 //
-// The specific case was `prisma.buddy.findMany()` with no select and no
-// limit, feeding a dropdown. It pulled all 884 buddies with every column -
+// The case this was written for: `prisma.buddy.findMany()` with no select and
+// no limit, feeding a dropdown. It pulled all 884 buddies with every column -
 // about 186 KB from the database and 260 KB of HTML - on every skin page
-// view, roughly 40x the skin actually being viewed. Nothing failed; it was
-// merely expensive, and only visible on a billing dashboard.
+// view, roughly 40x the skin actually being viewed. Nothing failed and no
+// test caught it; it was merely expensive, which is invisible from inside the
+// code.
 //
 // The rule: a findMany must bound what it returns, either by columns
 // (`select`) or by rows (`take`). Anything else must say why, so the cost is
@@ -20,6 +20,7 @@ import { join } from "node:path";
 // related rows, which is the expensive direction, not the cheap one.
 
 const QUERY_DIR = join(process.cwd(), "src", "queries");
+const SRC_DIR = join(process.cwd(), "src");
 const OPT_OUT = "payload-ok:";
 
 interface Call {
@@ -85,4 +86,38 @@ describe("query payload budget", () => {
       });
     }
   }
+});
+
+// A Prisma *select* object handed to an `include` position. This is a runtime
+// error ("Invalid scalar field `id` for include statement"), and the type
+// system cannot see it: excess property checking fires only on fresh object
+// literals, so passing a select-shaped *variable* to `include` type-checks
+// cleanly and fails on the first real query. `listSelect` is even declared
+// `satisfies Prisma.SkinSelect` and that still does not help at the call site.
+//
+// Scanning for it is the only cheap guard. Naming the constant `...Select` is
+// already the convention, so the name is the signal.
+describe("select objects are not passed to include", () => {
+  it("never uses a *Select constant in an include position", () => {
+    const offenders: string[] = [];
+
+    for (const file of readdirSync(SRC_DIR, { recursive: true, encoding: "utf8" })) {
+      if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue;
+      if (file.endsWith(".test.ts")) continue;
+
+      const source = readFileSync(join(SRC_DIR, file), "utf8");
+      source.split("\n").forEach((line, i) => {
+        // Catches `include: listSelect` directly, and the nested form
+        // `include: { skin: { include: listSelect } }` via its inner match.
+        const match = /\binclude:\s*(\w*Select)\b/.exec(line);
+        if (match) offenders.push(`${file}:${i + 1} - include: ${match[1]}`);
+      });
+    }
+
+    assert.deepEqual(
+      offenders,
+      [],
+      `A Prisma select object is being passed to include. Use \`select:\` instead:\n${offenders.join("\n")}`,
+    );
+  });
 });

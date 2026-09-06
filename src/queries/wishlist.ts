@@ -11,7 +11,13 @@ export async function listWishlistSkins(userId: string): Promise<{ skins: Listed
   const items = await prisma.wishlistItem.findMany({
     where: { userId },
     orderBy: { addedAt: "desc" },
-    include: { skin: { include: listSelect } },
+    // `select`, not `include`. listSelect is a Prisma *select* object, and
+    // Prisma rejects it in an include position at runtime because include
+    // takes only relation fields ("Invalid scalar field `id` for include
+    // statement"). TypeScript cannot catch this: excess property checking
+    // fires only on fresh object literals, so passing a select-shaped
+    // variable to include type-checks and fails on the first real query.
+    include: { skin: { select: listSelect } },
   });
 
   const skins = items.map((item) => item.skin);
