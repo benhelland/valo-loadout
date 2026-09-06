@@ -94,11 +94,15 @@ async function main() {
     );
 
     // Neon's pooler host is the direct host with "-pooler" appended to just
-    // the first label (the endpoint id) - e.g.
-    // ep-snowy-surf-arj789br.c-4.us-west-2.aws.neon.tech becomes
-    // ep-snowy-surf-arj789br-pooler.c-4.us-west-2.aws.neon.tech. Verified
-    // against this project's own real prod connection strings rather than
-    // guessed at the general shape.
+    // the first label (the endpoint id), leaving the rest of the domain
+    // untouched:
+    //
+    //   ep-<endpoint-id>.<region>.aws.neon.tech
+    //   ep-<endpoint-id>-pooler.<region>.aws.neon.tech
+    //
+    // Confirmed against real connection strings rather than inferred, but the
+    // hosts themselves stay out of the repo - a concrete endpoint id names
+    // this deployment's database, which is account detail, not source.
     const host = new URL(ownerUrl).hostname;
     const poolerHost = host.includes("-pooler") ? host : host.replace(/^([^.]+)\./, "$1-pooler.");
     const dbName = new URL(ownerUrl).pathname.replace(/^\//, "");
