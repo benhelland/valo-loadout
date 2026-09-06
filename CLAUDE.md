@@ -45,6 +45,41 @@ Don't assume any framework, package, or file structure beyond what's written in 
 - **The app's `DATABASE_URL` connects as a least-privilege role, not the Neon owner role.** `DIRECT_URL` (Prisma CLI and migrations only) stays on the owner role. Don't "simplify" by pointing the app at the owner role — see `docs/RISKS.md`, and `src/scripts/setupAppRole.ts` to provision the role on a new database.
 - **Discord OAuth tokens are deliberately never persisted.** `src/lib/authAdapter.ts` strips `refresh_token`/`access_token`/`id_token`/`session_state` before the row is written, and nothing in this app reads them back. Don't add a feature that reads them from the database without re-reading `docs/RISKS.md` first.
 
+## Docs describe the software, not how it was built
+
+Every tracked doc and code comment is reference material for someone reading
+the code today. **Record what is true now, never the story of arriving at it.**
+
+Rationale is welcome — it is what stops a decision being re-litigated. The line
+is between *why the software is this way* and *what happened while building
+it*:
+
+| Keep | Cut |
+| --- | --- |
+| "Buddies are not composited onto the weapon render: the two images are flat and their perspectives do not match, so it reads as a sticker." | "An earlier approach composited the buddy icon on. That version is in git history." |
+| "Every null in the catalog is also null at the source; row counts match exactly." | "Every null was checked field-by-field against the live API, and no row exists upstream that we failed to store." |
+| "`NODE_ENV` cannot select the production database: it means 'optimized build', and `next build` sets it locally too." | "This once had a blind spot. On <date> a local build pointed at production and the check agreed with itself." |
+
+Concrete tells, all of which mean rewrite:
+
+- Dates, incident narrative, post-mortems, "this was caught before shipping"
+- Prior-state narration: "an earlier version", "used to", "previously",
+  "originally", "this replaces"
+- First-person process voice: "we tried", "we discovered", "it turned out",
+  "at first"
+- Describing an *investigation* rather than its *conclusion*
+- Announcing a change rather than stating the behaviour: "now runs on the query
+  path" → "runs on the query path"
+
+**Measurements about the code are not narrative and should stay.** "884 rows
+with every column, ~186 KB per page view" describes the software. "This
+exhausted the monthly allowance" describes the deployment — that belongs in the
+gitignored operations notes, not the repo.
+
+The same applies to comments explaining a fix: state the rule the code now
+follows and why it is not obvious, not the bug that prompted it. A reader who
+needs the history has `git log`; a reader of the file needs the invariant.
+
 ## Working conventions
 
 - `npm run dev` — dev server (Turbopack)

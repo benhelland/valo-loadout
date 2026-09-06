@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getSharedLoadout, listAllWeapons } from "@/queries/loadouts";
 import { sortByWeaponOrder, BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
+import { loadoutItemImageUrl } from "@/lib/loadoutItemImage";
 
 // Public, read-only view of a shared loadout. No auth, no ownership check -
 // the unguessable slug is the credential, and getSharedLoadout refuses any
@@ -60,10 +61,10 @@ export default async function SharedLoadoutPage({ params }: PageProps<"/l/[slug]
                         <div key={weapon.id} className="clip-notch-sm border border-border bg-surface">
                           <div className="flex">
                             <div className="relative h-[108px] flex-1 bg-black/20">
-                              {item?.skin.displayIconUrl ? (
+                              {loadoutItemImageUrl(item) ? (
                                 <Image
-                                  src={item.skin.displayIconUrl}
-                                  alt={item.skin.displayName}
+                                  src={loadoutItemImageUrl(item)!}
+                                  alt={item!.skin.displayName}
                                   fill
                                   sizes="260px"
                                   className="object-contain p-0.5"

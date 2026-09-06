@@ -7,6 +7,7 @@ import Link from "next/link";
 import { clearLoadoutItem, deleteLoadout, duplicateLoadout, renameLoadout } from "@/actions/loadouts";
 import { encodeCombo } from "@/lib/comboLink";
 import { formatPriceTotal } from "@/lib/pricing";
+import { loadoutItemImageUrl } from "@/lib/loadoutItemImage";
 import { BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
 import { ShareLoadoutButton } from "@/components/loadouts/ShareLoadoutButton";
 import type { getLoadout, listAllWeapons, listLoadoutSummaries } from "@/queries/loadouts";
@@ -35,6 +36,9 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
   const [name, setName] = useState(loadout.name);
   const [openWeaponId, setOpenWeaponId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Deleting a loadout cannot be undone and this button sits beside Duplicate,
+  // so it asks once before doing it.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function commitRename() {
     setIsRenaming(false);
@@ -127,13 +131,33 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
           >
             Duplicate
           </button>
-          <button
-            onClick={handleDelete}
-            disabled={isPending}
-            className="clip-notch-sm border border-border px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-50"
-          >
-            Delete
-          </button>
+          {confirmingDelete ? (
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest">
+              <span className="text-muted">Delete this loadout?</span>
+              <button
+                onClick={handleDelete}
+                disabled={isPending}
+                className="clip-notch-sm border border-accent/50 px-3 py-2 text-accent transition-colors hover:bg-accent hover:text-accent-contrast disabled:opacity-50"
+              >
+                {isPending ? "Deleting..." : "Yes, delete"}
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                disabled={isPending}
+                className="clip-notch-sm border border-border px-3 py-2 text-muted transition-colors hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              disabled={isPending}
+              className="clip-notch-sm border border-border px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted hover:text-accent hover:border-accent/40 transition-colors disabled:opacity-50"
+            >
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -212,14 +236,16 @@ function WeaponTile({
   }
 
   const isMelee = weapon.category === "Melee";
+  // Honours the chroma the user picked; falls through to level, then skin art.
+  const itemImageUrl = loadoutItemImageUrl(item);
 
   return (
     <div className="group relative">
       <button onClick={handleTileClick} className="clip-notch-sm block w-full border border-border bg-surface text-left hover:border-accent/50 transition-colors">
         <div className="flex">
           <div className="relative h-[108px] flex-1 bg-black/20">
-            {item?.skin.displayIconUrl ? (
-              <Image src={item.skin.displayIconUrl} alt={item.skin.displayName} fill sizes="260px" className="object-contain p-0.5" />
+            {itemImageUrl ? (
+              <Image src={itemImageUrl} alt={item?.skin.displayName ?? weapon.displayName} fill sizes="260px" className="object-contain p-0.5" />
             ) : weapon.displayIconUrl ? (
               <Image src={weapon.displayIconUrl} alt={weapon.displayName} fill sizes="260px" className="object-contain p-1.5 opacity-30" />
             ) : null}

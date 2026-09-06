@@ -2,6 +2,7 @@ import Image from "next/image";
 import { formatPriceTotal } from "@/lib/pricing";
 import { BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
 import type { getLoadout, listAllWeapons } from "@/queries/loadouts";
+import { loadoutItemImageUrl } from "@/lib/loadoutItemImage";
 
 type Loadout = NonNullable<Awaited<ReturnType<typeof getLoadout>>>;
 type Weapon = Awaited<ReturnType<typeof listAllWeapons>>[number];
@@ -76,9 +77,9 @@ export function LoadoutShareImage({ loadout, weapons }: LoadoutShareImageProps) 
                         <div key={weapon.id} style={{ border: "1px solid #2a3744", background: "#16212c" }}>
                           <div style={{ display: "flex" }}>
                             <div style={{ position: "relative", height: 72, flex: 1, background: "rgba(0,0,0,0.2)" }}>
-                              {item?.skin.displayIconUrl ? (
+                              {loadoutItemImageUrl(item) ? (
                                 <Image
-                                  src={item.skin.displayIconUrl}
+                                  src={loadoutItemImageUrl(item)!}
                                   alt=""
                                   fill
                                   sizes="240px"
