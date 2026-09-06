@@ -1,18 +1,21 @@
 import { prisma } from "@/lib/db";
 import { totalSkinPrice, type PriceTotal } from "@/lib/pricing";
 import { getPriceEstimates } from "@/queries/prices";
-import { listInclude, type ListedSkin } from "@/queries/gallery";
+import { listSelect, type ListedSkin } from "@/queries/gallery";
 
 // Newest-added first - matches the intuition of "what did I just add".
 export async function listWishlistSkins(userId: string): Promise<{ skins: ListedSkin[]; priceTotal: PriceTotal }> {
+  // payload-ok: one user's own wishlist, rendered in full on their page.
+  // Unbounded in principle - revisit with pagination if anyone ever
+  // wishlists a meaningful fraction of the catalog.
   const items = await prisma.wishlistItem.findMany({
     where: { userId },
     orderBy: { addedAt: "desc" },
-    include: { skin: { include: listInclude } },
+    include: { skin: { include: listSelect } },
   });
 
   const skins = items.map((item) => item.skin);
-  // listInclude already pulls `weapon`, which resolveSkinPrice needs to know
+  // listSelect already pulls `weapon`, which resolveSkinPrice needs to know
   // a melee skin has no reliable estimate (src/lib/pricing.ts).
   return { skins, priceTotal: totalSkinPrice(skins, await getPriceEstimates()) };
 }

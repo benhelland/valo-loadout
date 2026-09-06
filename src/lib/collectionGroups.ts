@@ -1,4 +1,4 @@
-import type { Prisma, Theme } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 // Two distinct reasons a "collection" in the Collection dropdown might need
 // grouping, handled by two different mechanisms below:
@@ -85,10 +85,12 @@ export function collectionGroupFilter(themeId: string): Prisma.SkinWhereInput | 
  * through untouched - most collections aren't re-released, and this must
  * never turn "Elderflame" into a one-item group.
  */
-export function groupCollections(themes: Theme[]): Theme[] {
-  const kept: Theme[] = [];
-  const membersByPrefixGroup = new Map<string, Theme[]>();
-  const membersByName = new Map<string, Theme[]>();
+// Structurally typed to the fields it reads, so callers can hand it a
+// narrowed selection rather than full theme rows.
+export function groupCollections<T extends { id: string; displayName: string }>(themes: T[]): T[] {
+  const kept: T[] = [];
+  const membersByPrefixGroup = new Map<string, T[]>();
+  const membersByName = new Map<string, T[]>();
 
   for (const theme of themes) {
     const prefixGroupId = collectionGroupFor(theme.displayName);
@@ -106,11 +108,9 @@ export function groupCollections(themes: Theme[]): Theme[] {
   for (const group of COLLECTION_GROUPS) {
     const members = membersByPrefixGroup.get(group.id);
     if (!members?.length) continue;
-    kept.push({
-      id: group.id,
-      displayName: group.label(members.length),
-      displayIconUrl: members.find((theme) => theme.displayIconUrl)?.displayIconUrl ?? null,
-    });
+    // Cast: a grouped option is synthetic, standing in for many real theme
+    // rows, so it has an id and a label but no underlying row of its own.
+    kept.push({ id: group.id, displayName: group.label(members.length) } as T);
   }
 
   for (const [displayName, members] of membersByName) {
@@ -123,11 +123,7 @@ export function groupCollections(themes: Theme[]): Theme[] {
     // multiple things - it's the same collection they already know, just
     // fixing a data-modeling artifact where Riot re-releases got separate
     // rows. The plain name is the honest label.
-    kept.push({
-      id: nameGroupId(displayName),
-      displayName,
-      displayIconUrl: members.find((theme) => theme.displayIconUrl)?.displayIconUrl ?? null,
-    });
+    kept.push({ id: nameGroupId(displayName), displayName } as T);
   }
 
   return kept.sort((a, b) => a.displayName.localeCompare(b.displayName));

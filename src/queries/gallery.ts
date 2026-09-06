@@ -62,15 +62,31 @@ export interface GalleryFilters {
 // Exported so other query modules (e.g. src/queries/wishlist.ts) that also
 // feed SkinCard can reuse the exact same shape instead of a near-duplicate
 // that could silently drift from what SkinCard actually expects.
-export const listInclude = {
-  weapon: true,
-  contentTier: true,
-  theme: true,
-  levels: { orderBy: { levelIndex: "desc" as const }, take: 1 },
-  chromas: { orderBy: { chromaIndex: "asc" as const } },
-} satisfies Prisma.SkinInclude;
+// A select, not an include: `include` returns every column of every relation,
+// which cost ~3.3 KB per card. These are exactly the fields SkinCard and the
+// price helpers read - notably not `theme`, which no card renders at all.
+//
+// Kept as one shared shape so the wishlist and shop grids, which feed the
+// same card, cannot drift into a near-duplicate that quietly pulls more.
+export const listSelect = {
+  id: true,
+  displayName: true,
+  displayIconUrl: true,
+  priceVp: true,
+  weapon: { select: { displayName: true, category: true } },
+  contentTier: { select: { devName: true, displayName: true, displayIconUrl: true, highlightColor: true, rank: true } },
+  // Bounded to 1: a fallback image source for the 47 skins whose own
+  // displayIconUrl is null.
+  levels: { orderBy: { levelIndex: "desc" as const }, take: 1, select: { displayIconUrl: true } },
+  // Every chroma's colour, so a colour-filtered card can show the recolor
+  // that actually matched - but only the four fields that requires.
+  chromas: {
+    orderBy: { chromaIndex: "asc" as const },
+    select: { id: true, colorFamily: true, displayIconUrl: true, fullRenderUrl: true },
+  },
+} satisfies Prisma.SkinSelect;
 
-export type ListedSkin = Prisma.SkinGetPayload<{ include: typeof listInclude }>;
+export type ListedSkin = Prisma.SkinGetPayload<{ select: typeof listSelect }>;
 
 // Everything except the text search - that's handled separately (SQL
 // `contains` when there's no search text driving the normal indexed/
@@ -187,7 +203,8 @@ export async function listSkins(filters: GalleryFilters) {
 
     // Phase two hydrates only the page being shown. `in` returns them in
     // arbitrary order, so re-apply the ranked order rather than trusting it.
-    const hydrated = await prisma.skin.findMany({ where: { id: { in: pageIds } }, include: listInclude });
+    // payload-ok: bounded by pageIds, which is one page window at most.
+    const hydrated = await prisma.skin.findMany({ where: { id: { in: pageIds } }, select: listSelect });
     const byId = new Map(hydrated.map((s) => [s.id, s]));
     const skins = pageIds.map((id) => byId.get(id)).filter((s): s is ListedSkin => s !== undefined);
 
@@ -205,7 +222,7 @@ export async function listSkins(filters: GalleryFilters) {
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: listInclude,
+      select: listSelect,
     }),
     prisma.skin.count({ where }),
   ]);
@@ -228,12 +245,22 @@ export async function getSkinDetail(id: string) {
 }
 
 export async function getFilterOptions() {
+  // Selected down to what the controls render. These feed a weapon rail and
+  // three <select>s; pulling every column cost ~41 KB per gallery view, most
+  // of it theme rows nobody displays beyond the name.
   const [weapons, tiers, themes] = await Promise.all([
-    prisma.weapon.findMany({ orderBy: { displayName: "asc" } }),
-    prisma.contentTier.findMany({ orderBy: { rank: "asc" } }),
+    prisma.weapon.findMany({
+      orderBy: { displayName: "asc" },
+      select: { id: true, displayName: true, displayIconUrl: true, category: true },
+    }),
+    prisma.contentTier.findMany({
+      orderBy: { rank: "asc" },
+      select: { id: true, displayName: true },
+    }),
     prisma.theme.findMany({
       where: { skins: { some: {} } },
       orderBy: { displayName: "asc" },
+      select: { id: true, displayName: true },
     }),
   ]);
 

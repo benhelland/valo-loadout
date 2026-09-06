@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { CATEGORY_LABELS, categoryRank } from "@/lib/weaponOrder";
-import type { Weapon } from "@/generated/prisma/client";
 
 // Weapon is the primary axis people actually browse skins on ("I want a
 // Vandal skin"), and it was previously the second of six visually identical
@@ -11,7 +10,9 @@ import type { Weapon } from "@/generated/prisma/client";
 // op.gg puts every weapon in a horizontal icon rail, valorantskins.com uses
 // weapon-category nav. This is that rail - one click, always visible, with
 // the current selection obvious rather than buried in a closed <select>.
-export function WeaponRail({ weapons, currentWeaponId }: { weapons: Weapon[]; currentWeaponId?: string }) {
+type RailWeapon = { id: string; displayName: string; displayIconUrl: string | null; category: string | null };
+
+export function WeaponRail({ weapons, currentWeaponId }: { weapons: RailWeapon[]; currentWeaponId?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
