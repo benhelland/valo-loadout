@@ -87,7 +87,37 @@ function readQuotaFromEnv(): Record<QuotaField, number> {
         `so the fields left out would end up with no cap.\nMissing: ${missing.join(", ")}`,
     );
   }
+
+  warnIfActiveTimeBindsFirst(quota);
   return quota;
+}
+
+/** The lowest CU a Neon compute can autoscale down to. */
+const MIN_CU = 0.25;
+
+/**
+ * `compute_time_seconds` is CPU seconds; `active_time_seconds` is wall clock.
+ * They are not independent: at 0.25 CU an hour of wall clock costs only 900
+ * CPU seconds, so a wall-clock cap set too low binds *first* and suspends the
+ * project well below the dollar figure the compute number implies.
+ *
+ * A warning rather than an error, because a deliberately tight wall-clock cap
+ * is a legitimate choice - it just should not be an accidental one.
+ */
+function warnIfActiveTimeBindsFirst(quota: Record<QuotaField, number>): void {
+  const floor = quota.compute_time_seconds / MIN_CU;
+  if (quota.active_time_seconds >= floor) return;
+
+  const effectiveCuHours = (quota.active_time_seconds * MIN_CU) / 3600;
+  const impliedCuHours = quota.compute_time_seconds / 3600;
+  console.warn(
+    `\nWarning: active_time_seconds (${quota.active_time_seconds}) is below ` +
+      `compute_time_seconds / ${MIN_CU} (${Math.ceil(floor)}).\n` +
+      `At ${MIN_CU} CU the wall-clock cap binds first, so the project suspends after about ` +
+      `${effectiveCuHours.toFixed(1)} CU-hours instead of the ${impliedCuHours.toFixed(1)} ` +
+      `the compute cap implies.\n` +
+      `Raise active_time_seconds above ${Math.ceil(floor)} to make compute the binding limit.\n`,
+  );
 }
 
 async function api(path: string, init?: RequestInit): Promise<unknown> {
