@@ -6,7 +6,7 @@ Guidance for Claude when working in this repo. Read this first, every session.
 
 **Valoadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
 
-**Status: Phases 1–3 feature-complete and deployed** at https://valo-loadout.vercel.app (Vercel, production). The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. What's still open: store notifications can't actually deliver (no Discord bot or server provisioned, and no poller runs — Vercel Cron is ruled out on the free tier), and whether Riot's Cloudflare permits the poller from a datacenter IP is unanswered. See `docs/ROADMAP.md` Phase 3.
+**Status: Phases 1–3 feature-complete and deployed** at https://valoadout.com. The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. What's still open: store notifications can't actually deliver (no Discord bot or server provisioned, and no poller runs — Vercel Cron is ruled out on the free tier), and whether Riot's Cloudflare permits the poller from a datacenter IP is unanswered. See `docs/ROADMAP.md` Phase 3.
 
 Don't assume any framework, package, or file structure beyond what's written in these docs — propose a change to the docs before writing code that contradicts them.
 
@@ -29,7 +29,10 @@ Don't assume any framework, package, or file structure beyond what's written in 
 
 ## Non-negotiables
 
-- **Never commit secrets.** Riot tokens, database URLs, service keys — all via environment variables, all covered by `.gitignore`. If you ever write a real credential into a file in this repo, stop and flag it instead of committing.
+- **A secret only ever exists in a gitignored env file, and nowhere else.** Not in a tracked file, not in a doc, not in a code comment, not in an example, not in a test fixture, not in a commit message, not in a script's default value, and not echoed into terminal output that gets pasted somewhere. The only homes for a real value are `.env.local` / `.env.*.local` (gitignored) and the hosting platform's own environment-variable store. This covers anything that authenticates or decrypts: database URLs, `RIOT_TOKEN_ENCRYPTION_KEY`, `AUTH_SECRET`, `CRON_SECRET`, OAuth client secrets, bot tokens, API keys.
+  - Tracked files may name a variable, never its value. `.env.example` lists keys with empty values, and that is the pattern everywhere else too.
+  - If a real credential ever ends up in a tracked file, **stop and say so before committing**. Once pushed to a public repo it must be treated as compromised and rotated, not quietly deleted — deleting it from the tip does not remove it from history.
+  - When a script must display a generated credential (e.g. `setupAppRole.ts` printing a new connection string), it prints to the operator's terminal only. Never write that output to a file in the repo.
 - **Never store a user's raw Riot password.** Persist only the OAuth refresh token, encrypted at rest.
 - **Rate-limit anything that talks to Riot.** Poll per-user shop state a few times a day at most, and back off hard on errors. This isn't just politeness — aggressive polling is what gets unofficial integrations noticed.
 - **Treat the store-check subsystem as an isolated, swappable module.** If Riot's endpoints change or the approach becomes untenable, the gallery, loadout builder and wishlist must keep working with that one piece disabled.
