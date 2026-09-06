@@ -263,6 +263,8 @@ export interface DueCheckSummary {
   attempted: number;
   succeeded: number;
   failed: number;
+  /** Links deleted for going unused - see STALE_LINK_DAYS. */
+  expired: number;
 }
 
 /**
@@ -276,7 +278,50 @@ export interface DueCheckSummary {
  * both need the user to act, and re-polling them is precisely the retry-loop
  * docs/RISKS.md warns against.
  */
+// How long a link may sit unused before it is dropped. A stored Riot
+// credential is the one thing in this database worth stealing (docs/RISKS.md),
+// so a link nobody is using is pure liability: it can still mint a live Riot
+// session but produces nothing for its owner. Six months is well past any
+// plausible "I'll come back to it", and re-linking costs the user one sign-in.
+const STALE_LINK_DAYS = 180;
+
+/**
+ * Deletes links that have gone unused, independently of the poll loop.
+ *
+ * Deliberately not driven by `nextPollAt`: EXPIRED and CAPTCHA_BLOCKED
+ * accounts have theirs cleared and are never polled again, so they would
+ * otherwise sit forever - and those are exactly the abandoned ones most worth
+ * removing. Falls back to `createdAt` for a link that never completed a check.
+ *
+ * Deleting matches what unlinkRiotAccount does, so the stored token goes with
+ * the row and the sighting stats cascade.
+ */
+// Split out and exported so the cutoff can be unit-tested. This query deletes
+// user credentials permanently; inverting a comparison here would wipe every
+// link instead of the abandoned ones, and that is not a failure a dry run on a
+// healthy database would reveal.
+export function buildStaleLinkFilter(now: Date = new Date()) {
+  const cutoff = new Date(now.getTime() - STALE_LINK_DAYS * 24 * 60 * 60 * 1000);
+  return {
+    OR: [
+      { lastSyncedAt: { lt: cutoff } },
+      { lastSyncedAt: null, createdAt: { lt: cutoff } },
+    ],
+  };
+}
+
+async function expireStaleLinks(): Promise<number> {
+  const { count } = await prisma.linkedRiotAccount.deleteMany({
+    where: buildStaleLinkFilter(),
+  });
+  if (count > 0) console.log(`[check-shops] removed ${count} link(s) unused for ${STALE_LINK_DAYS}+ days`);
+  return count;
+}
+
 export async function runDueShopChecks(limit = 25): Promise<DueCheckSummary> {
+  // Before polling, so a stale link is never woken up just to be dropped.
+  const expired = await expireStaleLinks();
+
   const due = await prisma.linkedRiotAccount.findMany({
     where: {
       nextPollAt: { not: null, lte: new Date() },
@@ -304,7 +349,7 @@ export async function runDueShopChecks(limit = 25): Promise<DueCheckSummary> {
     }
   }
 
-  return { attempted: due.length, succeeded, failed };
+  return { attempted: due.length, succeeded, failed, expired };
 }
 
 async function recordFailure(linkedAccountId: string, err: unknown): Promise<void> {
