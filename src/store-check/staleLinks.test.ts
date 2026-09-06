@@ -8,14 +8,16 @@ import { buildStaleLinkFilter, exceedsExpiryGuard } from "@/store-check";
 // re-link.
 //
 // These assert BEHAVIOUR ("is this link deleted?") rather than the filter's
-// internal shape. An earlier version reached into `filter.OR[0]`, which meant a
-// restructure that kept the semantics identical still broke every test, while a
-// change that quietly altered which links match could have passed. The
-// evaluator below interprets the small subset of Prisma filter syntax this
-// filter uses, so the tests read as the question the code actually answers.
+// internal shape. Asserting on shape - reaching into `filter.OR[0]` and friends
+// - fails in both directions: a restructure that keeps the semantics identical
+// breaks every test, while a change that quietly alters which links match can
+// still pass. The evaluator below interprets the small subset of Prisma filter
+// syntax this filter uses, so the tests read as the question the code answers.
 
 const DAY = 24 * 60 * 60 * 1000;
-const NOW = new Date("2026-09-06T00:00:00.000Z");
+// Arbitrary and fixed, so the boundary cases are deterministic. Nothing about
+// this instant matters beyond it not being "now".
+const NOW = new Date("2030-06-01T00:00:00.000Z");
 const ago = (days: number) => new Date(NOW.getTime() - days * DAY);
 
 interface Link {
@@ -58,10 +60,10 @@ describe("buildStaleLinkFilter", () => {
   });
 
   it("keeps a link kept alive only by the manual check button", () => {
-    // The amendment that matters most. lastSyncedAt moves only on a SUCCESSFUL
-    // poll, so it stays null for every link the scheduled poller has never
-    // reached - which is all of them when no poller is running. Treating that
-    // as abandonment would delete active users' credentials on the first
+    // The case with the sharpest consequences. lastSyncedAt moves only on a
+    // SUCCESSFUL poll, so it stays null for every link the scheduled poller has
+    // never reached - which is all of them when no poller is running. Treating
+    // that as abandonment would delete active users' credentials on the first
     // scheduled run after a long gap. lastManualCheckAt is stamped whenever a
     // user presses the button, success or failure, so it is the signal that
     // represents someone actually asking for something.

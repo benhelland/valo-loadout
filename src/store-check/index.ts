@@ -284,17 +284,6 @@ export interface DueCheckSummary {
   expired: number;
 }
 
-/**
- * Polls every account whose `nextPollAt` has passed. This is the whole body of
- * the scheduled job - the trigger (Vercel Cron route vs. a script run
- * anywhere) is deliberately not this module's concern, because whether a
- * datacenter IP can even reach Riot is an open question (see the Cloudflare
- * note in docs/ARCHITECTURE.md).
- *
- * EXPIRED and CAPTCHA_BLOCKED accounts are excluded, not merely deprioritised:
- * both need the user to act, and re-polling them is precisely the retry-loop
- * docs/RISKS.md warns against.
- */
 // How long a link may sit unused before it is dropped. A stored Riot
 // credential is the one thing in this database worth stealing (docs/RISKS.md),
 // so a link nobody is using is pure liability: it can still mint a live Riot
@@ -373,15 +362,14 @@ export function exceedsExpiryGuard(stale: number, total: number): boolean {
 async function expireStaleLinks(): Promise<number> {
   const where = buildStaleLinkFilter();
 
-  // Counted before deleting so the guard can see the size of what is about to
-  // happen. Two extra counts per batch, against a table with one row per
-  // linked account.
-  const [stale, total] = await Promise.all([
-    prisma.linkedRiotAccount.count({ where }),
-    prisma.linkedRiotAccount.count(),
-  ]);
-
+  // Counted before deleting so the guard can weigh what is about to happen.
+  // The common case is nothing to do, so the second count is only paid for
+  // when there is actually something to delete - this runs on every poll
+  // batch.
+  const stale = await prisma.linkedRiotAccount.count({ where });
   if (stale === 0) return 0;
+
+  const total = await prisma.linkedRiotAccount.count();
 
   if (exceedsExpiryGuard(stale, total)) {
     console.error(
@@ -397,6 +385,17 @@ async function expireStaleLinks(): Promise<number> {
   return count;
 }
 
+/**
+ * Polls every account whose `nextPollAt` has passed. This is the whole body of
+ * the scheduled job - the trigger (Vercel Cron route vs. a script run
+ * anywhere) is deliberately not this module's concern, because whether a
+ * datacenter IP can even reach Riot is an open question (see the Cloudflare
+ * note in docs/ARCHITECTURE.md).
+ *
+ * EXPIRED and CAPTCHA_BLOCKED accounts are excluded, not merely deprioritised:
+ * both need the user to act, and re-polling them is precisely the retry-loop
+ * docs/RISKS.md warns against.
+ */
 export async function runDueShopChecks(limit = 25): Promise<DueCheckSummary> {
   // Before polling, so a stale link is never woken up just to be dropped.
   const expired = await expireStaleLinks();

@@ -428,8 +428,8 @@ configured, nothing gets through: it fails closed.
 
 Maintenance mode needs to answer *every* path, so `config.matcher` is broad and
 the protected-path list moved into the proxy body as `PROTECTED_PREFIXES`. It
-previously lived in the matcher, which meant Auth.js ran only on protected paths
-and everything else skipped the proxy. The `authorized` callback in
+lives there rather than in `config.matcher` because maintenance mode must answer
+every path, which a matcher cannot express. The `authorized` callback in
 `auth.config.ts` redirects anyone without a session, so letting it see public
 paths would lock anonymous visitors out of the gallery - hence the explicit
 prefix test rather than a matcher-driven one. Behaviour is otherwise unchanged:
