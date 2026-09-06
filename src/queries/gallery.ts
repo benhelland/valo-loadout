@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { VIBE_TAGS } from "@/lib/vibeTagging";
 import { fuzzyScore } from "@/lib/fuzzyMatch";
-import { DEFAULT_SKIN_PAGE_SIZE } from "@/lib/pageSize";
+import { DEFAULT_SKIN_PAGE_SIZE, MAX_PAGE } from "@/lib/pageSize";
 import { collectionGroupFilter, groupCollections } from "@/lib/collectionGroups";
 
 export const PAGE_SIZE = DEFAULT_SKIN_PAGE_SIZE;
@@ -168,7 +168,7 @@ function buildOrderBy(sort: SortOption | undefined): Prisma.SkinOrderByWithRelat
 }
 
 export async function listSkins(filters: GalleryFilters) {
-  const page = Math.max(1, filters.page ?? 1);
+  const page = Math.min(MAX_PAGE, Math.max(1, filters.page ?? 1));
   const pageSize = filters.pageSize ?? PAGE_SIZE;
   const trimmedSearch = filters.search?.trim();
 

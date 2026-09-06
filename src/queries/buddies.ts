@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { fuzzyScore } from "@/lib/fuzzyMatch";
-import { DEFAULT_BUDDY_PAGE_SIZE } from "@/lib/pageSize";
+import { DEFAULT_BUDDY_PAGE_SIZE, MAX_PAGE } from "@/lib/pageSize";
 
 export const BUDDY_PAGE_SIZE = DEFAULT_BUDDY_PAGE_SIZE;
 
@@ -14,7 +14,8 @@ export interface BuddyFilters {
 }
 
 export async function listBuddiesPage(filters: BuddyFilters) {
-  const page = Math.max(1, filters.page ?? 1);
+  // Bounded for the same reason as the skin gallery - see MAX_PAGE there.
+  const page = Math.min(MAX_PAGE, Math.max(1, filters.page ?? 1));
   const pageSize = filters.pageSize ?? BUDDY_PAGE_SIZE;
   const trimmedSearch = filters.search?.trim();
 

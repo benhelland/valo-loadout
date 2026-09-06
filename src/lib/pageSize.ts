@@ -22,3 +22,17 @@ export function resolvePageSize(
   if (typeof parsed !== "number" || !Number.isFinite(parsed)) return fallback;
   return allowed.includes(parsed) ? parsed : fallback;
 }
+
+// Upper bound on the page number any listing will honour.
+//
+// `page` arrives from the query string and is otherwise unbounded, which costs
+// twice. `skip: (page - 1) * pageSize` becomes an enormous OFFSET, and Postgres
+// reaches it by walking and discarding every preceding row, so one request can
+// be made arbitrarily expensive. It is also part of the cached listing's key,
+// so an unbounded page number is an unbounded set of cache entries, each a miss
+// that reaches the database.
+//
+// Far above anything a real reader reaches: the catalog is a few dozen pages at
+// the smallest page size. `pageCount` in the response is what the UI paginates
+// against.
+export const MAX_PAGE = 500;
