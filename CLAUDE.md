@@ -58,7 +58,7 @@ it*:
 | --- | --- |
 | "Buddies are not composited onto the weapon render: the two images are flat and their perspectives do not match, so it reads as a sticker." | "An earlier approach composited the buddy icon on. That version is in git history." |
 | "Every null in the catalog is also null at the source; row counts match exactly." | "Every null was checked field-by-field against the live API, and no row exists upstream that we failed to store." |
-| "`NODE_ENV` cannot select the production database: it means 'optimized build', and `next build` sets it locally too." | "This once had a blind spot. On <date> a local build pointed at production and the check agreed with itself." |
+| "`NODE_ENV` cannot select the production database: it means 'optimized build', and `next build` sets it locally too." | "This check used to trust `NODE_ENV`, which turned out to be wrong — see the incident write-up." |
 
 Concrete tells, all of which mean rewrite:
 

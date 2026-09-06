@@ -3,10 +3,9 @@ import assert from "node:assert/strict";
 import { loadoutItemImageUrl } from "./loadoutItemImage";
 
 // A chroma is a different-coloured gun, not a detail, so failing to render it
-// silently shows the user something other than what they picked and saved. The
-// selection round-trips through the database correctly, which is what makes
-// this worth pinning: only the render was ever wrong, so nothing about the
-// stored data would reveal a regression here.
+// shows the user something other than what they picked. Nothing about the
+// stored data would reveal such a regression - the selection persists
+// correctly either way - so the render path has to be pinned here.
 
 const SKIN = { displayIconUrl: "skin.png" };
 
@@ -22,7 +21,7 @@ test("prefers the chroma's full render over everything else", () => {
 });
 
 test("falls back to the chroma's icon when it has no full render", () => {
-  // Confirmed against real data: a chroma often populates only one of the two.
+  // A chroma may populate only one of its two image fields.
   assert.equal(
     loadoutItemImageUrl({
       skin: SKIN,

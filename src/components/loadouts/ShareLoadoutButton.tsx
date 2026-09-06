@@ -1,11 +1,16 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { toPng } from "html-to-image";
 import { enableLoadoutSharing, disableLoadoutSharing } from "@/actions/loadouts";
 import { LoadoutShareImage } from "@/components/loadouts/LoadoutShareImage";
 import type { getLoadout, listAllWeapons } from "@/queries/loadouts";
+
+// Fixed rather than measured: the panel's height varies with its contents, and
+// the position has to be decided before it renders. These bound the clamp.
+const PANEL_WIDTH = 320;
+const PANEL_MAX_HEIGHT = 420;
 
 type Loadout = NonNullable<Awaited<ReturnType<typeof getLoadout>>>;
 type Weapon = Awaited<ReturnType<typeof listAllWeapons>>[number];
@@ -23,6 +28,7 @@ export function ShareLoadoutButton({ loadout, weapons, initialShareSlug, variant
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [panelPos, setPanelPos] = useState({ top: 0, left: 0 });
+  const panelRef = useRef<HTMLDivElement>(null);
   const [shareSlug, setShareSlug] = useState(initialShareSlug);
   const [isPending, startTransition] = useTransition();
   const [status, setStatus] = useState<string | null>(null);
@@ -112,15 +118,41 @@ export function ShareLoadoutButton({ loadout, weapons, initialShareSlug, variant
     }
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
-      const PANEL_WIDTH = 320;
       const GAP = 8;
+      const EDGE = 8;
+      // Flip above the trigger when there is not room below it. Clamping only
+      // the top edge would leave most of a fixed-position panel below the
+      // fold with no way to reach it: scrolling moves the page, not the panel.
+      const roomBelow = window.innerHeight - rect.bottom - GAP;
+      const top =
+        roomBelow >= PANEL_MAX_HEIGHT
+          ? rect.bottom + GAP
+          : Math.max(EDGE, rect.top - GAP - PANEL_MAX_HEIGHT);
       setPanelPos({
-        top: Math.min(rect.bottom + GAP, window.innerHeight - 24),
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - PANEL_WIDTH - 8)),
+        top: Math.max(EDGE, Math.min(top, window.innerHeight - EDGE - PANEL_MAX_HEIGHT)),
+        // Also clamped low, so a viewport narrower than the panel pins it to
+        // the left edge rather than pushing it off the right.
+        left: Math.max(EDGE, Math.min(rect.left, window.innerWidth - PANEL_WIDTH - EDGE)),
       });
     }
     setIsOpen(true);
   }
+
+  // Measured once at open time, so scrolling or resizing would leave a fixed
+  // panel floating over unrelated cards - the click-catcher does not block
+  // wheel events from scrolling the page beneath it. Closing is the honest
+  // response: the panel is anchored to a trigger it can no longer track.
+  useEffect(() => {
+    if (!isOpen) return;
+    panelRef.current?.focus();
+    const close = () => setIsOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [isOpen]);
 
   const triggerClass =
     variant === "inline"
@@ -129,18 +161,30 @@ export function ShareLoadoutButton({ loadout, weapons, initialShareSlug, variant
 
   // The popover is portalled to <body> rather than positioned inside the
   // trigger's own subtree. Loadout cards use `.clip-notch`, and a non-none
-  // `clip-path` clips every descendant - including absolutely and even
-  // fixed-positioned ones, because it also makes the element a containing
-  // block for them. A popover rendered inside the card is therefore cut off at
-  // the card's edge no matter what z-index or positioning it uses, so it has
-  // to leave the clipped subtree entirely.
+  // `clip-path` clips the element's whole painted subtree - so a popover
+  // rendered inside a card is cut off at the card's edge whatever its z-index
+  // or positioning. Leaving the clipped subtree is the only fix.
   const panel = isOpen ? (
     <>
       {/* Click-outside catcher */}
       <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
       <div
-        className="fixed z-50 w-80 border border-accent bg-surface p-4 shadow-xl text-left"
-        style={{ top: panelPos.top, left: panelPos.left }}
+        ref={panelRef}
+        role="dialog"
+        aria-label={`Share ${loadout.name}`}
+        tabIndex={-1}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setIsOpen(false);
+            triggerRef.current?.focus();
+          }
+        }}
+        // Portalling puts this after every other focusable element on the
+        // page, so focus is moved here explicitly on open and returned to the
+        // trigger on Escape - otherwise reaching it by keyboard means tabbing
+        // past every remaining card.
+        className="fixed z-50 w-80 overflow-y-auto border border-accent bg-surface p-4 shadow-xl text-left"
+        style={{ top: panelPos.top, left: panelPos.left, maxHeight: PANEL_MAX_HEIGHT }}
       >
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Share link</p>
         {shareUrl ? (
@@ -204,7 +248,13 @@ export function ShareLoadoutButton({ loadout, weapons, initialShareSlug, variant
 
   return (
     <>
-      <button ref={triggerRef} onClick={openPanel} className={triggerClass}>
+      <button
+        ref={triggerRef}
+        onClick={openPanel}
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        className={triggerClass}
+      >
         Share
       </button>
 

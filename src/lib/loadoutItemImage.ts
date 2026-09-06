@@ -3,13 +3,17 @@
 // A loadout item stores three things that can each carry their own art: the
 // skin, the level, and the chroma (the colour variant). The chroma is the most
 // specific and the most visible - "Variant 2 Red" is a different colour gun,
-// not a detail - so it wins wherever it exists. Rendering `skin.displayIconUrl`
-// directly ignores the choice entirely and shows the base colourway.
+// not a detail - so it wins wherever it exists.
 //
-// The fallback order below is the same one the gallery card uses, and every
-// step of it is load-bearing against real data: a chroma may have only one of
-// its two image fields populated, some skins have no `displayIconUrl` of their
-// own, and a slot with no item at all falls through to the weapon's outline.
+// Every surface that draws a loadout item must go through here. Reaching for
+// `item.skin.displayIconUrl` directly is always wrong: it silently discards the
+// variant the user chose and draws the base colourway instead.
+//
+// The order below prefers the most specific art available. Not every step is
+// reachable with today's data - `skin_chromas.fullRenderUrl` has no nulls - but
+// the later steps do carry real cases: some skins have no `displayIconUrl` of
+// their own, and a slot with no item at all falls through to the weapon
+// outline the caller draws instead.
 
 interface ChromaLike {
   fullRenderUrl?: string | null;
@@ -39,11 +43,13 @@ export interface LoadoutItemLike {
  */
 export function loadoutItemImageUrl(item: LoadoutItemLike | null | undefined): string | null {
   if (!item) return null;
+  // `||` rather than `??`: an empty string is not a usable image source, and
+  // treating it as one would render a broken image instead of falling through.
   return (
-    item.chroma?.fullRenderUrl ??
-    item.chroma?.displayIconUrl ??
-    item.level?.displayIconUrl ??
-    item.skin.displayIconUrl ??
+    item.chroma?.fullRenderUrl ||
+    item.chroma?.displayIconUrl ||
+    item.level?.displayIconUrl ||
+    item.skin.displayIconUrl ||
     null
   );
 }

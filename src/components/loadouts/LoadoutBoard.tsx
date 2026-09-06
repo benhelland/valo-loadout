@@ -7,6 +7,7 @@ import Link from "next/link";
 import { clearLoadoutItem, deleteLoadout, duplicateLoadout, renameLoadout } from "@/actions/loadouts";
 import { encodeCombo } from "@/lib/comboLink";
 import { formatPriceTotal } from "@/lib/pricing";
+import { MAX_NAME_LENGTH } from "@/lib/limits";
 import { loadoutItemImageUrl } from "@/lib/loadoutItemImage";
 import { BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
 import { ShareLoadoutButton } from "@/components/loadouts/ShareLoadoutButton";
@@ -23,12 +24,11 @@ interface LoadoutBoardProps {
   allLoadouts: LoadoutSummary[];
 }
 
-// Matches the reference loadout-chart layout supplied directly: a 4-column
-// grid grouped by category (Sidearms | SMGs+Shotguns | Rifles+Melee |
-// Snipers+Heavy), every slot visible at once, buddy shown as an icon docked
-// beside the weapon render in each tile - not the tab/one-weapon-at-a-time
-// layout tried first (that was based on researching the real client, which
-// turned out not to match what was wanted here - see docs/PRD.md).
+// A 4-column grid grouped by category (Sidearms | SMGs+Shotguns |
+// Rifles+Melee | Snipers+Heavy), with every slot visible at once and the buddy
+// docked as an icon beside the weapon render in each tile. Deliberately not a
+// tab or one-weapon-at-a-time layout: seeing the whole loadout together is the
+// point of the page (see docs/PRD.md).
 export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -86,16 +86,27 @@ export function LoadoutBoard({ loadout, weapons, allLoadouts }: LoadoutBoardProp
             <input
               autoFocus
               value={name}
+              maxLength={MAX_NAME_LENGTH}
               onChange={(e) => setName(e.target.value)}
               onBlur={commitRename}
-              onKeyDown={(e) => e.key === "Enter" && commitRename()}
-              className="border-b border-accent bg-transparent font-display text-5xl uppercase tracking-wide leading-none text-foreground focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitRename();
+                if (e.key === "Escape") {
+                  setName(loadout.name);
+                  setIsRenaming(false);
+                }
+              }}
+              className="w-full min-w-0 border-b border-accent bg-transparent font-display text-5xl uppercase tracking-wide leading-none text-foreground focus:outline-none"
             />
           ) : (
             <h1
               onClick={() => setIsRenaming(true)}
-              className="font-display text-5xl uppercase tracking-wide leading-none cursor-pointer hover:text-accent transition-colors"
-              title="Click to rename"
+              // A name may be up to MAX_NAME_LENGTH characters with no spaces.
+              // At this size that is far wider than the container, so it needs
+              // to break anywhere and be clamped, or it pushes the action row
+              // out of the flex line. `title` keeps clipped text readable.
+              className="[overflow-wrap:anywhere] line-clamp-2 cursor-pointer font-display text-5xl uppercase leading-none tracking-wide transition-colors hover:text-accent"
+              title={`${loadout.name} - click to rename`}
             >
               {loadout.name}
             </h1>

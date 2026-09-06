@@ -12,10 +12,6 @@ import type { listLoadouts, listAllWeapons } from "@/queries/loadouts";
 type LoadoutSummary = Awaited<ReturnType<typeof listLoadouts>>[number];
 type Weapon = Awaited<ReturnType<typeof listAllWeapons>>[number];
 
-// Matches the slot count the board lays out, so the card's "n / TOTAL" reads
-// the same as the page it links to.
-const TOTAL_SLOTS = 20;
-
 export function LoadoutListClient({ loadouts, weapons }: { loadouts: LoadoutSummary[]; weapons: Weapon[] }) {
   const [error, setError] = useState<string | null>(null);
 
@@ -27,10 +23,9 @@ export function LoadoutListClient({ loadouts, weapons }: { loadouts: LoadoutSumm
         </p>
       ) : null}
 
-      {/* Creation lives in the grid as its own tile rather than in a separate
-          bar above it. The bar was permanently occupying the top of the page
-          for an action taken rarely, and its always-visible empty text field
-          read as something that needed filling in before anything else worked. */}
+      {/* Creation is a tile in the grid rather than a bar above it: it is a
+          rare action, and a permanently visible empty text field reads as
+          something that must be filled in before anything else works. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <NewLoadoutTile onError={setError} />
         {loadouts.map((loadout) => (
@@ -59,6 +54,7 @@ function NewLoadoutTile({ onError }: { onError: (message: string | null) => void
   const [name, setName] = useState("");
 
   function create() {
+    if (isPending) return;
     onError(null);
     startTransition(async () => {
       const result = await createLoadout(name);
@@ -97,7 +93,10 @@ function NewLoadoutTile({ onError }: { onError: (message: string | null) => void
         maxLength={MAX_NAME_LENGTH}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") create();
+          // The button is disabled while pending; the input is not, and key
+          // repeat fires keydown continuously. Without this guard, holding
+          // Enter creates several loadouts and races the navigations.
+          if (e.key === "Enter" && !isPending) create();
           if (e.key === "Escape") setIsNaming(false);
         }}
         placeholder="e.g. Dark & Sleek"
@@ -202,7 +201,7 @@ function LoadoutCard({
       )}
 
       <p className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
-        {filled} / {TOTAL_SLOTS} slots filled
+        {filled} / {weapons.length} slots filled
       </p>
       <p className="mt-1 text-sm font-semibold text-accent">{formatPriceTotal(loadout.priceTotal)}</p>
 
@@ -210,10 +209,22 @@ function LoadoutCard({
           whether a name takes one line or two. */}
       <div className="mt-auto pt-4">
         {confirmingDelete ? (
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider">
+          // role/aria so the swap is announced, autoFocus so the keyboard user
+          // lands on the confirm rather than being dropped back to the top of
+          // the document, Escape so there is a way out without a mouse.
+          <div
+            role="alertdialog"
+            aria-label={`Delete ${loadout.name}?`}
+            onKeyDown={(e) => e.key === "Escape" && setConfirmingDelete(false)}
+            className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider"
+          >
             <span className="text-muted">Delete?</span>
             <button
-              onClick={() => startTransition(() => deleteLoadout(loadout.id))}
+              autoFocus
+              onClick={() => {
+                onError(null);
+                startTransition(() => deleteLoadout(loadout.id));
+              }}
               disabled={isPending}
               className="text-accent transition-colors hover:text-accent-dark disabled:opacity-50"
             >

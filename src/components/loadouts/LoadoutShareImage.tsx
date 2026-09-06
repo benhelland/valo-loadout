@@ -72,14 +72,15 @@ export function LoadoutShareImage({ loadout, weapons }: LoadoutShareImageProps) 
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {categoryWeapons.map((weapon) => {
                       const item = itemsByWeapon.get(weapon.id);
+                      const itemImageUrl = loadoutItemImageUrl(item);
                       const isMelee = weapon.category === "Melee";
                       return (
                         <div key={weapon.id} style={{ border: "1px solid #2a3744", background: "#16212c" }}>
                           <div style={{ display: "flex" }}>
                             <div style={{ position: "relative", height: 72, flex: 1, background: "rgba(0,0,0,0.2)" }}>
-                              {loadoutItemImageUrl(item) ? (
+                              {itemImageUrl ? (
                                 <Image
-                                  src={loadoutItemImageUrl(item)!}
+                                  src={itemImageUrl}
                                   alt=""
                                   fill
                                   sizes="240px"
