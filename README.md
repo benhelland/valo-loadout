@@ -2,7 +2,7 @@
 
 A webapp for VALORANT cosmetics: build your ideal loadout across every weapon, wishlist the skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get a Discord DM the moment something on your wishlist shows up in your daily store.
 
-**Status:** live at [valo-loadout.vercel.app](https://valo-loadout.vercel.app). Feature-complete through Phase 3, with store notifications not yet wired to a Discord bot. See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what's done and what's left, and [`docs/LAUNCH_CHECKLIST.md`](./docs/LAUNCH_CHECKLIST.md) for the remaining deploy steps.
+**Status:** live at [valoadout.com](https://valoadout.com). Feature-complete through Phase 3, with store notifications not yet wired to a Discord bot. See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what's done and what's left, and [`docs/LAUNCH_CHECKLIST.md`](./docs/LAUNCH_CHECKLIST.md) for the remaining deploy steps.
 
 Not affiliated with or endorsed by Riot Games. VALORANT and all associated assets are property of Riot Games, Inc. Skin and cosmetic data courtesy of [valorant-api.com](https://valorant-api.com), an unofficial community project.
 
@@ -27,6 +27,7 @@ Not affiliated with or endorsed by Riot Games. VALORANT and all associated asset
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — stack, data model, and how each subsystem works
 - [`docs/RISKS.md`](./docs/RISKS.md) — the ToS and account-risk tradeoffs this project knowingly accepts, and the guardrails that follow
 - [`docs/ROADMAP.md`](./docs/ROADMAP.md) — build phases and what's still ahead
+- [`docs/OPERATIONS.md`](./docs/OPERATIONS.md) — the services this runs on, environment variables, DNS, free-tier ceilings, and recovery notes
 
 ## A word on how this works
 

@@ -6,7 +6,7 @@ Guidance for Claude when working in this repo. Read this first, every session.
 
 **Valoadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
 
-**Status: Phases 1–3 feature-complete and deployed** at https://valo-loadout.vercel.app (Vercel, production). The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. What's still open: store notifications can't actually deliver (no Discord bot or server provisioned, and no poller runs — Vercel Cron is ruled out on the free tier), and whether Riot's Cloudflare permits the poller from a datacenter IP is unanswered. See `docs/ROADMAP.md` Phase 3.
+**Status: Phases 1–3 feature-complete and deployed** at https://valoadout.com (Vercel, production). The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. What's still open: store notifications can't actually deliver (no Discord bot or server provisioned, and no poller runs — Vercel Cron is ruled out on the free tier), and whether Riot's Cloudflare permits the poller from a datacenter IP is unanswered. See `docs/ROADMAP.md` Phase 3.
 
 Don't assume any framework, package, or file structure beyond what's written in these docs — propose a change to the docs before writing code that contradicts them.
 
@@ -16,6 +16,7 @@ Don't assume any framework, package, or file structure beyond what's written in 
 - `docs/ARCHITECTURE.md` — stack, data model, and how each subsystem actually works
 - `docs/ROADMAP.md` — build order and what's still open
 - `docs/RISKS.md` — the ToS and account-risk tradeoffs this project has accepted, and the guardrails that follow
+- `docs/OPERATIONS.md` — what the app runs on (Vercel, Neon, Cloudflare, Discord, GitHub), which env var lives where, and the free-tier ceilings
 
 ## Decisions already made (don't relitigate without flagging it)
 
