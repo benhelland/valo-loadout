@@ -19,6 +19,10 @@ interface WishlistButtonProps {
 // should feel instant, not round-trip-gated.
 export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant = "icon" }: WishlistButtonProps) {
   const [wishlisted, setWishlisted] = useState(initialWishlisted);
+  // Only ever set by the wishlist-full case. Surfaced as a title/aria hint
+  // rather than new layout, because this button is overlaid on a gallery card
+  // where there is nowhere to put a message without shifting the grid.
+  const [limitMessage, setLimitMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const pathname = usePathname();
@@ -42,9 +46,24 @@ export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant 
 
     const next = !wishlisted;
     setWishlisted(next);
+    setLimitMessage(null);
     startTransition(async () => {
       try {
-        await (next ? addToWishlist(skinId) : removeFromWishlist(skinId));
+        if (next) {
+          const result = await addToWishlist(skinId);
+          if (!result.ok) {
+            setWishlisted(false);
+            setLimitMessage(result.message);
+            // Cleared on a timer as well as on the next click. In the labeled
+            // variant this message replaces the button's own text, so leaving
+            // it up means the control reads "your wishlist is full" until the
+            // user happens to press it again - including on cards where it
+            // would have said something else.
+            window.setTimeout(() => setLimitMessage(null), 6000);
+          }
+        } else {
+          await removeFromWishlist(skinId);
+        }
       } catch {
         setWishlisted(!next);
       }
@@ -57,20 +76,29 @@ export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant 
         type="button"
         onClick={toggle}
         disabled={isPending}
+        title={limitMessage ?? undefined}
         aria-label={
-          !isSignedIn ? "Sign in to wishlist" : wishlisted ? "Remove from wishlist" : "Add to wishlist"
+          limitMessage ??
+          (!isSignedIn ? "Sign in to wishlist" : wishlisted ? "Remove from wishlist" : "Add to wishlist")
         }
         aria-pressed={isSignedIn ? wishlisted : undefined}
-        className={`absolute top-2 left-2 z-10 flex h-6 w-6 items-center justify-center rounded-full backdrop-blur-sm transition-colors disabled:opacity-50 ${
-          wishlisted ? "bg-accent text-accent-contrast" : "bg-black/40 text-white hover:bg-black/60"
+        className={`group/heart absolute top-2 left-2 z-10 flex h-7 w-7 items-center justify-center rounded-full backdrop-blur-sm transition-[background-color,transform,box-shadow] duration-150 hover:scale-110 active:scale-95 disabled:opacity-50 ${
+          wishlisted
+            ? "bg-accent text-accent-contrast shadow-[0_0_0_1px_var(--accent)]"
+            : "bg-black/40 text-white hover:bg-accent hover:text-accent-contrast hover:shadow-[0_0_12px_-2px_var(--accent)]"
         }`}
       >
         <svg
           viewBox="0 0 20 20"
-          fill={wishlisted ? "currentColor" : "none"}
           stroke="currentColor"
           strokeWidth={1.5}
-          className="h-3.5 w-3.5"
+          // Hover previews the committed state: the outline fills in, so it
+          // is obvious what the click will do before making it. `fill` is
+          // driven by a class rather than the attribute so CSS can change it
+          // on hover without a re-render.
+          className={`h-4 w-4 transition-[fill,transform] duration-150 group-hover/heart:scale-110 ${
+            wishlisted ? "fill-current" : "fill-transparent group-hover/heart:fill-current"
+          } ${isPending ? "animate-pulse" : ""}`}
         >
           <path d="M10 17.5s-6.5-4.06-8.5-8.06C.4 6.6 1.8 3.5 5 3.5c2 0 3.5 1.2 5 3 1.5-1.8 3-3 5-3 3.2 0 4.6 3.1 3.5 5.94C16.5 13.44 10 17.5 10 17.5z" />
         </svg>
@@ -83,13 +111,13 @@ export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant 
       type="button"
       onClick={toggle}
       disabled={isPending}
-      className={`clip-notch-sm border px-4 py-2 text-xs font-semibold uppercase tracking-widest transition-colors disabled:opacity-50 ${
+      className={`clip-notch-sm border px-4 py-2 text-xs font-semibold uppercase tracking-widest transition-[background-color,border-color,color,box-shadow] duration-150 disabled:opacity-50 ${
         wishlisted
-          ? "border-accent bg-accent text-accent-contrast"
-          : "border-border text-muted hover:border-accent hover:text-foreground"
-      }`}
+          ? "border-accent bg-accent text-accent-contrast hover:bg-accent-dark hover:border-accent-dark"
+          : "border-border text-muted hover:border-accent hover:text-foreground hover:shadow-[0_0_14px_-4px_var(--accent)]"
+      } ${isPending ? "animate-pulse" : ""}`}
     >
-      {!isSignedIn ? "☆ Add to wishlist" : wishlisted ? "★ On your wishlist" : "☆ Add to wishlist"}
+      {limitMessage ?? (!isSignedIn ? "☆ Add to wishlist" : wishlisted ? "★ On your wishlist" : "☆ Add to wishlist")}
     </button>
   );
 }

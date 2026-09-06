@@ -4,11 +4,11 @@ import { tierColorToCss } from "@/lib/tierColor";
 import { resolveSkinPrice } from "@/lib/pricing";
 import { getPriceEstimates } from "@/queries/prices";
 import { WishlistButton } from "@/components/gallery/WishlistButton";
-import type { Prisma } from "@/generated/prisma/client";
+import type { ListedSkin } from "@/queries/gallery";
 
-type SkinWithRelations = Prisma.SkinGetPayload<{
-  include: { weapon: true; contentTier: true; theme: true; levels: true; chromas: true };
-}>;
+// The shared gallery projection, so the card and the queries feeding it
+// cannot disagree about which columns are actually needed.
+type SkinWithRelations = ListedSkin;
 
 interface SkinCardProps {
   skin: SkinWithRelations;
@@ -92,7 +92,7 @@ export async function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist
               alt={skin.displayName}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-              className="object-contain p-4 group-hover:scale-105 transition-transform duration-200"
+              className="fade-in-image object-contain p-4 transition-transform duration-200 group-hover:scale-105"
             />
           ) : null}
           {skin.contentTier?.displayIconUrl ? (

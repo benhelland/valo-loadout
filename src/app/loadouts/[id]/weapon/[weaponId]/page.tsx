@@ -85,7 +85,12 @@ export default async function LoadoutWeaponPickerPage({
       />
 
       {skins.length === 0 ? (
-        <p className="text-center text-muted py-16">No skins match those filters.</p>
+        <div className="flex flex-col items-center gap-3 py-20 text-center">
+          <p className="font-display text-2xl uppercase tracking-wide text-foreground">No matches</p>
+          <p className="max-w-sm text-sm text-muted">
+            Nothing in the catalog fits every filter at once. Try removing one.
+          </p>
+        </div>
       ) : (
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           {skins.map((skin) => (

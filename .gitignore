@@ -4,9 +4,11 @@ node_modules/
 .pnp.js
 
 # env / secrets
-.env
-.env.local
-.env.*.local
+# Catch-all rather than naming each file: a stray copy like
+# .env.local.bak or .env.production.backup matched none of the specific
+# patterns and would have been picked up by `git add -A`.
+.env*
+!.env.example
 
 # build output
 .next/

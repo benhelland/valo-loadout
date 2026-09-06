@@ -7,7 +7,7 @@ import Link from "next/link";
 import { encodeCombo } from "@/lib/comboLink";
 import { setLoadoutItem } from "@/actions/loadouts";
 import { DraggableBuddyBadge } from "@/components/gallery/DraggableBuddyBadge";
-import type { Prisma, Buddy } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 // Per-viewer convenience only: which is why localStorage is the right home
 // for it rather than the database. Nothing breaks if it is missing, cleared
@@ -20,7 +20,10 @@ type SkinDetail = Prisma.SkinGetPayload<{
 
 interface SkinPreviewProps {
   skin: SkinDetail;
-  buddies: Buddy[];
+  // Only the currently-selected buddy, not the catalog. Narrowed to the
+  // three fields actually rendered so a caller cannot quietly reintroduce a
+  // full-table read to satisfy the type.
+  buddy: { id: string; displayName: string; displayIconUrl: string | null } | null;
   // Pre-selects this exact level/chroma/buddy combo - set when arriving via a
   // /combo/:encoded share link. Absent on the normal gallery detail page.
   initialLevelId?: string | null;
@@ -46,7 +49,7 @@ interface SkinPreviewProps {
 
 export function SkinPreview({
   skin,
-  buddies,
+  buddy: initialBuddy,
   initialLevelId,
   initialChromaId,
   initialBuddyId,
@@ -115,7 +118,8 @@ export function SkinPreview({
 
   const activeChroma = skin.chromas.find((c) => c.id === selectedChromaId);
   const activeLevel = skin.levels.find((l) => l.id === selectedLevelId);
-  const buddy = buddies.find((b) => b.id === selectedBuddyId);
+  // Cleared locally by "Remove"; otherwise it is whatever the URL named.
+  const buddy = selectedBuddyId ? initialBuddy : null;
 
   // The base/default chroma always carries the API's only reliably high-res
   // flat asset (fullRenderUrl); a level only ever has a smaller displayIcon,
@@ -444,31 +448,41 @@ export function SkinPreview({
 
         {isMelee ? null : (
           <div className="mt-6">
-            <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
-              Buddy
-              <select
-                value={selectedBuddyId}
-                onChange={(e) => setSelectedBuddyId(e.target.value)}
-                className="rounded-none border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none transition-colors"
-              >
-                <option value="">None</option>
-                {buddies.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {/* The dropdown is fine when you know the buddy's name; this is
-                the path for "show me what's available" - the full buddy
-                gallery with search and color filtering, which comes back
-                here with the pick applied and the rest of the selection
-                intact (see buildBuddyPickerHref). */}
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Buddy</p>
+
+            {/* Deliberately not a <select> of every buddy. Rendering all 884
+                cost ~186 KB out of the database and ~260 KB of HTML on every
+                skin page view - far more than the skin itself - to duplicate
+                a picker that already exists and is better. The gallery has
+                search, colour filtering and actual images, and returns here
+                with the pick applied and the rest of the selection intact
+                (see buildBuddyPickerHref). Only the currently-selected buddy
+                is loaded now. */}
+            <div className="mt-2 flex items-center gap-3">
+              {buddy ? (
+                <>
+                  {buddy.displayIconUrl ? (
+                    <Image src={buddy.displayIconUrl} alt="" width={32} height={32} className="shrink-0" />
+                  ) : null}
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">{buddy.displayName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBuddyId("")}
+                    className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted transition-colors hover:text-accent"
+                  >
+                    Remove
+                  </button>
+                </>
+              ) : (
+                <span className="flex-1 text-sm text-muted">None selected</span>
+              )}
+            </div>
+
             <Link
               href={buildBuddyPickerHref()}
-              className="mt-2 inline-block text-[11px] font-semibold uppercase tracking-wider text-muted hover:text-accent transition-colors"
+              className="clip-notch-sm mt-3 inline-flex h-9 items-center border border-border px-3 text-[11px] font-semibold uppercase tracking-wider text-muted transition-colors hover:border-accent hover:text-foreground"
             >
-              Browse all buddies →
+              {buddy ? "Change buddy" : "Choose a buddy"} &rarr;
             </Link>
           </div>
         )}

@@ -121,20 +121,79 @@ No public source exposes VALORANT prices, and Riot has withdrawn the bulk price 
 - **Totals carry counts of actual/estimate/unknown**, rendering as e.g. "8,200 VP est. + 3 unpriced". A bare `price ?? 0` sum counts an unpriced skin as free, so a loadout of five knives totals 0 VP while looking authoritative.
 - **"Unknown" does not mean "not sold for VP."** With the catalogue endpoint gone there's no way to distinguish "unpurchasable" from "not observed yet", and most unknowns are ordinary on-sale skins.
 
-## Environment self-check (startup)
+## Environment self-check
 
-Dev and production share no infrastructure — each environment is just a different `DATABASE_URL`/`DIRECT_URL` pair, set in a different place. So the only realistic way to mix them is a connection string copy-pasted into the wrong place, which no amount of structure prevents.
+Compares two independent signals: where the process is running, and what the
+database says it is. The `EnvironmentMarker` row lives *in* the database, so it
+travels with the database rather than with whatever connection string points at
+it.
 
-`src/lib/verifyEnvironment.ts`, run once per process from `src/instrumentation.ts` (Next.js's startup hook), catches that at boot:
+Two properties are load-bearing:
 
-- The `environment_marker` table holds a single row containing nothing but the literal word `"development"` or `"production"`, planted once per database via `src/scripts/setEnvironmentMarker.ts`. It deliberately holds nothing else — no hostname, no project id, nothing that would turn a log line into something worth hiding.
-- At startup that word is compared against the deployment's own environment — `VERCEL_ENV` where it exists, falling back to `NODE_ENV` locally. Both are set by tooling and never typed into an env file, so neither can be copy-paste-mismatched the way `DATABASE_URL` can.
-- **`NODE_ENV` alone is not sufficient on Vercel**, which sets it to `production` for preview deployments as well as real ones. `VERCEL_ENV` is what separates `production` / `preview` / `development`. Only `production` expects the production marker; previews expect the development one, matching the branching model where every non-`main` branch deploys as a preview against the dev database.
-- That mapping means the check catches the mistake in **both** directions: a production deployment wired to the dev database, and — more dangerously — a preview branch wired to the production database, where a feature branch would write to real user data.
-- The two signals are independent, which is what makes this a real check rather than a circular one: the marker lives *in* the database, so it travels with whichever database `DATABASE_URL` actually resolves to. A wrong connection string still reads back that database's own true answer.
-- On mismatch the process throws during startup. Refusing to boot is the correct consequence — no request should be served against the wrong database. A missing marker warns rather than throws, so a fresh database isn't a chicken-and-egg problem.
+**It runs on the query path, not at startup.** A check in
+`src/instrumentation.ts` only runs when a *server* boots, and `next build` does
+not boot a server — so it would not cover builds, which do reach the database
+via `src/app/sitemap.ts`. It hangs off a Prisma client extension in
+`src/lib/db.ts` instead, so every path that reaches the database (dev server,
+build, `next start`, and the `tsx` scripts) is covered by construction. It is
+memoised, costing one await on a resolved promise per query after the first.
+`instrumentation.ts` still calls it, but only to fail early with a clear
+message; it is not the enforcement point.
 
-**What it can log, by construction:** the literal words `"development"`/`"production"`, and nothing else. The module never reads `DATABASE_URL`, so no code path can leak a hostname or credential. `src/lib/verifyEnvironment.test.ts` asserts that property by checking every logged string for URL and hostname shapes.
+**`NODE_ENV` cannot select the production database.** `NODE_ENV=production`
+means "optimized build", not "production database" — `next build` and `next
+start` set it on a developer machine too. Only `VERCEL_ENV` says whether this
+is a real deployment, so off-platform the expected marker is `development`
+regardless of `NODE_ENV`. This matters because Next auto-loads
+`.env.<NODE_ENV>.local` ahead of `.env.local` during any build, so an env file
+named for an environment can put that environment's `DATABASE_URL` in front of
+a local build. A local process may reach production only with
+`ALLOW_PRODUCTION_DB_LOCALLY=1`, deliberately absent from `.env.example` so it
+cannot be filled in out of habit, and logged as a warning on every start while
+set.
+
+Failures throw `EnvironmentMismatchError`, a distinct class rather than a plain
+`Error`. `src/app/sitemap.ts` swallows database errors on purpose — an
+unreachable database should degrade the sitemap, not fail the build — so
+without a distinguishable type that catch would reduce the guard to a log line
+in a build that still exits 0.
+
+Build-time paths must re-throw it via `isEnvironmentMismatch`, because a build
+that succeeds against the wrong database ships. Runtime paths need not:
+`src/app/api/cron/check-shops/route.ts` turns it into a 500 and
+`src/actions/riotAccount.ts` into a generic message, which is acceptable
+because the query never runs and the failure is visible in logs by error
+name. Any *new* build-time database read should re-throw.
+
+### What it can log, by construction
+
+The literal words `"development"`/`"production"`, and nothing else. The
+`environment_marker` table holds a single row containing nothing but that one
+word, planted per database via `src/scripts/setEnvironmentMarker.ts` — no
+hostname, no project id, nothing that would turn a log line into something
+worth hiding. The module never reads `DATABASE_URL`, so no code path can leak a
+connection string. `src/lib/verifyEnvironment.test.ts` asserts that by checking
+every logged string for URL and hostname shapes.
+
+### Why the two signals are independent
+
+Dev and production share no infrastructure — each environment is just a
+different `DATABASE_URL`/`DIRECT_URL` pair, set in a different place. The only
+realistic way to mix them is a connection string in the wrong place, which no
+amount of structure prevents. The marker lives *in* the database, so it travels
+with whichever database `DATABASE_URL` actually resolves to: a wrong connection
+string still reads back that database's own true answer. That is what makes
+this a real check rather than a circular one.
+
+The check catches the mistake in **both** directions: a production deployment
+wired to the dev database, and — more dangerously — a preview branch wired to
+the production database, where a feature branch would write to real user data.
+Previews expect the development marker, matching the branching model where
+every non-`main` branch deploys as a preview against the dev database.
+
+On mismatch the process throws. Refusing to proceed is the correct consequence
+— no request should be served against the wrong database. A missing marker
+warns rather than throws, so a fresh database is not a chicken-and-egg problem.
 
 ## Notifications subsystem
 
@@ -266,9 +325,81 @@ Runs as part of the sync job, per new skin/chroma only.
 
 Both are best-effort classification, not ground truth — fine for browse and filter, not something another feature should depend on for correctness.
 
+## Per-user limits
+
+Every ceiling on what one signed-in user can create or trigger lives in
+`src/lib/limits.ts`, and each is enforced in the Server Action - the only
+place a client cannot skip.
+
+| Limit | Value | Why |
+| --- | --- | --- |
+| Loadouts per user | 25 | Bounds row growth. Checked on both create *and* duplicate; duplicate is a create too, and checking only one leaves the cap bypassable. |
+| Wishlist items per user | 300 | The unique `(userId, skinId)` index already caps this at the catalog size; 300 is the tighter, more useful bound. Only counted when the row would be new, so re-toggling an existing entry still works at the cap. |
+| Name length | 60 chars | A row cap bounds how *many* names exist but says nothing about how *big* one is. Applied via `normalizeName`, which also handles non-string input - Server Action arguments are deserialized from the client and are not runtime-checked by the type system. |
+| Linked Riot accounts per user | 3 | More than a couple is indistinguishable from farming shop data. Applied to the create half of the upsert only, so re-linking to recover an expired token is never blocked by the limit. |
+| Manual shop check | 5 min per account | See below. |
+
+The manual shop-check cooldown is the one that isn't about storage. It is the
+only path where a user action directly causes outbound Riot traffic, and each
+run refreshes (and therefore rotates) the OAuth token as well as reading the
+shop - so an unthrottled button is precisely the "aggressive polling" pattern
+`RISKS.md` warns draws attention to unofficial integrations. A shop rotates
+once a day, so a second check inside the window cannot return anything new.
+
+The cooldown is stamped in `lastManualCheckAt` *before* the call, and is
+deliberately not derived from `lastSyncedAt`: that column only moves on
+success, which would leave the retry-after-failure path unthrottled - the case
+most likely to be hammered, and the one most likely to already be hitting a
+block.
+
+Limits are returned as a result object rather than thrown. Next.js redacts a
+thrown Server Action error's message in production, so a throw would reach the
+user as an opaque "something went wrong" - useless for a limit, whose whole
+value is saying which limit was hit and what to do about it.
+
+## Maintenance mode
+
+A global off switch, handled in `src/proxy.ts` before any route renders.
+`MAINTENANCE_MODE=1` makes every request answer with a 503 maintenance page;
+any other value is off, including `true`, `yes` and `0` - taking the site down
+by accident is its own kind of outage, so the check is deliberately exact.
+
+The point is that it runs *before the database*. Nothing in `src/lib/maintenance.ts`
+imports Prisma or opens a connection, so a site in maintenance mode generates
+no database compute at all. A switch implemented inside a page or layout would
+already have woken the database to get there, which would defeat the purpose.
+
+The page is self-contained HTML with inline styles and no external references,
+because the proxy blocks every path while the switch is on - including
+`/_next/*`. A test pins that property.
+
+It answers 503 with `Retry-After`, not 200. A 200 would tell search engines the
+notice *is* the page and let it be indexed in place of real content; 503 is the
+documented "temporarily down" signal and preserves existing rankings. There is
+deliberately no `noindex` header, which would actively remove pages rather than
+pause them. The response is `no-store` so a cached 503 can't outlive the window.
+
+`MAINTENANCE_BYPASS_SECRET` lets the operator through while everyone else sees
+the notice - without it the switch is blinding, with no way to confirm the site
+works before reopening it. Visiting any URL with `?maintenance-bypass=<secret>`
+sets an `httpOnly` cookie and redirects to strip the secret back out of the URL,
+so it stops appearing in the address bar, history and referrers. With no secret
+configured, nothing gets through: it fails closed.
+
+### Effect on route protection
+
+Maintenance mode needs to answer *every* path, so `config.matcher` is broad and
+the protected-path list moved into the proxy body as `PROTECTED_PREFIXES`. It
+previously lived in the matcher, which meant Auth.js ran only on protected paths
+and everything else skipped the proxy. The `authorized` callback in
+`auth.config.ts` redirects anyone without a session, so letting it see public
+paths would lock anonymous visitors out of the gallery - hence the explicit
+prefix test rather than a matcher-driven one. Behaviour is otherwise unchanged:
+public pages 200, protected pages 307 to `/sign-in` with a `callbackUrl`.
+
 ## Security notes
 
 - Encrypt linked-account tokens at rest; scope access to the store-check subsystem only.
 - Never log raw credentials or tokens, including in error reporting.
-- Rate-limit and monitor outbound calls to Riot so a bug can't become an accidental hammering incident.
+- Rate-limit and monitor outbound calls to Riot so a bug can't become an accidental hammering incident. The user-triggerable path is capped per account - see "Per-user limits".
 - The runtime `DATABASE_URL` uses a least-privilege role (SELECT/INSERT/UPDATE/DELETE only, no DDL). `DIRECT_URL`, used by the Prisma CLI for migrations, stays on the owner role. See `RISKS.md`.

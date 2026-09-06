@@ -53,6 +53,7 @@ export async function getShopForUser(userId: string): Promise<ShopView> {
   // per-skin upserts and the account stamp, which are not written atomically.
   const cutoff = new Date(account.lastSyncedAt.getTime() - 5 * 60_000);
 
+  // payload-ok: one account's most recent rotation only - four offers.
   const sightings = await prisma.skinSightingStat.findMany({
     where: { linkedRiotAccountId: account.id, lastSeenAt: { gte: cutoff } },
     orderBy: { lastSeenAt: "desc" },

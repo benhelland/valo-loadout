@@ -289,6 +289,11 @@ model LinkedRiotAccount {
   // manual "check shop now" click. Cleared back to null on every successful
   // (re)link - see linkRiotAccount - so a future expiry notifies again.
   expiryNotifiedAt      DateTime?
+  // Stamped before every manual "check shop now", success or failure, so the
+  // rate limit also covers retries into an error. lastSyncedAt only moves on
+  // success, which would have left the retry-a-failure path unthrottled -
+  // exactly the pattern docs/RISKS.md warns draws attention.
+  lastManualCheckAt     DateTime?
   lastSyncedAt          DateTime?
   nextPollAt            DateTime? // derived from the account's own shop reset time, not a blind interval
   createdAt             DateTime            @default(now())

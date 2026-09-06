@@ -9,9 +9,14 @@
 // bundle. This project's proxy.ts doesn't currently import anything that
 // would trigger this, but the guard costs nothing and avoids a footgun for
 // whoever adds Edge-runtime code later.
+//
+// An early report, not the enforcement point: the check lives on the Prisma
+// query path (src/lib/db.ts), because register() does not run during
+// `next build` and so would not cover builds. Both call the same memoised
+// check, so it happens exactly once.
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { verifyEnvironment } = await import("@/lib/verifyEnvironment");
-    await verifyEnvironment();
+    const { ensureEnvironmentVerified } = await import("@/lib/db");
+    await ensureEnvironmentVerified();
   }
 }

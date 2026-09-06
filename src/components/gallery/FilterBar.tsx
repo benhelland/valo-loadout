@@ -4,12 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { COLOR_FAMILIES } from "@/lib/colorFamilies";
 import { SearchAutocomplete } from "@/components/gallery/SearchAutocomplete";
-import type { Weapon, ContentTier, Theme } from "@/generated/prisma/client";
 
 interface FilterBarProps {
-  weapons: Weapon[];
-  tiers: ContentTier[];
-  themes: Theme[];
+  // Narrowed to the fields these controls render - see getFilterOptions.
+  // Keeping full model types here would let a full-table read back in.
+  weapons: { id: string; displayName: string; displayIconUrl: string | null; category: string | null }[];
+  tiers: { id: string; displayName: string }[];
+  themes: { id: string; displayName: string }[];
   vibeTags: readonly string[];
   current: {
     weaponId?: string;

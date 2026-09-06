@@ -33,7 +33,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${bebasNeue.variable} ${rajdhani.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <header className="border-b-2 border-accent/30 bg-surface/80 backdrop-blur">
+        {/* Sticky: the gallery scrolls for a long way, and losing the nav
+            offscreen is the main thing that makes a long list feel dated.
+            Already translucent with a backdrop blur, so it reads as a layer
+            over the content rather than a bar bolted on. */}
+        <header className="sticky top-0 z-40 border-b-2 border-accent/30 bg-surface/80 backdrop-blur">
           <MainNav authControl={<AuthControl />} />
         </header>
 

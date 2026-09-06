@@ -72,7 +72,10 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
         <h1 className="font-display text-5xl uppercase tracking-wide leading-none">All Skins</h1>
         {/* The "every weapon and knife" boast only holds for the unfiltered
             view - with a weapon or tier selected it's just wrong. */}
-        <p className="text-sm uppercase tracking-wide text-muted">
+        {/* aria-live so a filter change is announced. Filtering rewrites the
+            grid with no other cue, which a screen reader user would otherwise
+            have no way to notice. */}
+        <p aria-live="polite" className="text-sm uppercase tracking-wide text-muted">
           {hasActiveFilter
             ? `${total.toLocaleString()} ${total === 1 ? "match" : "matches"}`
             : `${total.toLocaleString()} skins across every weapon and knife`}
@@ -96,7 +99,12 @@ export default async function GalleryPage({ searchParams }: PageProps<"/">) {
       />
 
       {skins.length === 0 ? (
-        <p className="text-center text-muted py-16">No skins match those filters.</p>
+        <div className="flex flex-col items-center gap-3 py-20 text-center">
+          <p className="font-display text-2xl uppercase tracking-wide text-foreground">No matches</p>
+          <p className="max-w-sm text-sm text-muted">
+            Nothing in the catalog fits every filter at once. Try removing one.
+          </p>
+        </div>
       ) : (
         <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           {skins.map((skin) => (
