@@ -16,12 +16,20 @@ const nextConfig: NextConfig = {
       // Discord avatar images (sign-in profile picture) - see AuthControl.tsx.
       { protocol: "https", hostname: "cdn.discordapp.com" },
     ],
-    // Next 16 requires every quality value used anywhere to be declared here.
-    // 60 is for gallery thumbnails: a card renders a ~256px-wide image, where
-    // the difference from the default 75 is not visible but the transfer is
-    // meaningfully smaller. A gallery page requests one image per card, and
-    // that download volume - not painting - is what makes scrolling stutter.
-    qualities: [60, 75],
+    // Serve valorant-api.com's images straight from their CDN rather than
+    // through Next's image optimizer.
+    //
+    // Image optimizers meter work per unique source image per width, and this
+    // catalog is far larger than that model suits: ~2,200 source images, each
+    // with up to 16 candidate widths. These are already web-ready PNGs on a
+    // CDN, so optimizing them adds a metered middleman for little gain.
+    //
+    // The tradeoff is accepted, not free: source PNGs are 38-52 KB where an
+    // optimized thumbnail was ~6 KB, so gallery pages carry more bytes. Lazy
+    // loading (only cards scrolled into view fetch anything) and the page-size
+    // cap bound it. Re-hosting resized copies ourselves is deliberately not
+    // the answer - see docs/RISKS.md on not mirroring their assets.
+    unoptimized: true,
   },
 };
 
