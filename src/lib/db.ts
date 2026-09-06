@@ -32,20 +32,17 @@ export function ensureEnvironmentVerified(): Promise<void> {
 
 // Why the check hangs off the query path rather than src/instrumentation.ts.
 //
-// It used to live only in instrumentation's register(), which Next calls when
-// a *server* boots. `next build` does not boot a server - it renders in build
-// workers - so register() never fires during a build, and the check was
-// simply absent there. That is precisely where it was needed: on 2026-09-06 a
-// local `.env.production.local` (auto-loaded by Next during any build, at
-// higher precedence than .env.local) pointed `npm run build` at the
-// production database, and src/app/sitemap.ts queried it. Nothing objected,
-// because the only guard in the codebase was not running.
+// instrumentation's register() runs when a *server* boots. `next build` does
+// not boot a server - it renders in build workers - so a check placed there
+// does not run during a build. Builds do reach the database
+// (src/app/sitemap.ts queries it to enumerate skin URLs), so that is a path
+// the check has to cover.
 //
-// Attaching it here fixes the class rather than that one instance. Every path
-// that reaches the database - dev server, build, `next start`, and the tsx
-// scripts (sync, check-shops) - obtains its client from this module, so all
-// of them are now covered by construction. A guard that a routine command can
-// bypass entirely is not a guard.
+// Attaching it to the query path covers the class rather than one entry
+// point. Every path that reaches the database - dev server, build, `next
+// start`, and the tsx scripts (sync, check-shops) - obtains its client from
+// this module, so all of them are covered by construction. A guard a routine
+// command can bypass is not a guard.
 //
 // Cost is one await on an already-resolved promise per query after the first.
 const extended = baseClient.$extends({

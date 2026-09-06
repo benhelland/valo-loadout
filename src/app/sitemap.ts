@@ -34,10 +34,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })),
     ];
   } catch (err) {
-    // Never swallow "wrong database". This runs at build time, and a bare
-    // catch here is what let a local build read production and still exit 0 -
-    // the guard fired, logged FATAL, and the build passed anyway. An
-    // environment mismatch must fail the build loudly.
+    // Never swallow "wrong database". This runs at build time, so a bare
+    // catch would reduce the environment guard to a log line inside a build
+    // that still exits 0. An environment mismatch must fail the build.
     if (isEnvironmentMismatch(err)) throw err;
 
     // A sitemap is a nicety. If the database is unreachable, serve the static

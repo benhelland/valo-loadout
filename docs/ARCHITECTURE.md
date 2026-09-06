@@ -128,36 +128,36 @@ database says it is. The `EnvironmentMarker` row lives *in* the database, so it
 travels with the database rather than with whatever connection string points at
 it.
 
-Two properties are load-bearing, and both were learned the hard way:
+Two properties are load-bearing:
 
-**It runs on the query path, not at startup.** It used to live only in
-`src/instrumentation.ts`, whose `register()` Next calls when a *server* boots.
-`next build` does not boot a server, so the check simply never ran during a
-build — which is exactly where it was needed. It now hangs off a Prisma client
-extension in `src/lib/db.ts`, so every path that reaches the database (dev
-server, build, `next start`, and the `tsx` scripts) is covered by construction.
-It is memoised, so it costs one await on a resolved promise per query after the
-first. `instrumentation.ts` still calls it, but only to fail early with a clear
-message; it is no longer the enforcement point.
+**It runs on the query path, not at startup.** A check in
+`src/instrumentation.ts` only runs when a *server* boots, and `next build` does
+not boot a server — so it would not cover builds, which do reach the database
+via `src/app/sitemap.ts`. It hangs off a Prisma client extension in
+`src/lib/db.ts` instead, so every path that reaches the database (dev server,
+build, `next start`, and the `tsx` scripts) is covered by construction. It is
+memoised, costing one await on a resolved promise per query after the first.
+`instrumentation.ts` still calls it, but only to fail early with a clear
+message; it is not the enforcement point.
 
 **`NODE_ENV` cannot select the production database.** `NODE_ENV=production`
 means "optimized build", not "production database" — `next build` and `next
-start` set it on a laptop too. Treating those as synonyms is what allowed a
-local build holding production credentials to pass the check. Only `VERCEL_ENV`
-says whether this is a real deployment, so off-platform the expected marker is
-`development` regardless of `NODE_ENV`. A local process may reach production
-only with `ALLOW_PRODUCTION_DB_LOCALLY=1`, which is deliberately absent from
-`.env.example` so it cannot be filled in out of habit, and which logs a warning
-on every start while set.
+start` set it on a developer machine too. Only `VERCEL_ENV` says whether this
+is a real deployment, so off-platform the expected marker is `development`
+regardless of `NODE_ENV`. This matters because Next auto-loads
+`.env.<NODE_ENV>.local` ahead of `.env.local` during any build, so an env file
+named for an environment can put that environment's `DATABASE_URL` in front of
+a local build. A local process may reach production only with
+`ALLOW_PRODUCTION_DB_LOCALLY=1`, deliberately absent from `.env.example` so it
+cannot be filled in out of habit, and logged as a warning on every start while
+set.
 
 Failures throw `EnvironmentMismatchError`, a distinct class rather than a plain
 `Error`. `src/app/sitemap.ts` swallows database errors on purpose — an
-unreachable database should degrade the sitemap, not fail the build — and a bare
-`catch` there turned the guard into a log line in a build that still exited 0.
-Any catch that wraps database access must re-throw via `isEnvironmentMismatch`.
-
-Verified end to end: a local build pointed at production exits 1; the same build
-against the development database exits 0.
+unreachable database should degrade the sitemap, not fail the build — so
+without a distinguishable type that catch would reduce the guard to a log line
+in a build that still exits 0. Any catch wrapping database access must re-throw
+via `isEnvironmentMismatch`.
 
 ## Environment self-check (startup)
 

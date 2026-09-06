@@ -9,11 +9,11 @@
  * The two levers are different in kind. The quota decides *when the site gets
  * cut off*; the scale-to-zero delay decides *how fast the meter runs*.
  *
- * NOTE: the delay is NOT configurable on every plan. Free and Launch are fixed
- * at the 300s default; only Scale allows shortening it. On Launch, --suspend
- * returns "suspend interval is too short for your plan" (HTTP 412) for any
- * value below 300. Confirmed against the live API - the docs quote a 60s
- * minimum without mentioning that it is Scale-only.
+ * NOTE: the delay is not configurable on every Neon plan, and the documented
+ * 60s minimum is not universal. Where a plan does not permit the requested
+ * value the API answers HTTP 412 "suspend interval is too short for your
+ * plan" and nothing is changed. Treat the platform default as the floor
+ * unless the API says otherwise.
  *
  * Why this exists: Neon's console has no spend cap. It has *spending
  * notifications* - email at 80% and 100% of a threshold - which report that a
@@ -203,9 +203,9 @@ function describeSuspend(seconds: number | undefined): string {
  * delay changed when it did not.
  *
  * Where it is permitted, it is a large lever on cost: idle-but-awake time
- * dominates the bill when visits are spread out, so dropping 300s to 60s cuts
- * compute roughly 5x for the same traffic. But it is a Scale-plan feature -
- * Free and Launch are pinned to 300s and reject anything lower with a 412.
+ * dominates the bill when visits are spread out, so a shorter delay cuts
+ * compute substantially for the same traffic. Not every plan permits it -
+ * see the note at the top of this file.
  */
 function parseSuspendFlag(): number | null {
   const i = process.argv.indexOf("--suspend");
@@ -336,9 +336,9 @@ async function handleComputes(projectId: string, suspendSeconds: number | null):
       if (err instanceof Error && err.message.includes("suspend interval is too short")) {
         throw new Error(
           `Neon rejected a ${suspendSeconds}s scale-to-zero delay: too short for this plan.\n` +
-            `Free and Launch are fixed at the 300s default; shortening it is a Scale-plan\n` +
-            `feature. Nothing was changed - this failed before any compute was touched.\n` +
-            `On Launch, treat 300s as given and control cost through the quota and by\n` +
+            `Not every plan allows shortening it below the platform default.\n` +
+            `Nothing was changed - this failed before any compute was touched.\n` +
+            `Where the delay is fixed, cost is controlled through the quota and by\n` +
             `serving more requests from cache so they never wake the database.`,
         );
       }

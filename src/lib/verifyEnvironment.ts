@@ -41,24 +41,23 @@ export function isEnvironmentMismatch(err: unknown): err is EnvironmentMismatchE
 // whatever connection string points at it - pointed at the wrong database,
 // the row read back is still that database's own answer.
 //
-// THE BLIND SPOT THIS ONCE HAD, and why the rule below is shaped as it is:
+// NODE_ENV must never be able to select the production database on its own.
+// It means "this is an optimized build", not "this process belongs on the
+// production database" - `next build` and `next start` set it on a developer
+// machine just as readily as on a deployment. The question that matters is
+// "is this process actually running on the deployment platform?", and only
+// VERCEL_ENV answers it, so off-platform the expected marker is "development"
+// whatever NODE_ENV says.
 //
-// NODE_ENV === "production" was originally treated as meaning "this process
-// belongs on the production database". It does not. It means "this is an
-// optimized build", and `next build` / `next start` set it on a laptop just
-// as readily as on a deployment. On 2026-09-06 a local `.env.production.local`
-// - a filename Next auto-loads at higher precedence than `.env.local` during
-// any build - supplied the production DATABASE_URL to `npm run build`. The
-// marker said "production", NODE_ENV said "production", and this check
-// happily agreed with itself while a developer machine queried the live
-// database (via src/app/sitemap.ts, which reads it at build time).
+// This matters because env files can supply production credentials locally.
+// Next auto-loads `.env.<NODE_ENV>.local` at higher precedence than
+// `.env.local` during any build, so a file named for an environment can put
+// that environment's DATABASE_URL in front of a local build without anything
+// being typed on the command line.
 //
-// The lesson generalises: the question is not "what build mode is this?" but
-// "is this process actually running on the deployment platform?". Only
-// VERCEL_ENV answers that, so off-Vercel the expected marker is
-// "development" regardless of NODE_ENV. A local process may only reach the
-// production database by setting ALLOW_PRODUCTION_DB_LOCALLY=1, which is
-// deliberately absent from .env.example so it cannot be filled in by habit.
+// A local process may reach the production database only with
+// ALLOW_PRODUCTION_DB_LOCALLY=1, deliberately absent from .env.example so it
+// cannot be filled in by habit.
 //
 // Both dependencies are injectable so this can be unit-tested without a live
 // database (src/lib/verifyEnvironment.test.ts), the same pattern used for

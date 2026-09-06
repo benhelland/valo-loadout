@@ -29,10 +29,10 @@ describe("verifyEnvironment", () => {
     );
   });
 
-  // The regression this whole section exists for. NODE_ENV=production off a
-  // deployment means "optimized build", not "production database" - `next
-  // build` and `next start` set it on a laptop. This case used to PASS,
-  // which is how a local build came to query the live database.
+  // NODE_ENV=production off a deployment means "optimized build", not
+  // "production database" - `next build` and `next start` set it on a
+  // developer machine too, so it must not on its own grant access to the
+  // production database.
   it("throws when a LOCAL production build reaches the production database", async () => {
     await assert.rejects(
       () =>
@@ -158,11 +158,9 @@ describe("verifyEnvironment", () => {
     // Local dev, local builds and CI all run with no VERCEL_ENV, and all of
     // them belong on the development database.
     //
-    // This replaces an earlier test asserting that NODE_ENV was the fallback
-    // signal. That was the blind spot: it made `nodeEnv: "production"` off a
-    // deployment expect the PRODUCTION database, so a local `next build`
-    // holding production credentials passed the check instead of failing it.
-    // NODE_ENV must not be able to select the production database on its own.
+    // NODE_ENV must not be able to select the production database on its
+    // own: treating it as the fallback signal would let any local build
+    // holding production credentials pass this check instead of failing it.
     for (const nodeEnv of ["development", "production", "test", undefined]) {
       await assert.doesNotReject(
         () =>
@@ -178,9 +176,8 @@ describe("verifyEnvironment", () => {
 
   // The error must be identifiable by type, not by message. src/app/sitemap.ts
   // deliberately swallows database errors (an unreachable database should not
-  // fail a build), and before this distinction existed that catch turned the
-  // guard into a log line in a build that still exited 0 - the guard fired and
-  // the mistake shipped anyway.
+  // fail a build), so without a distinguishable type that catch would reduce
+  // the guard to a log line in a build that still exits 0.
   it("throws a typed error both catchers and callers can distinguish", async () => {
     for (const deps of [
       { prisma: fakePrisma({ name: "production" }), nodeEnv: "production", vercelEnv: undefined },
