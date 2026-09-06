@@ -7,10 +7,13 @@
  *   npm run neon-quota -- --suspend 60  # set the scale-to-zero delay
  *
  * The two levers are different in kind. The quota decides *when the site gets
- * cut off*; the scale-to-zero delay decides *how fast the meter runs*. Idle-
- * but-awake time dominates the bill when visits are spread out, so lowering
- * the delay from the 300s default to 60s cuts compute roughly 5x for the same
- * traffic - a bigger win than any quota change, and it costs no availability.
+ * cut off*; the scale-to-zero delay decides *how fast the meter runs*.
+ *
+ * NOTE: the delay is NOT configurable on every plan. Free and Launch are fixed
+ * at the 300s default; only Scale allows shortening it. On Launch, --suspend
+ * returns "suspend interval is too short for your plan" (HTTP 412) for any
+ * value below 300. Confirmed against the live API - the docs quote a 60s
+ * minimum without mentioning that it is Scale-only.
  *
  * Why this exists: Neon's console has no spend cap. It has *spending
  * notifications* - email at 80% and 100% of a threshold - which report that a
@@ -199,10 +202,10 @@ function describeSuspend(seconds: number | undefined): string {
  * Setting one and assuming the other followed is the obvious way to think the
  * delay changed when it did not.
  *
- * It is also the biggest lever on cost. Idle-but-awake time dominates the bill
- * when visits are spread out, so dropping 300s to 60s cuts compute roughly 5x
- * for the same traffic - far more than tightening the quota, which only
- * decides when the site gets cut off.
+ * Where it is permitted, it is a large lever on cost: idle-but-awake time
+ * dominates the bill when visits are spread out, so dropping 300s to 60s cuts
+ * compute roughly 5x for the same traffic. But it is a Scale-plan feature -
+ * Free and Launch are pinned to 300s and reject anything lower with a 412.
  */
 function parseSuspendFlag(): number | null {
   const i = process.argv.indexOf("--suspend");
@@ -318,12 +321,29 @@ async function handleComputes(projectId: string, suspendSeconds: number | null):
     console.log(`\nSetting scale-to-zero delay to ${suspendSeconds}s...`);
 
     // 1. The project default, so computes created later inherit it.
-    await api(`/projects/${projectId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        project: { default_endpoint_settings: { suspend_timeout_seconds: suspendSeconds } },
-      }),
-    });
+    try {
+      await api(`/projects/${projectId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          project: { default_endpoint_settings: { suspend_timeout_seconds: suspendSeconds } },
+        }),
+      });
+    } catch (err) {
+      // Neon answers 412 for a value below the plan's floor. Its own message
+      // ("suspend interval is too short for your plan") never says what the
+      // floor is, which sends you hunting the console for a setting that is
+      // not there to find.
+      if (err instanceof Error && err.message.includes("suspend interval is too short")) {
+        throw new Error(
+          `Neon rejected a ${suspendSeconds}s scale-to-zero delay: too short for this plan.\n` +
+            `Free and Launch are fixed at the 300s default; shortening it is a Scale-plan\n` +
+            `feature. Nothing was changed - this failed before any compute was touched.\n` +
+            `On Launch, treat 300s as given and control cost through the quota and by\n` +
+            `serving more requests from cache so they never wake the database.`,
+        );
+      }
+      throw err;
+    }
     console.log("  project default updated (applies to computes created from now on)");
 
     // 2. Every existing compute, which the project default does NOT cover.
