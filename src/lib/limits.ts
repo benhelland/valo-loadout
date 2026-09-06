@@ -1,8 +1,8 @@
 // Per-user ceilings on everything a signed-in user can create or trigger.
 //
 // None of these are close to binding for real use - they exist so that a
-// single account (or a script driving one) cannot turn a free-tier database
-// or Riot's rate limiter into someone else's problem. Every limit is enforced
+// single account (or a script driving one) cannot turn the database or Riot's
+// rate limiter into someone else's problem. Every limit is enforced
 // server-side in the Server Action, because that is the only place a client
 // cannot skip.
 //

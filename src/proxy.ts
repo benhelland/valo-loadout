@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { NextFetchEvent } from "next/server";
 import NextAuth from "next-auth";
 import { authConfig } from "@/auth.config";
+import { isProtected } from "@/lib/protectedPaths";
 import {
   BYPASS_COOKIE,
   BYPASS_PARAM,
@@ -40,26 +41,13 @@ const authProxy = auth as unknown as ProxyHandler;
 // product decision - only the loadout builder and the account/notification
 // area require signing in.
 //
-// These used to live in `config.matcher`, which meant the Auth.js handler ran
-// only on protected paths and everything else skipped the proxy entirely.
-// Maintenance mode has to answer *every* path, so the matcher is now
-// deliberately broad and the protected-path decision moved here. The
+// Protected-path matching lives in src/lib/protectedPaths.ts so it can be
+// tested without loading next-auth or the Edge-runtime proxy machinery. The
+// matcher below is deliberately broad because maintenance mode has to answer
+// *every* path, so that decision cannot be expressed in `config.matcher`. The
 // `authorized` callback in auth.config.ts redirects anyone without a session,
-// so running it on public paths would lock anonymous visitors out of the
+// so running Auth.js on public paths would lock anonymous visitors out of the
 // gallery - hence the explicit test rather than letting it see everything.
-//
-// Add new protected sections here. As defense in depth, getCurrentUserId()
-// (src/lib/auth.ts) independently verifies the session too, in case this list
-// ever drifts out of sync with a new call site. Per Next.js's own docs,
-// Server Actions are POSTs to the route where they're used rather than
-// separate routes, so covering a page also covers every action called from it.
-const PROTECTED_PREFIXES = ["/loadouts", "/account", "/wishlist", "/shop"];
-
-function isProtected(pathname: string): boolean {
-  return PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-}
 
 function maintenanceResponse(): NextResponse {
   return new NextResponse(maintenanceHtml(), {
@@ -86,7 +74,14 @@ function maintenanceResponse(): NextResponse {
 export function proxy(req: NextRequest, event: NextFetchEvent) {
   if (isMaintenanceEnabled()) {
     const secret = bypassSecret();
-    const fromQuery = req.nextUrl.searchParams.get(BYPASS_PARAM) ?? undefined;
+    // URLSearchParams applies form decoding, which turns "+" into a space.
+    // Base64 secrets contain "+" routinely, so the value read back would not
+    // match what was pasted into the URL, and the bypass would silently fail
+    // for a large share of generated secrets. The documented generator now
+    // emits a URL-safe alphabet; restoring the character here keeps any secret
+    // generated before that from being locked out.
+    const rawQuery = req.nextUrl.searchParams.get(BYPASS_PARAM) ?? undefined;
+    const fromQuery = rawQuery?.includes(" ") ? rawQuery.replace(/ /g, "+") : rawQuery;
     const fromCookie = req.cookies.get(BYPASS_COOKIE)?.value;
 
     // Fails closed: with no secret configured, nothing gets through.
@@ -121,9 +116,16 @@ export function proxy(req: NextRequest, event: NextFetchEvent) {
 // Everything excluded here is either served before the proxy runs or would
 // make the maintenance page unable to render:
 //   _next/static, _next/image - build output and the image loader
-//   favicon/icon/robots/sitemap - static files at the root
+//   favicon.ico, icon.svg, robots.txt - static, and robots.txt's route reads
+//     no data
 // The maintenance page itself is self-contained HTML with inline styles, so
 // blocking asset paths during an outage costs it nothing.
+//
+// sitemap.xml is deliberately NOT excluded, despite looking like a static file
+// alongside robots.txt: it is a route that queries the whole skin table, and it
+// revalidates daily. Excluding it would let a crawler wake the database during
+// a maintenance window, contradicting the one property this feature exists for.
+// A 503 with Retry-After is the right answer to a crawler mid-window anyway.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt).*)"],
 };

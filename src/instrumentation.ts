@@ -10,10 +10,10 @@
 // would trigger this, but the guard costs nothing and avoids a footgun for
 // whoever adds Edge-runtime code later.
 //
-// This is now an *early* report, not the enforcement point. The check itself
-// lives on the Prisma query path (src/lib/db.ts) because register() does not
-// run during `next build`, which left builds unguarded - see the note there.
-// Both call the same memoised check, so it still happens exactly once.
+// An early report, not the enforcement point: the check lives on the Prisma
+// query path (src/lib/db.ts), because register() does not run during
+// `next build` and so would not cover builds. Both call the same memoised
+// check, so it happens exactly once.
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { ensureEnvironmentVerified } = await import("@/lib/db");

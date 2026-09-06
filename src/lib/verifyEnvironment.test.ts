@@ -59,6 +59,22 @@ describe("verifyEnvironment", () => {
     );
   });
 
+  it("keeps the development database usable while the opt-in is set", async () => {
+    // The opt-in must WIDEN what is acceptable, not replace it. If it made
+    // "production" the expected marker, then setting it once - the natural
+    // thing to do for a local job that talks to production - would make every
+    // ordinary `npm run dev` against the development database fail, with an
+    // error blaming a DATABASE_URL that is in fact correct.
+    await assert.doesNotReject(() =>
+      verifyEnvironment({
+        prisma: fakePrisma({ name: "development" }),
+        nodeEnv: "development",
+        vercelEnv: undefined,
+        allowProductionDbLocally: true,
+      }),
+    );
+  });
+
   it("allows a local production connection only with the explicit opt-in", async () => {
     await assert.doesNotReject(() =>
       verifyEnvironment({

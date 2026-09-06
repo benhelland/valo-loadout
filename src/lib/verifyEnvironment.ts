@@ -85,19 +85,22 @@ export function isEnvironmentMismatch(err: unknown): err is EnvironmentMismatchE
 // blind-spot note in the module doc above. `nodeEnv` is still taken so the
 // caller reports what it saw, but it deliberately cannot select the
 // production database on its own.
-export function expectedMarkerFor(
-  vercelEnv: string | undefined,
-  nodeEnv: string | undefined,
-  allowProductionDbLocally = false,
-): string {
+export function expectedMarkerFor(vercelEnv: string | undefined): string {
   if (vercelEnv === "production") return "production";
-  if (vercelEnv === "preview" || vercelEnv === "development") return "development";
 
-  // Not a deployment: a developer machine, or CI. `next build` and
-  // `next start` both set NODE_ENV=production here, which says nothing about
-  // which database is appropriate.
-  void nodeEnv;
-  return allowProductionDbLocally ? "production" : "development";
+  // Everything else - preview and development deployments, and any process
+  // not on the platform at all (developer machine, CI) - belongs on the
+  // development database. NODE_ENV is deliberately not consulted: `next
+  // build` and `next start` set it to "production" locally, which says
+  // nothing about which database is appropriate.
+  //
+  // ALLOW_PRODUCTION_DB_LOCALLY is handled by verifyEnvironment rather than
+  // here, because it must *widen* what is acceptable rather than replace it.
+  // Returning "production" for it would make the development database a
+  // mismatch, so setting the flag once - which is the natural thing to do for
+  // a local job that talks to production - would break ordinary local
+  // development against the development database.
+  return "development";
 }
 
 /** True when this process is running on the deployment platform at all. */
@@ -118,7 +121,7 @@ export async function verifyEnvironment(
   const nodeEnv = deps.nodeEnv ?? process.env.NODE_ENV;
   const allowLocal =
     deps.allowProductionDbLocally ?? process.env.ALLOW_PRODUCTION_DB_LOCALLY === "1";
-  const expected = expectedMarkerFor(vercelEnv, nodeEnv, allowLocal);
+  const expected = expectedMarkerFor(vercelEnv);
 
   const marker = await prisma.environmentMarker.findFirst();
 
@@ -159,6 +162,18 @@ export async function verifyEnvironment(
     );
   }
 
+  // Checked before the generic comparison below: with the opt-in set, BOTH
+  // databases are acceptable from a local process. `expected` is still
+  // "development", so reaching the comparison with a production marker would
+  // throw despite the operator having explicitly allowed it.
+  if (allowLocal && !isDeployed(vercelEnv) && marker.name === "production") {
+    console.warn(
+      `[env-check] WARNING: connected to the PRODUCTION database from a local process, ` +
+        `permitted only because ALLOW_PRODUCTION_DB_LOCALLY=1. Unset it when finished.`,
+    );
+    return;
+  }
+
   if (marker.name !== expected) {
     // Deliberately thrown, not just logged - see the module doc for why a
     // silent mismatch here is exactly the "data got jumbled" failure mode
@@ -173,17 +188,6 @@ export async function verifyEnvironment(
     throw new EnvironmentMismatchError(
       `Environment mismatch: database is "${marker.name}", process expected "${expected}".`,
     );
-  }
-
-  if (allowLocal && !isDeployed(vercelEnv) && marker.name === "production") {
-    // Loud on every start, deliberately. An escape hatch set once and
-    // forgotten is how the original problem happened; this makes leaving it
-    // on impossible to overlook.
-    console.warn(
-      `[env-check] WARNING: connected to the PRODUCTION database from a local process, ` +
-        `permitted only because ALLOW_PRODUCTION_DB_LOCALLY=1. Unset it when finished.`,
-    );
-    return;
   }
 
   console.log(`[env-check] Database environment: "${marker.name}" (matches). OK.`);

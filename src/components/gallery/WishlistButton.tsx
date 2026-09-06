@@ -54,6 +54,12 @@ export function WishlistButton({ skinId, initialWishlisted, isSignedIn, variant 
           if (!result.ok) {
             setWishlisted(false);
             setLimitMessage(result.message);
+            // Cleared on a timer as well as on the next click. In the labeled
+            // variant this message replaces the button's own text, so leaving
+            // it up means the control reads "your wishlist is full" until the
+            // user happens to press it again - including on cards where it
+            // would have said something else.
+            window.setTimeout(() => setLimitMessage(null), 6000);
           }
         } else {
           await removeFromWishlist(skinId);

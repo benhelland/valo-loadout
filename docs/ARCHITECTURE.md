@@ -156,23 +156,44 @@ Failures throw `EnvironmentMismatchError`, a distinct class rather than a plain
 `Error`. `src/app/sitemap.ts` swallows database errors on purpose — an
 unreachable database should degrade the sitemap, not fail the build — so
 without a distinguishable type that catch would reduce the guard to a log line
-in a build that still exits 0. Any catch wrapping database access must re-throw
-via `isEnvironmentMismatch`.
+in a build that still exits 0.
 
-## Environment self-check (startup)
+Build-time paths must re-throw it via `isEnvironmentMismatch`, because a build
+that succeeds against the wrong database ships. Runtime paths need not:
+`src/app/api/cron/check-shops/route.ts` turns it into a 500 and
+`src/actions/riotAccount.ts` into a generic message, which is acceptable
+because the query never runs and the failure is visible in logs by error
+name. Any *new* build-time database read should re-throw.
 
-Dev and production share no infrastructure — each environment is just a different `DATABASE_URL`/`DIRECT_URL` pair, set in a different place. So the only realistic way to mix them is a connection string copy-pasted into the wrong place, which no amount of structure prevents.
+### What it can log, by construction
 
-`src/lib/verifyEnvironment.ts`, run once per process from `src/instrumentation.ts` (Next.js's startup hook), catches that at boot:
+The literal words `"development"`/`"production"`, and nothing else. The
+`environment_marker` table holds a single row containing nothing but that one
+word, planted per database via `src/scripts/setEnvironmentMarker.ts` — no
+hostname, no project id, nothing that would turn a log line into something
+worth hiding. The module never reads `DATABASE_URL`, so no code path can leak a
+connection string. `src/lib/verifyEnvironment.test.ts` asserts that by checking
+every logged string for URL and hostname shapes.
 
-- The `environment_marker` table holds a single row containing nothing but the literal word `"development"` or `"production"`, planted once per database via `src/scripts/setEnvironmentMarker.ts`. It deliberately holds nothing else — no hostname, no project id, nothing that would turn a log line into something worth hiding.
-- At startup that word is compared against the deployment's own environment — `VERCEL_ENV` where it exists, falling back to `NODE_ENV` locally. Both are set by tooling and never typed into an env file, so neither can be copy-paste-mismatched the way `DATABASE_URL` can.
-- **`NODE_ENV` alone is not sufficient on Vercel**, which sets it to `production` for preview deployments as well as real ones. `VERCEL_ENV` is what separates `production` / `preview` / `development`. Only `production` expects the production marker; previews expect the development one, matching the branching model where every non-`main` branch deploys as a preview against the dev database.
-- That mapping means the check catches the mistake in **both** directions: a production deployment wired to the dev database, and — more dangerously — a preview branch wired to the production database, where a feature branch would write to real user data.
-- The two signals are independent, which is what makes this a real check rather than a circular one: the marker lives *in* the database, so it travels with whichever database `DATABASE_URL` actually resolves to. A wrong connection string still reads back that database's own true answer.
-- On mismatch the process throws during startup. Refusing to boot is the correct consequence — no request should be served against the wrong database. A missing marker warns rather than throws, so a fresh database isn't a chicken-and-egg problem.
+### Why the two signals are independent
 
-**What it can log, by construction:** the literal words `"development"`/`"production"`, and nothing else. The module never reads `DATABASE_URL`, so no code path can leak a hostname or credential. `src/lib/verifyEnvironment.test.ts` asserts that property by checking every logged string for URL and hostname shapes.
+Dev and production share no infrastructure — each environment is just a
+different `DATABASE_URL`/`DIRECT_URL` pair, set in a different place. The only
+realistic way to mix them is a connection string in the wrong place, which no
+amount of structure prevents. The marker lives *in* the database, so it travels
+with whichever database `DATABASE_URL` actually resolves to: a wrong connection
+string still reads back that database's own true answer. That is what makes
+this a real check rather than a circular one.
+
+The check catches the mistake in **both** directions: a production deployment
+wired to the dev database, and — more dangerously — a preview branch wired to
+the production database, where a feature branch would write to real user data.
+Previews expect the development marker, matching the branching model where
+every non-`main` branch deploys as a preview against the dev database.
+
+On mismatch the process throws. Refusing to proceed is the correct consequence
+— no request should be served against the wrong database. A missing marker
+warns rather than throws, so a fresh database is not a chicken-and-egg problem.
 
 ## Notifications subsystem
 
