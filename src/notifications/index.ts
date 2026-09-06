@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { NotificationChannel } from "@/generated/prisma/client";
 import { sendDirectMessage } from "@/discord/bot";
+import { siteUrl } from "@/lib/siteUrl";
 
 // The seam between the Discord bot client (src/discord/, no database access)
 // and this app's data - dedup state and DB writes live here, same pattern as
@@ -8,7 +9,11 @@ import { sendDirectMessage } from "@/discord/bot";
 // callers: a notification failure must never turn a successful shop check
 // (or sign-in) into a reported failure.
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+// Shared with robots.txt/sitemap.xml so there is one answer to "what is this
+// deployment's public origin". Notably this now resolves on a preview
+// deployment too, where NEXT_PUBLIC_APP_URL is deliberately unset - a DM
+// linking to localhost would be useless.
+const APP_URL = siteUrl();
 
 // A shop's contents reset roughly every 24h - this window is what "already
 // notified for this shop" means in practice. Wide enough that one cycle
