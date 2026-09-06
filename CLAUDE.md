@@ -6,7 +6,7 @@ Guidance for Claude when working in this repo. Read this first, every session.
 
 **Valoadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
 
-**Status: Phases 1–3 feature-complete and deployed** at https://valoadout.com. The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. What's still open: store notifications can't actually deliver (no Discord bot or server provisioned, and no poller runs — Vercel Cron is ruled out on the free tier), and whether Riot's Cloudflare permits the poller from a datacenter IP is unanswered. See `docs/ROADMAP.md` Phase 3.
+**Status: Phases 1–3 feature-complete.** The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. Two things are built but not yet verified against live conditions: Discord notification delivery, which no-ops until a bot token and guild id are supplied, and whether Riot's Cloudflare permits the poller from a datacenter IP. See `docs/ROADMAP.md` Phase 3.
 
 Don't assume any framework, package, or file structure beyond what's written in these docs — propose a change to the docs before writing code that contradicts them.
 
@@ -49,55 +49,6 @@ Don't assume any framework, package, or file structure beyond what's written in 
 - `npx prisma migrate dev` — create and apply a migration (needs a real `DIRECT_URL`). It refuses to run non-interactively, so when a change triggers a warning prompt, generate the SQL with `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script --config prisma.config.ts`, write it to `prisma/migrations/<timestamp>_<name>/migration.sql` by hand, then `npx prisma migrate deploy`
 - `npm test` — unit tests via Node's built-in runner (no Jest/Vitest). Focused on the security controls where a silent regression would be worst — encryption, OAuth parsing, the auth adapter, the environment check. Add tests in that category; don't chase coverage on UI or glue code
 - `npm run check-shops` — run the store-check poll for every account whose `nextPollAt` has passed (the same job as `/api/cron/check-shops`)
-
-### Never open a pull request unless asked
-
-Commit and push to a feature branch freely. **Do not run `gh pr create`, or
-open a PR by any other means, unless the user explicitly asks for one.** Push
-the branch, say it is ready, and let them open it.
-
-The reason is asymmetric consequences on a public repo. A branch can be
-deleted: its commits become unreachable and are garbage-collected. A pull
-request cannot be deleted by anyone but GitHub Support, and `refs/pull/N/head`
-keeps every commit and the full diff publicly readable forever, even after the
-branch is gone. Anything that reaches a PR is effectively published.
-
-The same asymmetry applies to what goes in a commit at all:
-
-- **Operational and account detail stays out of version control.** Which
-  services are used, how environments are wired, dashboard URLs, per-plan
-  quotas, DNS records, recovery runbooks. That is the user's context, not part
-  of the software. `docs/OPERATIONS.md` is gitignored for exactly this reason -
-  do not re-add it, reference it from tracked files, or reproduce its contents
-  in code comments.
-- **Schema, code and their rationale are fine.** `prisma/schema.prisma` is
-  source; documenting its columns in `ARCHITECTURE.md` publishes nothing new.
-  The test is whether it describes *the software* or *the person running it*.
-
-When in doubt about whether something belongs in the repo, ask before
-committing, not after pushing.
-
-### Commit messages
-
-A subject line, then a plain list of what changed. Nothing else.
-
-```
-Add the wishlist and Discord notifications
-
-- Add wishlist actions, toggle button and the /wishlist page
-- Add a Discord bot client with guild join and DM send
-- Add wishlist-match and link-expiry notifications
-- Remove the webhook URL column; add migration
-```
-
-- **List what changed, not why, and not how it was found.** No rationale essays, no post-mortems, no "this was measured / verified / caught before shipping".
-- **One bullet per meaningful change**, not per file. Four or five bullets is plenty; a commit needing fifteen is usually two commits.
-- **No first person, no session or workflow references** — nothing about what was tried, what was learned, how many attempts it took, or what tooling produced the change.
-- Rationale that's worth keeping goes in the docs or a code comment, where it can be maintained. A commit message is a changelog entry, not a write-up.
-
-The same voice rule applies to the docs: they're reference material, not a development diary. Record what is true now, not the story of arriving at it.
-
-**`vercel deploy` deploys to PRODUCTION, not to a preview.** With no Git connection there is no branch to infer a preview from, so the CLI targets production by default — `--prod` is not required, and omitting it is not a safeguard. Use `npx vercel deploy --target=preview` for anything that must not touch the production database. Confirm what you got with `npx vercel inspect <url>` and check the `target` line before assuming.
 
 **Restart `npm run dev` after any schema change.** The dev server holds a generated Prisma client in memory and does not pick up a regenerated one on hot reload. The error never names the real cause — symptoms include `Unknown argument` on a field that clearly exists, and `The column '(not available)' does not exist in the current database` on a column that was just dropped. Before debugging either, run the same query from a fresh `tsx` script; if that works, the code is fine and the server is stale.
 
