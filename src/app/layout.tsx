@@ -3,6 +3,7 @@ import { Bebas_Neue, Rajdhani } from "next/font/google";
 import { AuthControl } from "@/components/auth/AuthControl";
 import { MainNav } from "@/components/nav/MainNav";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 // Display font for big headers - the closest free stand-in for the VALORANT
@@ -70,6 +71,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             coming back" - the question that otherwise needs reading raw
             deployment logs to guess at. */}
         <Analytics />
+
+        {/* Core Web Vitals measured from real visits rather than a synthetic
+            lab run, so the score reflects the devices and networks people
+            actually use. Reporting only - it renders nothing. */}
+        <SpeedInsights />
       </body>
     </html>
   );
