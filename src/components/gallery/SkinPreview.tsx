@@ -133,8 +133,8 @@ export function SkinPreview({
   // own icon so the progression is visible, falling back to the high-res
   // render only where a given level lacks its own. For skins with just a
   // single level (no progression to show), always prefer the high-res
-  // render - that's what was previously falling back to a small icon and
-  // looking low-res by default.
+  // render: falling back to the level's small icon there leaves the default
+  // view looking low-res for no gain, since there is no progression to show.
   const defaultChroma = skin.chromas[0];
   const hasMultipleLevels = skin.levels.length > 1;
   const stillImageUrl = activeChroma
@@ -497,12 +497,12 @@ export function SkinPreview({
           </button>
         ) : null}
 
-        {/* The gallery previously had no route into the loadout builder at
-            all: "Add to Loadout" only existed when you'd arrived from a
-            specific weapon slot, so anyone who found a skin while browsing
-            had to abandon the page, go to /loadouts, pick a loadout, pick
-            the slot, and find the skin again. Melee skins are excluded from
-            neither - skin.weaponId covers knives too. */}
+        {/* A route into the loadout builder for someone who found this skin
+            while browsing. Without it, "Add to loadout" would exist only when
+            arriving from a specific weapon slot, forcing a browsing user to
+            leave the page, go to /loadouts, pick a loadout, pick the slot and
+            find the skin again. Melee is included - skin.weaponId covers
+            knives too. */}
         {!loadoutContext && loadouts && skin.weaponId ? (
           <div className="mt-6 border-t border-border pt-6">
             {loadouts.length === 0 ? (

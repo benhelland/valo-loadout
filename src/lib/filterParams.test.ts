@@ -10,11 +10,10 @@ import {
 
 const REAL_UUID = "18609205-4edb-5966-cff8-0fba0230ba1e";
 
-// The regression these guard: an unvalidated query param reached a Prisma
-// `where` clause, and a NUL byte in it made Postgres reject the query
-// outright (`invalid byte sequence for encoding "UTF8": 0x00`) - turning a
-// junk URL into a 500 instead of an empty result set. Verified against the
-// live app before the fix: /?color=%00bad and four sibling params all 500'd.
+// What these guard: a query param that reaches a Prisma `where` clause
+// unvalidated. A NUL byte in one makes Postgres reject the query outright
+// (`invalid byte sequence for encoding "UTF8": 0x00`), turning a junk URL such
+// as /?color=%00bad into a 500 rather than an empty result set.
 
 describe("resolveCatalogId", () => {
   it("accepts a real catalog uuid", () => {

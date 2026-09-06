@@ -80,9 +80,9 @@ export async function listLoadoutSummaries(userId: string) {
 /**
  * Which of this user's loadouts each of the given skins is assigned in.
  * Lets the wishlist and skin detail pages cross-reference the loadout
- * builder instead of the three features being blind to each other ("is this
- * one I've already picked?" was previously unanswerable without opening the
- * board). One query for a whole page of cards, not one per card.
+ * builder rather than the three features being blind to each other - it is
+ * what makes "is this one I have already picked?" answerable without opening
+ * the board. One query for a whole page of cards, not one per card.
  */
 export async function getLoadoutMembership(
   userId: string,

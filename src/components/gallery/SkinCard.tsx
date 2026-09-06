@@ -36,9 +36,9 @@ interface SkinCardProps {
 export async function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist, badge }: SkinCardProps) {
   const price = resolveSkinPrice(skin, await getPriceEstimates());
   // Full opacity, not the API's own 0.2 alpha: this is the card's rarity
-  // signal, so it has to actually read. Rarity is the primary way people
-  // sort skins mentally, and it was previously communicated only by a 12px
-  // icon on a 20%-opacity wash - effectively invisible across a grid.
+  // signal, so it has to actually read. Rarity is the primary way people sort
+  // skins mentally, and a 12px icon on a 20%-opacity wash is effectively
+  // invisible across a grid.
   const tierColor = tierColorToCss(skin.contentTier?.highlightColor, 1);
   const tierGlow = tierColorToCss(skin.contentTier?.highlightColor, 0.28);
 
@@ -71,9 +71,9 @@ export async function SkinCard({ skin, hrefBase = "/skins", matchColor, wishlist
         href={href}
         style={
           {
-            // Driven by data we already sync but previously barely used. The
-            // hover glow is the tier's own hue rather than a global accent,
-            // so hovering reinforces rarity instead of overriding it.
+            // Driven by the tier colour the sync already stores. The hover
+            // glow is the tier's own hue rather than a global accent, so
+            // hovering reinforces rarity instead of overriding it.
             "--tier": tierColor ?? "var(--border)",
             "--tier-glow": tierGlow ?? "transparent",
           } as React.CSSProperties

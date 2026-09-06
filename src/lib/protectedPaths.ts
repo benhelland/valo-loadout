@@ -1,11 +1,10 @@
 // Which routes require a signed-in user.
 //
 // Kept in its own module, separate from src/proxy.ts, so it can be tested
-// without pulling in next-auth and the Edge-runtime proxy machinery. The
-// matching used to be declarative (`config.matcher` entries like
-// "/loadouts/:path*"), and hand-written prefix logic is easier to get subtly
-// wrong - "/loadouts-public" must not match "/loadouts" - so the boundary is
-// pinned by tests rather than by reading.
+// without pulling in next-auth and the Edge-runtime proxy machinery. Prefix
+// matching written by hand is easy to get subtly wrong - "/loadouts-public"
+// must not match "/loadouts" - so the boundary is pinned by tests rather than
+// left to reading.
 //
 // Gallery and buddy browsing stay fully open to anonymous visitors, per
 // explicit product decision; only the loadout builder and the account /

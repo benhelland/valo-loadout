@@ -24,8 +24,8 @@ export async function AuthControl() {
 
   // h-9 on every child matches the nav links' box exactly, and one shared
   // type scale (text-sm, tracking-widest) keeps this row on the same optical
-  // line as them - previously the avatar, name and sign-out were three
-  // different sizes sitting at three different heights.
+  // line as them. The avatar, name and sign-out must share a size and
+  // baseline; three different ones read as three unrelated controls.
   return (
     <div className="flex h-9 items-center gap-4">
       <Link

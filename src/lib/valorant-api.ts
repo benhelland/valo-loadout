@@ -1,6 +1,8 @@
 // Thin client for valorant-api.com (unofficial, community-maintained).
-// Schema confirmed against the live API on 2026-08-28 - see docs/ARCHITECTURE.md.
-// Re-verify field names if this hasn't been touched in a while; it's unversioned.
+// The API is unversioned and its field names are not guaranteed stable, so
+// treat this schema as a snapshot: re-verify against the live response before
+// relying on a field that has not been exercised recently.
+// See docs/ARCHITECTURE.md.
 
 const BASE_URL = process.env.VALORANT_API_BASE_URL ?? "https://valorant-api.com/v1";
 

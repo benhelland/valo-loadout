@@ -24,11 +24,10 @@ describe("combo link round-trip", () => {
 
 describe("decodeCombo rejects tampered tokens", () => {
   it("rejects arbitrary junk", () => {
-    // The regression: base64 decoding is NOT validation. Buffer.from(x,
-    // "base64") silently ignores invalid characters instead of throwing, so
-    // this used to decode to arbitrary bytes, pass the truthiness check, and
-    // reach Postgres - which rejected the NUL bytes with a 500 rather than
-    // the intended 404.
+    // Base64 decoding is NOT validation. Buffer.from(x, "base64") silently
+    // ignores invalid characters instead of throwing, so junk decodes to
+    // arbitrary bytes that pass a truthiness check and reach Postgres, which
+    // rejects the NUL bytes with a 500 rather than the intended 404.
     for (const bad of ["GARBAGE_TOKEN_xxx", "!!!!", "x", ""]) {
       assert.equal(decodeCombo(bad), null, JSON.stringify(bad));
     }

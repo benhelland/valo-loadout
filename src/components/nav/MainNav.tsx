@@ -11,11 +11,10 @@ const LINKS = [
   { href: "/shop", label: "Your Shop" },
 ];
 
-// The header used to be a single non-wrapping flex row. With three nav items
-// it overflowed the viewport on phones - the whole document scrolled
-// sideways (measured: 502px of content in a 375px viewport) and "Wishlist"
-// was simply off-screen with no way to reach it. Links collapse into a
-// toggle below the md breakpoint instead.
+// Links collapse into a toggle below the md breakpoint. A single
+// non-wrapping row does not fit three nav items on a phone - 502px of content
+// in a 375px viewport - which scrolls the whole document sideways and leaves
+// the last item off-screen with no way to reach it.
 //
 // `authControl` is passed in as a node rather than imported, because the
 // real control (src/components/auth/AuthControl.tsx) is an async server
@@ -56,9 +55,8 @@ export function MainNav({ authControl }: { authControl: React.ReactNode }) {
             ))}
           </nav>
 
-          {/* Separates navigation from account actions, which are a
-              different kind of control and were previously reading as a
-              fourth nav item. */}
+          {/* Separates navigation from account actions. They are a different
+              kind of control and read as another nav item without it. */}
           <span className="hidden h-5 w-px bg-border md:block" />
 
           {authControl}

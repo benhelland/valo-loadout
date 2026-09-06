@@ -1,10 +1,10 @@
 import { RiotError } from "@/riot/errors";
 import { riotFetch, AUTH_ORIGIN } from "@/riot/http";
 
-// Riot OAuth 2.0 authorization-code flow. This replaced an earlier
-// ssid-cookie-replay implementation after finding that the actively-maintained
-// SkinPeek fork (github.com/mistralwz/Ministral) had moved to this - it is
-// better on every axis that matters here:
+// Riot OAuth 2.0 authorization-code flow, rather than replaying an ssid
+// cookie. The actively-maintained SkinPeek fork
+// (github.com/mistralwz/Ministral) uses the same approach, and it is better on
+// every axis that matters here:
 //
 //   * The user authenticates on Riot's own page and we receive an
 //     authorization code, not a live session credential. A code is single-use

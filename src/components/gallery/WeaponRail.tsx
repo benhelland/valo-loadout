@@ -5,10 +5,10 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { CATEGORY_LABELS, categoryRank } from "@/lib/weaponOrder";
 
 // Weapon is the primary axis people actually browse skins on ("I want a
-// Vandal skin"), and it was previously the second of six visually identical
-// dropdowns. Both established sites in this space lead with it instead:
-// op.gg puts every weapon in a horizontal icon rail, valorantskins.com uses
-// weapon-category nav. This is that rail - one click, always visible, with
+// Vandal skin"), so it gets a rail of its own rather than a place among the
+// other filter dropdowns. Both established sites in this space lead with it
+// the same way: op.gg puts every weapon in a horizontal icon rail,
+// valorantskins.com uses weapon-category nav. One click, always visible, with
 // the current selection obvious rather than buried in a closed <select>.
 type RailWeapon = { id: string; displayName: string; displayIconUrl: string | null; category: string | null };
 
