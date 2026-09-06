@@ -1,0 +1,52 @@
+name: CI
+
+# Runs on every PR, and on main as a backstop. The point is to build from a
+# clean checkout: src/generated/prisma is gitignored, so a fresh clone has no
+# Prisma client, and that is exactly the condition a local build never
+# reproduces. A CLI deploy uploads the working directory and hides it too.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same branch makes the previous run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Explicit rather than relying on the build script, so lint and
+      # type-check have a client to resolve @/generated/prisma/client
+      # against. No database connection is involved or needed.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      # A throwaway key generated per run: src/lib/crypto.ts refuses to load
+      # without one, and the tests only need *a* valid 32-byte key to
+      # round-trip against, never the real one. Generating it here keeps a
+      # dummy credential out of the repo entirely.
+      - name: Test
+        run: RIOT_TOKEN_ENCRYPTION_KEY="$(openssl rand -base64 32)" npm test
