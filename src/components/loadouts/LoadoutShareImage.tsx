@@ -2,6 +2,7 @@ import Image from "next/image";
 import { formatPriceTotal } from "@/lib/pricing";
 import { BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
 import type { getLoadout, listAllWeapons } from "@/queries/loadouts";
+import { loadoutItemImageUrl } from "@/lib/loadoutItemImage";
 
 type Loadout = NonNullable<Awaited<ReturnType<typeof getLoadout>>>;
 type Weapon = Awaited<ReturnType<typeof listAllWeapons>>[number];
@@ -71,14 +72,15 @@ export function LoadoutShareImage({ loadout, weapons }: LoadoutShareImageProps) 
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {categoryWeapons.map((weapon) => {
                       const item = itemsByWeapon.get(weapon.id);
+                      const itemImageUrl = loadoutItemImageUrl(item);
                       const isMelee = weapon.category === "Melee";
                       return (
                         <div key={weapon.id} style={{ border: "1px solid #2a3744", background: "#16212c" }}>
                           <div style={{ display: "flex" }}>
                             <div style={{ position: "relative", height: 72, flex: 1, background: "rgba(0,0,0,0.2)" }}>
-                              {item?.skin.displayIconUrl ? (
+                              {itemImageUrl ? (
                                 <Image
-                                  src={item.skin.displayIconUrl}
+                                  src={itemImageUrl}
                                   alt=""
                                   fill
                                   sizes="240px"

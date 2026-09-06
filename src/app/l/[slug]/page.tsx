@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getSharedLoadout, listAllWeapons } from "@/queries/loadouts";
 import { sortByWeaponOrder, BOARD_COLUMN_GROUPS, CATEGORY_LABELS } from "@/lib/weaponOrder";
+import { loadoutItemImageUrl } from "@/lib/loadoutItemImage";
 
 // Public, read-only view of a shared loadout. No auth, no ownership check -
 // the unguessable slug is the credential, and getSharedLoadout refuses any
@@ -25,7 +26,15 @@ export default async function SharedLoadoutPage({ params }: PageProps<"/l/[slug]
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b-2 border-accent/30 pb-4">
         <div className="border-l-4 border-accent pl-4">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted">Shared loadout</p>
-          <h1 className="mt-1 font-display text-5xl uppercase tracking-wide leading-none">{loadout.name}</h1>
+          {/* Public page: the name is user-supplied and may be a single
+              unbroken 60-character string, which at this size overflows the
+              header without these. */}
+          <h1
+            title={loadout.name}
+            className="mt-1 [overflow-wrap:anywhere] line-clamp-2 font-display text-5xl uppercase leading-none tracking-wide"
+          >
+            {loadout.name}
+          </h1>
           <p className="mt-2 text-sm uppercase tracking-wide text-muted">
             {loadout.items.length} / {weapons.length} slots filled ·{" "}
             <span className="font-semibold text-accent">{formatPriceTotal(loadout.priceTotal)}</span>
@@ -55,15 +64,16 @@ export default async function SharedLoadoutPage({ params }: PageProps<"/l/[slug]
                   <div className="flex flex-col gap-3">
                     {categoryWeapons.map((weapon) => {
                       const item = itemsByWeapon.get(weapon.id);
+                      const itemImageUrl = loadoutItemImageUrl(item);
                       const isMelee = weapon.category === "Melee";
                       return (
                         <div key={weapon.id} className="clip-notch-sm border border-border bg-surface">
                           <div className="flex">
                             <div className="relative h-[108px] flex-1 bg-black/20">
-                              {item?.skin.displayIconUrl ? (
+                              {itemImageUrl ? (
                                 <Image
-                                  src={item.skin.displayIconUrl}
-                                  alt={item.skin.displayName}
+                                  src={itemImageUrl}
+                                  alt={item?.skin.displayName ?? weapon.displayName}
                                   fill
                                   sizes="260px"
                                   className="object-contain p-0.5"

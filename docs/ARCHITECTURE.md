@@ -261,10 +261,10 @@ valorant-api.com covers weapons, skins, chromas, levels, buddies, content tiers,
   - **If real release dates are ever wanted:** the unit is `themeId`, not the skin, and themes are already per-*release* rather than per-franchise. "Reaver" is three distinct theme UUIDs, and Riot's own `assetPath` disambiguates them (`SoulStealer` → `Soulstealer2` → `Soulstealer3`), so re-releases can be ordered without guessing. 239 of 441 themes are bundle-shaped and cover ~83% of browsable skins, so a curated `theme_id -> released_on` seed of ~239 rows would do most of the job. The dates exist only in editorial tables, not as a structured dataset, and `assetPath` isn't currently synced. Deferred: it's a hand-curated dataset with ongoing per-release maintenance, for a sort nothing depends on.
 
 **Missing images and videos are upstream gaps, not sync failures.** Every null
-in our catalog was checked field-by-field against the live API: in all cases the
-value is null upstream too, and no row exists upstream that we failed to store
-(1,405 skins / 2,677 levels / 2,921 chromas, matching exactly). Re-running the
-sync will not fill any of these in.
+in the catalog is also null at the source, and row counts match the API exactly
+(1,405 skins / 2,677 levels / 2,921 chromas). Re-running the sync will not fill
+any of these in; code must treat these fields as legitimately absent rather than
+as a signal that something went wrong.
 
 | field | null | share |
 |---|---|---|
@@ -313,7 +313,7 @@ Both are browse-time grouping only — no rows are merged, a skin's detail page 
 
 ## Buddies
 
-**Pairing:** buddies show as a small circular badge on the preview frame, mirroring how Riot's own store UI pairs a buddy with a skin. An earlier approach composited the buddy icon onto the weapon's flat render at a per-weapon anchor point; it read as a sticker pasted on a photo, which is an inherent ceiling of gluing two flat, mismatched-perspective images together rather than an anchor-tuning problem. That version is in git history if a future pass wants to revisit an on-weapon composite with rotation, drop-shadow and a strap line.
+**Pairing:** buddies show as a small circular badge on the preview frame, mirroring how Riot's own store UI pairs a buddy with a skin. They are deliberately *not* composited onto the weapon render at a per-weapon anchor point: the two images are flat and their perspectives do not match, so any such composite reads as a sticker pasted on a photo no matter how the anchor is tuned. Making that approach work would need rotation, a drop shadow and a strap line, which is a larger piece of work than the badge it would replace.
 
 **Buddy gallery (`/buddies`):** a denser browse grid than the skin gallery, since buddy icons are small and low-res, with matching fuzzy search and color filter. No per-buddy detail page — there's nothing more to show than the name and icon already on the card. Reachable via a secondary tab pair on both `/` and `/buddies`, deliberately not promoted into the main nav.
 
