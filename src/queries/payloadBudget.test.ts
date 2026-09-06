@@ -30,10 +30,10 @@ interface Call {
   preceding: string;
 }
 
-/** Argument text of each findMany call, located by paren matching. */
-function findManyCalls(file: string, source: string): Call[] {
+/** Argument text of each matching prisma read, located by paren matching. */
+function findManyCalls(file: string, source: string, method = "findMany"): Call[] {
   const calls: Call[] = [];
-  const needle = /prisma\.[a-zA-Z]+\.findMany\(/g;
+  const needle = new RegExp(String.raw`prisma\.[a-zA-Z]+\.` + method + String.raw`\(`, "g");
   let m: RegExpExecArray | null;
 
   while ((m = needle.exec(source)) !== null) {
@@ -120,4 +120,30 @@ describe("select objects are not passed to include", () => {
       `A Prisma select object is being passed to include. Use \`select:\` instead:\n${offenders.join("\n")}`,
     );
   });
+});
+
+// A single-row read cannot return too many *rows*, so `take` is irrelevant and
+// the findMany rule above does not apply. It can still return too many
+// *columns*: `include` pulls every column of the row and of every relation it
+// names, and a detail page typically reads a fraction of them. On the most
+// requested pages that difference is paid on every request.
+describe("single-row reads bound their columns", () => {
+  for (const file of readdirSync(QUERY_DIR)) {
+    if (!file.endsWith(".ts") || file.endsWith(".test.ts")) continue;
+    const source = readFileSync(join(QUERY_DIR, file), "utf8");
+
+    for (const method of ["findUnique", "findFirst"] as const) {
+      for (const call of findManyCalls(file, source, method)) {
+        it(`${file}:${call.line} bounds what ${method} returns`, () => {
+          if (call.preceding.includes(OPT_OUT)) return;
+          assert.ok(
+            call.args.includes("select:"),
+            `${file}:${call.line} calls ${method} without a select, so it returns every column ` +
+              `of the row and of any relation it includes. Use \`select\` to name the columns the ` +
+              `caller actually reads, or explain the cost with a \`// ${OPT_OUT} <reason>\` comment.`,
+          );
+        });
+      }
+    }
+  }
 });

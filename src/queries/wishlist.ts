@@ -39,6 +39,10 @@ export async function getWishlistedSkinIds(userId: string, skinIds: string[]): P
 }
 
 export async function isSkinWishlisted(userId: string, skinId: string): Promise<boolean> {
-  const item = await prisma.wishlistItem.findUnique({ where: { userId_skinId: { userId, skinId } } });
+  // Existence check only, so one column is all that needs to come back.
+  const item = await prisma.wishlistItem.findUnique({
+    where: { userId_skinId: { userId, skinId } },
+    select: { userId: true },
+  });
   return item !== null;
 }

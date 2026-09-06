@@ -213,35 +213,100 @@ export async function listSkins(filters: GalleryFilters) {
 
   // Normal path: no search text, so SQL does filtering, sorting, and
   // pagination directly - the efficient case, and the common one.
-  const where = buildWhere(filters);
-  const orderBy = buildOrderBy(filters.sort);
-
-  const [skins, total] = await Promise.all([
-    prisma.skin.findMany({
-      where,
-      orderBy,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: listSelect,
-    }),
-    prisma.skin.count({ where }),
-  ]);
-
-  return { skins, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
+  return readSkinPage(filters, page, pageSize);
 }
 
-export async function getSkinDetail(id: string) {
-  return prisma.skin.findUnique({
-    where: { id },
-    include: {
-      weapon: true,
-      contentTier: true,
-      theme: true,
-      levels: { orderBy: { levelIndex: "asc" } },
-      chromas: { orderBy: { chromaIndex: "asc" } },
-      vibeTags: true,
+/**
+ * The non-search listing, cached.
+ *
+ * Deliberately not applied to the search path above: its cache key would
+ * include the user's arbitrary search text, so the key space is unbounded and
+ * every novel query would add an entry that is unlikely ever to be read again.
+ * The non-search path has a small, bounded key space - the filter controls
+ * offer fixed values - and it is the path a crawler takes, since robots.txt
+ * disallows query strings and so only ever fetches the bare gallery.
+ */
+const readSkinPage = unstable_cache(
+  async (filters: GalleryFilters, page: number, pageSize: number) => {
+    const where = buildWhere(filters);
+    const orderBy = buildOrderBy(filters.sort);
+
+    const [skins, total] = await Promise.all([
+      prisma.skin.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: listSelect,
+      }),
+      prisma.skin.count({ where }),
+    ]);
+
+    return { skins, total, page, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
+  },
+  ["skin-page"],
+  { revalidate: 3600 },
+);
+
+// The columns the detail view actually reads. `include` would pull every
+// column of the skin and of all six relations - levels and chromas are the
+// expensive ones, since a skin can have several of each.
+const detailSelect = {
+  id: true,
+  displayName: true,
+  displayIconUrl: true,
+  priceVp: true,
+  weaponId: true,
+  colorFamily: true,
+  weapon: { select: { id: true, displayName: true, category: true, displayIconUrl: true } },
+  contentTier: {
+    select: { id: true, displayName: true, devName: true, displayIconUrl: true, rank: true, highlightColor: true },
+  },
+  theme: { select: { id: true, displayName: true, displayIconUrl: true } },
+  levels: {
+    orderBy: { levelIndex: "asc" as const },
+    select: { id: true, levelIndex: true, displayIconUrl: true, videoUrl: true, levelItem: true },
+  },
+  chromas: {
+    orderBy: { chromaIndex: "asc" as const },
+    select: {
+      id: true,
+      chromaIndex: true,
+      displayName: true,
+      displayIconUrl: true,
+      fullRenderUrl: true,
+      swatchUrl: true,
+      colorFamily: true,
+      videoUrl: true,
     },
-  });
+  },
+  vibeTags: { select: { tag: true } },
+} satisfies Prisma.SkinSelect;
+
+// Cached because this is the single most-requested query in the app: there is
+// one of these pages per skin, every one is in the sitemap, and the answer is
+// identical for every visitor. Uncached, a crawler walking the catalog turns
+// into one database round-trip per page, which is what actually costs money -
+// the hosting request counters cannot bill, the database's compute meter can.
+//
+// The window is long because the catalog only changes when the sync job runs.
+const readSkinDetail = unstable_cache(
+  async (id: string) => prisma.skin.findUnique({ where: { id }, select: detailSelect }),
+  ["skin-detail"],
+  { revalidate: 3600 },
+);
+
+/**
+ * The detail-page projection. Exported so the views consume the shape the
+ * query actually returns, rather than each declaring their own payload type
+ * against the full model - which silently requires every column and makes
+ * narrowing the query a type error somewhere else. Same contract as
+ * `ListedSkin` for the gallery card.
+ */
+export type SkinDetail = Prisma.SkinGetPayload<{ select: typeof detailSelect }>;
+
+export async function getSkinDetail(id: string) {
+  return readSkinDetail(id);
 }
 
 // Cached across requests: identical for every visitor, and only changes when
