@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/", label: "Gallery" },
   { href: "/loadouts", label: "Loadouts" },
   { href: "/wishlist", label: "Wishlist" },
+  { href: "/shop", label: "Your Shop" },
 ];
 
 // The header used to be a single non-wrapping flex row. With three nav items
