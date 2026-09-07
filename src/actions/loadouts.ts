@@ -96,7 +96,14 @@ export async function deleteLoadout(loadoutId: string): Promise<void> {
 
 export async function duplicateLoadout(loadoutId: string): Promise<CreateLoadoutResult> {
   const userId = await getCurrentUserId();
-  const original = await prisma.loadout.findUnique({ where: { id: loadoutId }, include: { items: true } });
+  const original = await prisma.loadout.findUnique({
+    where: { id: loadoutId },
+    select: {
+      userId: true,
+      name: true,
+      items: { select: { weaponId: true, skinId: true, levelId: true, chromaId: true, buddyId: true } },
+    },
+  });
   if (!original || original.userId !== userId) throw new Error("Loadout not found");
   // Duplicating is a create too - without this the cap is trivially bypassed
   // by copying an existing loadout instead of pressing "new".

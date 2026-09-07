@@ -20,7 +20,7 @@ async function main() {
     process.exit(1);
   }
 
-  const existing = await prisma.environmentMarker.findFirst();
+  const existing = await prisma.environmentMarker.findFirst({ select: { id: true } });
   if (existing) {
     await prisma.environmentMarker.update({ where: { id: existing.id }, data: { name } });
   } else {
