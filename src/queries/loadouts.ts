@@ -59,6 +59,14 @@ export async function listAllWeapons() {
   });
 }
 
+// The weapon-picker page (a loadout slot) renders only the weapon's name.
+export async function getWeaponName(id: string) {
+  return prisma.weapon.findUnique({
+    where: { id },
+    select: { displayName: true },
+  });
+}
+
 // Public, unauthenticated lookup for /l/:shareSlug. Deliberately takes no
 // userId: anyone with the link can view it. Requires isShareable to still
 // be true, so revoking works even if a slug were somehow retained.

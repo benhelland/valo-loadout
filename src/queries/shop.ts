@@ -20,6 +20,9 @@ export type ShopSkin = Prisma.SkinGetPayload<{
 
 export type ShopView = {
   linked: boolean;
+  // The linked account's id, so a page can wire up "check shop now" without
+  // a second findFirst duplicating the lookup just above.
+  accountId: string | null;
   riotId: string | null;
   status: string | null;
   lastSyncedAt: Date | null;
@@ -45,11 +48,20 @@ export async function getShopForUser(userId: string): Promise<ShopView> {
   });
 
   if (!account) {
-    return { linked: false, riotId: null, status: null, lastSyncedAt: null, nextPollAt: null, skins: [] };
+    return {
+      linked: false,
+      accountId: null,
+      riotId: null,
+      status: null,
+      lastSyncedAt: null,
+      nextPollAt: null,
+      skins: [],
+    };
   }
 
   const base = {
     linked: true,
+    accountId: account.id,
     riotId: account.riotGameName ? `${account.riotGameName}#${account.riotTagLine ?? "?"}` : null,
     status: account.status as string,
     lastSyncedAt: account.lastSyncedAt,

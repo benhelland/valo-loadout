@@ -96,6 +96,7 @@ test("gallery queries build valid Prisma queries", async () => {
   await assertQueryShapeValid("listSkins (search only)", () => gallery.listSkins({ search: "vandal" }));
   await assertQueryShapeValid("getSkinDetail", () => gallery.getSkinDetail(ID));
   await assertQueryShapeValid("getBuddy", () => gallery.getBuddy(ID));
+  await assertQueryShapeValid("listSitemapSkins", () => gallery.listSitemapSkins());
 });
 
 test("buddy queries build valid Prisma queries", async () => {
@@ -114,6 +115,7 @@ test("loadout queries build valid Prisma queries", async () => {
   await assertQueryShapeValid("listLoadouts", () => loadouts.listLoadouts(ID));
   await assertQueryShapeValid("getLoadout", () => loadouts.getLoadout(ID, ID));
   await assertQueryShapeValid("listAllWeapons", () => loadouts.listAllWeapons());
+  await assertQueryShapeValid("getWeaponName", () => loadouts.getWeaponName(ID));
   await assertQueryShapeValid("getSharedLoadout", () => loadouts.getSharedLoadout("some-share-slug"));
   await assertQueryShapeValid("listLoadoutSummaries", () => loadouts.listLoadoutSummaries(ID));
   await assertQueryShapeValid("getLoadoutMembership", () => loadouts.getLoadoutMembership(ID, [ID]));
@@ -132,6 +134,11 @@ test("wishlist queries build valid Prisma queries", async () => {
 test("shop queries build valid Prisma queries", async () => {
   const shop = await import("@/queries/shop");
   await assertQueryShapeValid("getShopForUser", () => shop.getShopForUser(ID));
+});
+
+test("account queries build valid Prisma queries", async () => {
+  const account = await import("@/queries/account");
+  await assertQueryShapeValid("getAccountOverview", () => account.getAccountOverview(ID));
 });
 
 // A test that silently stops covering things is worse than no test. This
@@ -156,6 +163,9 @@ const COVERED = new Set([
   "getWishlistedSkinIds",
   "isSkinWishlisted",
   "getShopForUser",
+  "listSitemapSkins",
+  "getWeaponName",
+  "getAccountOverview",
 ]);
 
 // Wrapped in unstable_cache, which throws "Invariant: incrementalCache

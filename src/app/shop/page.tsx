@@ -3,7 +3,6 @@ import { getCurrentUserId } from "@/lib/auth";
 import { getShopForUser } from "@/queries/shop";
 import { SkinCard } from "@/components/gallery/SkinCard";
 import { CheckShopNowButton } from "@/components/account/CheckShopNowButton";
-import { prisma } from "@/lib/db";
 
 export const metadata = { title: "Your Shop · Valoadout" };
 
@@ -27,10 +26,7 @@ function until(date: Date): string {
 export default async function ShopPage() {
   const userId = await getCurrentUserId();
   const shop = await getShopForUser(userId);
-
-  const accountId = shop.linked
-    ? (await prisma.linkedRiotAccount.findFirst({ where: { userId }, orderBy: { createdAt: "asc" }, select: { id: true } }))?.id
-    : null;
+  const accountId = shop.accountId;
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">

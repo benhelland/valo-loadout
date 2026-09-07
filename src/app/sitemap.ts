@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { prisma } from "@/lib/db";
+import { listSitemapSkins } from "@/queries/gallery";
 import { isEnvironmentMismatch } from "@/lib/verifyEnvironment";
 import { siteUrl } from "@/lib/siteUrl";
 
@@ -20,10 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const skins = await prisma.skin.findMany({
-      select: { id: true, firstSeenInSyncAt: true },
-      orderBy: { displayName: "asc" },
-    });
+    const skins = await listSitemapSkins();
     return [
       ...staticPages,
       ...skins.map((s) => ({
