@@ -123,7 +123,7 @@ export async function verifyEnvironment(
     deps.allowProductionDbLocally ?? process.env.ALLOW_PRODUCTION_DB_LOCALLY === "1";
   const expected = expectedMarkerFor(vercelEnv);
 
-  const marker = await prisma.environmentMarker.findFirst();
+  const marker = await prisma.environmentMarker.findFirst({ select: { name: true } });
 
   if (!marker) {
     // A brand-new database, migrated but not yet marked - not a failure,

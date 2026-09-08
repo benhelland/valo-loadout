@@ -399,3 +399,12 @@ export async function getBuddy(id: string | null | undefined) {
     select: { id: true, displayName: true, displayIconUrl: true },
   });
 }
+
+// Every skin's id and insert timestamp - the whole table, but only two
+// columns of it, for the one route that has to list every skin URL.
+export async function listSitemapSkins() {
+  return prisma.skin.findMany({
+    select: { id: true, firstSeenInSyncAt: true },
+    orderBy: { displayName: "asc" },
+  });
+}

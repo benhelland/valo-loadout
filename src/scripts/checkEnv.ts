@@ -42,7 +42,10 @@ async function checkDatabase() {
     return;
   }
   try {
-    const [skins, marker] = await Promise.all([prisma.skin.count(), prisma.environmentMarker.findFirst()]);
+    const [skins, marker] = await Promise.all([
+      prisma.skin.count(),
+      prisma.environmentMarker.findFirst({ select: { name: true } }),
+    ]);
     add({ name: "DATABASE_URL", state: "OK", detail: `connected; ${skins} skins; marker="${marker?.name ?? "none"}"` });
   } catch (err) {
     // err.name, never err.message. A driver's connection error routinely

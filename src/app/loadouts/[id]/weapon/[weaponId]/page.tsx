@@ -1,10 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUserId } from "@/lib/auth";
-import { getLoadout } from "@/queries/loadouts";
+import { getLoadout, getWeaponName } from "@/queries/loadouts";
 import { listSkins, getFilterOptions, resolveSort } from "@/queries/gallery";
 import { resolveCatalogId, resolveThemeId, resolveColor, resolveVibe, resolveSearch } from "@/lib/filterParams";
-import { prisma } from "@/lib/db";
 import { FilterBar } from "@/components/gallery/FilterBar";
 import { SkinCard } from "@/components/gallery/SkinCard";
 import { Pagination } from "@/components/gallery/Pagination";
@@ -24,7 +23,7 @@ export default async function LoadoutWeaponPickerPage({
   const sp = await searchParams;
   const userId = await getCurrentUserId();
 
-  const [loadout, weapon] = await Promise.all([getLoadout(id, userId), prisma.weapon.findUnique({ where: { id: weaponId } })]);
+  const [loadout, weapon] = await Promise.all([getLoadout(id, userId), getWeaponName(weaponId)]);
   if (!loadout) notFound();
   if (!weapon) notFound();
 

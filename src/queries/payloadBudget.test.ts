@@ -18,10 +18,26 @@ import { join } from "node:path";
 //
 // Deliberately NOT satisfied by `include:` alone - `include` pulls entire
 // related rows, which is the expensive direction, not the cheap one.
+//
+// All three rules in this file scan every file under `src/`, not just
+// `src/queries/` - a database read outside that directory is bound by the
+// same cost rule, not exempt from it.
 
-const QUERY_DIR = join(process.cwd(), "src", "queries");
 const SRC_DIR = join(process.cwd(), "src");
 const OPT_OUT = "payload-ok:";
+
+/**
+ * Every real source file under `src/` this suite checks, as forward-slash
+ * relative paths - readFileSync accepts "/" on Windows too, and a forward
+ * slash keeps test names and failure messages click-through in a terminal
+ * rather than printing a literal backslash escape.
+ */
+function sourceFiles(): string[] {
+  return readdirSync(SRC_DIR, { recursive: true, encoding: "utf8" })
+    .map((f) => f.replaceAll("\\", "/"))
+    .filter((f) => (f.endsWith(".ts") || f.endsWith(".tsx")) && !f.endsWith(".test.ts"))
+    .filter((f) => !f.startsWith("generated/"));
+}
 
 interface Call {
   file: string;
@@ -62,14 +78,14 @@ function findManyCalls(file: string, source: string, method = "findMany"): Call[
 }
 
 describe("query payload budget", () => {
-  const files = readdirSync(QUERY_DIR).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+  const files = sourceFiles();
 
-  it("finds the query modules to check", () => {
-    assert.ok(files.length > 0, "no query modules found - has src/queries moved?");
+  it("finds the source files to check", () => {
+    assert.ok(files.length > 0, "no source files found under src/ - has it moved?");
   });
 
   for (const file of files) {
-    const source = readFileSync(join(QUERY_DIR, file), "utf8");
+    const source = readFileSync(join(SRC_DIR, file), "utf8");
     for (const call of findManyCalls(file, source)) {
       it(`${file}:${call.line} bounds what findMany returns`, () => {
         const narrowsColumns = /\bselect\s*:/.test(call.args);
@@ -101,10 +117,7 @@ describe("select objects are not passed to include", () => {
   it("never uses a *Select constant in an include position", () => {
     const offenders: string[] = [];
 
-    for (const file of readdirSync(SRC_DIR, { recursive: true, encoding: "utf8" })) {
-      if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue;
-      if (file.endsWith(".test.ts")) continue;
-
+    for (const file of sourceFiles()) {
       const source = readFileSync(join(SRC_DIR, file), "utf8");
       source.split("\n").forEach((line, i) => {
         // Catches `include: listSelect` directly, and the nested form
@@ -147,9 +160,8 @@ function hasTopLevelSelect(args: string): boolean {
 }
 
 describe("single-row reads bound their columns", () => {
-  for (const file of readdirSync(QUERY_DIR)) {
-    if (!file.endsWith(".ts") || file.endsWith(".test.ts")) continue;
-    const source = readFileSync(join(QUERY_DIR, file), "utf8");
+  for (const file of sourceFiles()) {
+    const source = readFileSync(join(SRC_DIR, file), "utf8");
 
     for (const method of ["findUnique", "findFirst"] as const) {
       for (const call of findManyCalls(file, source, method)) {

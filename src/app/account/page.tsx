@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { auth } from "@/auth";
 import { buildAuthorizeUrl } from "@/riot/oauth";
 import { getCurrentUserId } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { getAccountOverview } from "@/queries/account";
 import { maskEmail } from "@/lib/maskEmail";
 import { UnlinkRiotAccountButton } from "@/components/account/UnlinkRiotAccountButton";
 import { CheckShopNowButton } from "@/components/account/CheckShopNowButton";
@@ -22,24 +22,8 @@ const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
 export default async function AccountPage() {
   const userId = await getCurrentUserId();
   const session = await auth();
-  const linkedAccounts = await prisma.linkedRiotAccount.findMany({ where: { userId } });
+  const { linkedAccounts, recentByAccount } = await getAccountOverview(userId);
   const deliveryConfigured = isNotificationDeliveryConfigured();
-
-  // The four most recently seen skins per linked account - the visible payoff
-  // that a shop check actually ran, and the fastest way to eyeball whether the
-  // offer-id -> skin mapping resolved correctly.
-  const recentSightings = await prisma.skinSightingStat.findMany({
-    where: { linkedRiotAccountId: { in: linkedAccounts.map((a) => a.id) } },
-    orderBy: { lastSeenAt: "desc" },
-    take: 4 * Math.max(1, linkedAccounts.length),
-    include: { skin: { select: { displayName: true, displayIconUrl: true } } },
-  });
-  const recentByAccount = new Map<string, typeof recentSightings>();
-  for (const stat of recentSightings) {
-    const bucket = recentByAccount.get(stat.linkedRiotAccountId) ?? [];
-    if (bucket.length < 4) bucket.push(stat);
-    recentByAccount.set(stat.linkedRiotAccountId, bucket);
-  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8">

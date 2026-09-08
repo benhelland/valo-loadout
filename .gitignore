@@ -44,5 +44,8 @@ next-env.d.ts
 docs/OPERATIONS.md
 
 # Personal working preferences - about the maintainer, not the software.
-CLAUDE.local.md
 docs/LAUNCH_CHECKLIST.md
+
+# Personal working notes and build plans, CLAUDE.local.md included - about
+# the maintainer or a feature's construction, not documentation of either.
+*.local.md
