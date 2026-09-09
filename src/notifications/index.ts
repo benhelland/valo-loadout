@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { NotificationChannel } from "@/generated/prisma/client";
-import { sendDirectMessage } from "@/discord/bot";
+import { sendDirectMessage, type DeliveryResult } from "@/discord/bot";
 import { buildWishlistMatchMessage, buildLinkExpiredMessage } from "@/notifications/messages";
 import { siteUrl } from "@/lib/siteUrl";
 
@@ -24,6 +24,22 @@ const APP_URL = siteUrl();
 // linked accounts, and this only needs to be approximately right.
 const DEDUPE_WINDOW_MS = 20 * 60 * 60 * 1000;
 
+/**
+ * Records whether the last DM reached the user, so /account can say so
+ * instead of silently never notifying. NOT_CONFIGURED is skipped: a
+ * deployment with no bot token is the operator's problem, and recording it
+ * would put a banner on every account.
+ */
+async function recordDeliveryOutcome(userId: string, result: DeliveryResult): Promise<void> {
+  if (!result.ok && result.reason === "NOT_CONFIGURED") return;
+
+  const data = result.ok
+    ? { notificationFailedAt: null, notificationFailureReason: null }
+    : { notificationFailedAt: new Date(), notificationFailureReason: result.reason };
+
+  await prisma.user.update({ where: { id: userId }, data }).catch(() => {});
+}
+
 async function getDiscordUserId(userId: string): Promise<string | null> {
   const account = await prisma.account.findFirst({
     where: { userId, provider: "discord" },
@@ -41,6 +57,14 @@ async function getDiscordUserId(userId: string): Promise<string | null> {
  */
 export async function notifyWishlistMatches(userId: string, skinIds: string[]): Promise<void> {
   if (skinIds.length === 0) return;
+
+  // Checked before the wishlist read, so a muted user costs one cheap query
+  // rather than three.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { wishlistNotificationsEnabled: true },
+  });
+  if (!user?.wishlistNotificationsEnabled) return;
 
   const matches = await prisma.wishlistItem.findMany({
     where: { userId, skinId: { in: skinIds } },
@@ -72,6 +96,7 @@ export async function notifyWishlistMatches(userId: string, skinIds: string[]): 
   });
 
   const result = await sendDirectMessage(discordUserId, payload);
+  await recordDeliveryOutcome(userId, result);
   if (!result.ok) return; // don't record dedup rows for a message that never actually sent
 
   await prisma.notificationSent
@@ -107,6 +132,7 @@ export async function notifyRiotLinkExpired(linkedAccountId: string): Promise<vo
   });
 
   const result = await sendDirectMessage(discordUserId, payload);
+  await recordDeliveryOutcome(account.userId, result);
   if (!result.ok) return;
 
   await prisma.linkedRiotAccount

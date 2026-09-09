@@ -4,11 +4,22 @@ import { auth } from "@/auth";
 import { buildAuthorizeUrl } from "@/riot/oauth";
 import { getCurrentUserId } from "@/lib/auth";
 import { getAccountOverview } from "@/queries/account";
+import { getNotificationStatus } from "@/queries/notifications";
 import { maskEmail } from "@/lib/maskEmail";
 import { UnlinkRiotAccountButton } from "@/components/account/UnlinkRiotAccountButton";
 import { CheckShopNowButton } from "@/components/account/CheckShopNowButton";
 import { LinkRiotAccountForm } from "@/components/account/LinkRiotAccountForm";
+import { NotificationToggle } from "@/components/account/NotificationToggle";
 import { isNotificationDeliveryConfigured } from "@/discord/bot";
+
+// DMS_CLOSED is the only failure the user can act on, so it is the only one
+// that gets an instruction.
+const DELIVERY_FAILURE_COPY: Record<string, string> = {
+  DMS_CLOSED:
+    "Discord wouldn't let us DM you. Turn Direct Messages back on for this app's server (Server Settings → Privacy Settings → Direct Messages). The next check that reaches you clears this.",
+};
+const DELIVERY_FAILURE_FALLBACK =
+  "We couldn't reach you on Discord last time. We'll try again on the next shop check.";
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   ACTIVE: { label: "Active", tone: "text-green-400" },
@@ -23,6 +34,7 @@ export default async function AccountPage() {
   const userId = await getCurrentUserId();
   const session = await auth();
   const { linkedAccounts, recentByAccount } = await getAccountOverview(userId);
+  const notifications = await getNotificationStatus(userId);
   const deliveryConfigured = isNotificationDeliveryConfigured();
 
   return (
@@ -50,6 +62,25 @@ export default async function AccountPage() {
             {session?.user?.email ? <p className="mt-1 text-xs text-muted">{maskEmail(session.user.email)}</p> : null}
           </div>
         </div>
+      </section>
+
+      <section className="clip-notch mt-6 border border-border bg-surface p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-display text-2xl uppercase tracking-wide leading-none">Wishlist Notifications</h2>
+            <p className="mt-2 text-sm text-muted">
+              A Discord DM when a wishlisted skin turns up in a linked account&rsquo;s daily shop. Warnings
+              about a Riot link that has stopped working are sent either way.
+            </p>
+          </div>
+          <NotificationToggle enabled={notifications?.wishlistNotificationsEnabled ?? true} />
+        </div>
+
+        {notifications?.notificationFailedAt ? (
+          <p className="clip-notch-sm mt-4 border border-amber-500/40 bg-background p-3 text-xs text-amber-300">
+            {DELIVERY_FAILURE_COPY[notifications.notificationFailureReason ?? ""] ?? DELIVERY_FAILURE_FALLBACK}
+          </p>
+        ) : null}
       </section>
 
       <section className="clip-notch mt-6 border border-border bg-surface p-6">

@@ -141,6 +141,11 @@ test("account queries build valid Prisma queries", async () => {
   await assertQueryShapeValid("getAccountOverview", () => account.getAccountOverview(ID));
 });
 
+test("notification queries build valid Prisma queries", async () => {
+  const notifications = await import("@/queries/notifications");
+  await assertQueryShapeValid("getNotificationStatus", () => notifications.getNotificationStatus(ID));
+});
+
 // A test that silently stops covering things is worse than no test. This
 // fails when a query function is added to src/queries/ without being
 // exercised above, so the coverage cannot quietly erode - the same
@@ -166,6 +171,7 @@ const COVERED = new Set([
   "listSitemapSkins",
   "getWeaponName",
   "getAccountOverview",
+  "getNotificationStatus",
 ]);
 
 // Wrapped in unstable_cache, which throws "Invariant: incrementalCache

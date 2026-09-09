@@ -21,8 +21,19 @@ model User {
   // `emailVerified: null` to createUser even for OAuth-only setups with no
   // email provider configured. Without this column the very first Discord
   // sign-in throws a Prisma "unknown argument" error.
-  image     String?
-  createdAt DateTime @default(now())
+  image         String?
+  createdAt     DateTime  @default(now())
+
+  // Scoped to wishlist-match DMs only. The link-expiry warning is
+  // transactional - "the thing you set up is broken" - and is not something
+  // to be muted, so it ignores this flag.
+  wishlistNotificationsEnabled Boolean   @default(true)
+  // Set when a DM fails, cleared by the next one that succeeds, so /account
+  // can say so rather than silently never notifying. The reason is a
+  // DeliveryFailureReason (src/discord/bot.ts); NOT_CONFIGURED is never
+  // recorded here because it is the operator's problem, not the user's.
+  notificationFailedAt         DateTime?
+  notificationFailureReason    String?
 
   accounts           Account[]
   loadouts           Loadout[]
@@ -298,7 +309,8 @@ model LinkedRiotAccount {
   nextPollAt            DateTime? // derived from the account's own shop reset time, not a blind interval
   createdAt             DateTime            @default(now())
 
-  sightingStats SkinSightingStat[]
+  sightingStats     SkinSightingStat[]
+  notificationsSent NotificationSent[]
 
   @@unique([userId, puuid])
   @@index([nextPollAt])
@@ -329,17 +341,29 @@ enum NotificationChannel {
 }
 
 model NotificationSent {
-  id        String              @id @default(cuid())
-  userId    String
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skinId    String
-  skin      Skin                @relation(fields: [skinId], references: [id], onDelete: Cascade)
-  channel   NotificationChannel
-  sentAt    DateTime            @default(now())
+  id                  String              @id @default(cuid())
+  userId              String
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skinId              String
+  skin                Skin                @relation(fields: [skinId], references: [id], onDelete: Cascade)
+  channel             NotificationChannel
+  sentAt              DateTime            @default(now())
+  // Which linked account's shop the skin was seen in. Part of the dedupe key,
+  // so two accounts showing the same wishlisted skin in one window each get
+  // their own DM rather than the second being swallowed.
+  //
+  // Nullable, and only ever read inside the dedupe window, so a row that
+  // names no account simply falls out of the key within a day.
+  //
+  // SetNull rather than Cascade: unlinking an account must not erase the
+  // record that the user was already told about a skin, or an
+  // unlink-and-relink cycle would re-send every notification.
+  linkedRiotAccountId String?
+  linkedRiotAccount   LinkedRiotAccount?  @relation(fields: [linkedRiotAccountId], references: [id], onDelete: SetNull)
   // Dedupe: src/notifications/ checks for an existing row within a rolling
   // window (roughly one shop cycle) before sending - see notifyWishlistMatches.
 
-  @@index([userId, skinId, sentAt])
+  @@index([userId, skinId, linkedRiotAccountId, sentAt])
   @@map("notifications_sent")
 }
 
