@@ -40,6 +40,11 @@ async function recordDeliveryOutcome(userId: string, result: DeliveryResult): Pr
   await prisma.user.update({ where: { id: userId }, data }).catch(() => {});
 }
 
+/** The account's Riot ID, for the DM footer. */
+function accountLabel(account: { riotGameName: string | null; riotTagLine: string | null } | null): string | null {
+  return account?.riotGameName ? `${account.riotGameName}#${account.riotTagLine ?? "?"}` : null;
+}
+
 async function getDiscordUserId(userId: string): Promise<string | null> {
   const account = await prisma.account.findFirst({
     where: { userId, provider: "discord" },
@@ -49,13 +54,22 @@ async function getDiscordUserId(userId: string): Promise<string | null> {
 }
 
 /**
- * Checks skins just seen in a user's shop against their wishlist and DMs
- * them once per skin per cycle, batched into a single message rather than
- * one per skin (Discord's own guidance is not to open a lot of DMs quickly,
- * and it reads better besides). Called after a shop check's own data
- * (sighting stats, account status) is already safely persisted.
+ * Checks skins just seen in one linked account's shop against the user's
+ * wishlist and DMs them once per skin per cycle, batched into a single
+ * message rather than one per skin (Discord's own guidance is not to open a
+ * lot of DMs quickly, and it reads better besides). Called after a shop
+ * check's own data (sighting stats, account status) is already safely
+ * persisted.
+ *
+ * Dedupe is per linked account, not per user: with several accounts linked,
+ * the same wishlisted skin appearing in two different shops is two things
+ * worth knowing, not a repeat.
  */
-export async function notifyWishlistMatches(userId: string, skinIds: string[]): Promise<void> {
+export async function notifyWishlistMatches(
+  linkedAccountId: string,
+  userId: string,
+  skinIds: string[],
+): Promise<void> {
   if (skinIds.length === 0) return;
 
   // Checked before the wishlist read, so a muted user costs one cheap query
@@ -78,6 +92,7 @@ export async function notifyWishlistMatches(userId: string, skinIds: string[]): 
       userId,
       channel: NotificationChannel.DISCORD_DM,
       skinId: { in: matches.map((m) => m.skinId) },
+      linkedRiotAccountId: linkedAccountId,
       sentAt: { gte: since },
     },
     select: { skinId: true },
@@ -89,9 +104,14 @@ export async function notifyWishlistMatches(userId: string, skinIds: string[]): 
   const discordUserId = await getDiscordUserId(userId);
   if (!discordUserId) return; // shouldn't happen (sign-in is Discord-only) but never assume
 
+  const account = await prisma.linkedRiotAccount.findUnique({
+    where: { id: linkedAccountId },
+    select: { riotGameName: true, riotTagLine: true },
+  });
+
   const payload = buildWishlistMatchMessage({
     skins: toNotify.map((m) => m.skin),
-    accountLabel: null,
+    accountLabel: accountLabel(account),
     appUrl: APP_URL,
   });
 
@@ -100,7 +120,14 @@ export async function notifyWishlistMatches(userId: string, skinIds: string[]): 
   if (!result.ok) return; // don't record dedup rows for a message that never actually sent
 
   await prisma.notificationSent
-    .createMany({ data: toNotify.map((m) => ({ userId, skinId: m.skinId, channel: NotificationChannel.DISCORD_DM })) })
+    .createMany({
+      data: toNotify.map((m) => ({
+        userId,
+        skinId: m.skinId,
+        channel: NotificationChannel.DISCORD_DM,
+        linkedRiotAccountId: linkedAccountId,
+      })),
+    })
     .catch(() => {});
 }
 
@@ -126,10 +153,7 @@ export async function notifyRiotLinkExpired(linkedAccountId: string): Promise<vo
   const discordUserId = await getDiscordUserId(account.userId);
   if (!discordUserId) return;
 
-  const payload = buildLinkExpiredMessage({
-    accountLabel: account.riotGameName ? `${account.riotGameName}#${account.riotTagLine ?? "?"}` : null,
-    appUrl: APP_URL,
-  });
+  const payload = buildLinkExpiredMessage({ accountLabel: accountLabel(account), appUrl: APP_URL });
 
   const result = await sendDirectMessage(discordUserId, payload);
   await recordDeliveryOutcome(account.userId, result);

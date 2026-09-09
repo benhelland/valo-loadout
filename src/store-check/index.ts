@@ -267,7 +267,7 @@ export async function runShopCheck(linkedAccountId: string): Promise<ShopCheckRe
     // Wishlist-match notification is best-effort and strictly after the
     // check's own data is safely persisted above - a Discord hiccup here
     // must not turn a successful shop read into a reported failure.
-    await notifyWishlistMatches(account.userId, skinIds).catch(() => {});
+    await notifyWishlistMatches(account.id, account.userId, skinIds).catch(() => {});
 
     return { skinIds, unresolvedOfferIds, nextPollAt, pricesRecorded };
   } catch (err) {
