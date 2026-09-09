@@ -40,7 +40,6 @@ async function recordDeliveryOutcome(userId: string, result: DeliveryResult): Pr
   await prisma.user.update({ where: { id: userId }, data }).catch(() => {});
 }
 
-/** The account's Riot ID, for the DM footer. */
 function accountLabel(account: { riotGameName: string | null; riotTagLine: string | null } | null): string | null {
   return account?.riotGameName ? `${account.riotGameName}#${account.riotTagLine ?? "?"}` : null;
 }

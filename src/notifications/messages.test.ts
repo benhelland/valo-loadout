@@ -42,6 +42,12 @@ function assertWithinDiscordCaps(payload: DiscordMessagePayload): void {
   }
 }
 
+/** The summary line must not promise more skins than the message shows. */
+function assertCountMatchesEmbeds(payload: DiscordMessagePayload): void {
+  const claimed = Number(/(\d+) wishlist/.exec(payload.content ?? "")?.[1]);
+  assert.equal(claimed, payload.embeds?.length ?? 0, "summary count disagrees with the embeds sent");
+}
+
 function skin(over: Partial<WishlistMatchSkin> = {}): WishlistMatchSkin {
   return {
     id: "00000000-0000-4000-8000-000000000000",
@@ -64,6 +70,7 @@ describe("buildWishlistMatchMessage", () => {
     assert.equal(payload.embeds?.[0].url, `${APP_URL}/skins/a`);
     assert.equal(payload.embeds?.[1].url, `${APP_URL}/skins/b`);
     assert.match(payload.content ?? "", /2 wishlist skins are in today's shop/);
+    assertCountMatchesEmbeds(payload);
     assertWithinDiscordCaps(payload);
   });
 
@@ -107,6 +114,7 @@ describe("buildWishlistMatchMessage", () => {
     });
 
     assert.equal(payload.embeds?.length, 4);
+    assertCountMatchesEmbeds(payload);
     assertWithinDiscordCaps(payload);
   });
 
@@ -122,7 +130,9 @@ describe("buildWishlistMatchMessage", () => {
     // A shop has four offers, so the list is capped there regardless of what
     // the caller passes - and trimmed further if those four still would not
     // fit Discord's combined character budget.
+    assert.ok((payload.embeds?.length ?? 0) >= 1, "a summary line with no embeds describes nothing");
     assert.ok((payload.embeds?.length ?? 0) <= 4);
+    assertCountMatchesEmbeds(payload);
     assertWithinDiscordCaps(payload);
   });
 });

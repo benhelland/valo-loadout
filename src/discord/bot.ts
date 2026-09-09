@@ -22,14 +22,21 @@ const API_BASE = "https://discord.com/api/v10";
 
 // --- Rate limiting -------------------------------------------------------
 //
-// Same two guards as src/riot/http.ts, for the same reasons: MIN_INTERVAL_MS
-// serialises outbound calls so a burst can never leave here faster than one
-// per interval, and MAX_CALLS_PER_PROCESS is a circuit breaker for a runaway
-// loop. Opening a DM channel is one of Discord's more aggressively limited
-// routes and a shop-check batch opens one per notified user back to back, so
-// the interval is wider than Riot's.
+// Two guards, as in src/riot/http.ts: MIN_INTERVAL_MS serialises outbound
+// calls so a burst can never leave here faster than one at a time, one per
+// interval, and the call cap is a circuit breaker for a runaway loop.
+// Opening a DM channel is one of Discord's more aggressively limited routes
+// and a shop-check batch opens one per notified user back to back, so the
+// interval is wider than Riot's.
+//
+// The cap is per WINDOW, not per process. joinGuild runs on every sign-in, so
+// this budget is spent by ordinary traffic inside a long-lived server rather
+// than only by a cron run; a lifetime counter would eventually refuse every
+// call forever, and the visible symptom - users never added to the guild,
+// then DMs failing 50007 - looks exactly like a user's own privacy setting.
 const MIN_INTERVAL_MS = 300;
-const MAX_CALLS_PER_PROCESS = 500;
+const MAX_CALLS_PER_WINDOW = 500;
+const CALL_WINDOW_MS = 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 15_000;
 
 // A 429 is retried once, and only when Discord's own `retry_after` is under
@@ -42,23 +49,34 @@ const MAX_RETRY_AFTER_MS = 5_000;
 const DMS_CLOSED_CODE = 50007;
 
 let callCount = 0;
+let windowStartedAt = 0;
 let queueTail: Promise<void> = Promise.resolve();
 let lastCallAt = 0;
 
 function throttle<T>(fn: () => Promise<T>): Promise<T> {
-  const run = queueTail.then(async () => {
+  const result = queueTail.then(async () => {
     const waitFor = lastCallAt + MIN_INTERVAL_MS - Date.now();
     if (waitFor > 0) await new Promise((resolve) => setTimeout(resolve, waitFor));
     lastCallAt = Date.now();
+    return fn();
   });
-  // Keep the chain alive even if a call rejects, or one failure would wedge
-  // the queue for every later caller.
-  queueTail = run.catch(() => {});
-  return run.then(fn);
+  // The next caller waits for this request to finish, not merely for its
+  // start slot, so at most one is ever in flight. Swallowing the rejection
+  // keeps one failure from wedging the queue for every later caller.
+  queueTail = result.then(
+    () => {},
+    () => {},
+  );
+  return result;
 }
 
 function reserveCall(): boolean {
-  if (callCount >= MAX_CALLS_PER_PROCESS) return false;
+  const now = Date.now();
+  if (now - windowStartedAt >= CALL_WINDOW_MS) {
+    windowStartedAt = now;
+    callCount = 0;
+  }
+  if (callCount >= MAX_CALLS_PER_WINDOW) return false;
   callCount++;
   return true;
 }
@@ -97,7 +115,7 @@ async function discordFetch(
   init: { method: string; body?: unknown },
 ): Promise<Response | null> {
   if (!reserveCall()) {
-    console.error("[discord] outbound request budget exhausted - not calling Discord again this run");
+    console.error("[discord] outbound request budget exhausted - not calling Discord again this hour");
     return null;
   }
 

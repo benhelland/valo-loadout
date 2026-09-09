@@ -24,9 +24,7 @@ model User {
   image         String?
   createdAt     DateTime  @default(now())
 
-  // Scoped to wishlist-match DMs only. The link-expiry warning is
-  // transactional - "the thing you set up is broken" - and is not something
-  // to be muted, so it ignores this flag.
+  // Wishlist-match DMs only; the link-expiry warning ignores this flag.
   wishlistNotificationsEnabled Boolean   @default(true)
   // Set when a DM fails, cleared by the next one that succeeds, so /account
   // can say so rather than silently never notifying. The reason is a
@@ -352,12 +350,10 @@ model NotificationSent {
   // so two accounts showing the same wishlisted skin in one window each get
   // their own DM rather than the second being swallowed.
   //
-  // Nullable, and only ever read inside the dedupe window, so a row that
-  // names no account simply falls out of the key within a day.
-  //
-  // SetNull rather than Cascade: unlinking an account must not erase the
-  // record that the user was already told about a skin, or an
-  // unlink-and-relink cycle would re-send every notification.
+  // Nullable, and SetNull on delete: the dedupe read always filters on a
+  // concrete account id, so a row left holding null stops matching and is
+  // retired by the prune on the usual schedule rather than being deleted the
+  // moment someone unlinks.
   linkedRiotAccountId String?
   linkedRiotAccount   LinkedRiotAccount?  @relation(fields: [linkedRiotAccountId], references: [id], onDelete: SetNull)
   // Dedupe: src/notifications/ checks for an existing row within a rolling

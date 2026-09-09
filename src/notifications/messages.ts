@@ -10,9 +10,15 @@ import type { DiscordEmbed, DiscordMessagePayload } from "@/discord/bot";
 // unlikely.
 const MAX_CONTENT = 2000;
 const MAX_TITLE = 256;
-const MAX_DESCRIPTION = 4096;
-const MAX_FOOTER = 2048;
 const MAX_TOTAL_EMBED_CHARS = 6000;
+
+// Tighter than Discord's own description (4096) and footer (2048) limits,
+// because neither field here is free text: a description is a price line and
+// a footer is a Riot ID. Keeping them short is what guarantees four embeds
+// always fit the combined budget, so the trim below can never be what a real
+// shop hits.
+const MAX_DESCRIPTION = 128;
+const MAX_FOOTER = 96;
 
 // The daily shop has exactly four offers, so this can never bite in practice.
 // It exists so a caller passing a larger list cannot build an oversized
@@ -33,13 +39,17 @@ function embedLength(embed: DiscordEmbed): number {
 /**
  * Drops trailing embeds until the message is inside Discord's combined
  * character budget. Fewer skins shown beats a message Discord refuses.
+ *
+ * The first embed is always kept: the field caps above bound one embed well
+ * under the combined budget, so it cannot be the thing that overflows, and
+ * returning an empty list would leave a summary line describing nothing.
  */
 function fitTotalBudget(embeds: DiscordEmbed[]): DiscordEmbed[] {
   const kept: DiscordEmbed[] = [];
   let total = 0;
   for (const embed of embeds) {
     const length = embedLength(embed);
-    if (total + length > MAX_TOTAL_EMBED_CHARS) break;
+    if (kept.length > 0 && total + length > MAX_TOTAL_EMBED_CHARS) break;
     kept.push(embed);
     total += length;
   }
@@ -78,13 +88,16 @@ export function buildWishlistMatchMessage(input: {
     return embed;
   });
 
-  const noun = skins.length === 1 ? "skin" : "skins";
-  const verb = skins.length === 1 ? "is" : "are";
+  // Counted from what survived the trim, not from the input: a summary
+  // promising four skins above a list of two is worse than a smaller number.
+  const kept = fitTotalBudget(embeds);
+  const noun = kept.length === 1 ? "skin" : "skins";
+  const verb = kept.length === 1 ? "is" : "are";
   return {
     // A summary line as well as the embeds, so the message still says
     // something if a client collapses them.
-    content: truncate(`🎯 ${skins.length} wishlist ${noun} ${verb} in today's shop.`, MAX_CONTENT),
-    embeds: fitTotalBudget(embeds),
+    content: truncate(`🎯 ${kept.length} wishlist ${noun} ${verb} in today's shop.`, MAX_CONTENT),
+    embeds: kept,
   };
 }
 
