@@ -163,3 +163,20 @@ export async function notifyRiotLinkExpired(linkedAccountId: string): Promise<vo
     .update({ where: { id: linkedAccountId }, data: { expiryNotifiedAt: new Date() } })
     .catch(() => {});
 }
+
+/**
+ * Drops dedupe rows old enough that no send decision can still consult them.
+ * The table otherwise grows one row per user per skin per notification
+ * forever, while the dedupe read only ever looks at DEDUPE_WINDOW_MS.
+ *
+ * Doubling the window is the margin that keeps this from ever racing a live
+ * dedupe read. There is deliberately no blast-radius guard of the kind
+ * expireStaleLinks uses: that one protects stored Riot credentials, which are
+ * destroyed permanently. These rows are bookkeeping, and the worst case from
+ * over-deleting is one duplicate DM.
+ */
+export async function pruneNotificationHistory(): Promise<number> {
+  const cutoff = new Date(Date.now() - 2 * DEDUPE_WINDOW_MS);
+  const { count } = await prisma.notificationSent.deleteMany({ where: { sentAt: { lt: cutoff } } });
+  return count;
+}

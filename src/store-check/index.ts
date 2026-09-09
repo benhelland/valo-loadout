@@ -5,7 +5,7 @@ import { extractAuthorizationCode } from "@/riot/oauth";
 import { fetchDailyShop } from "@/riot/store";
 import { RiotError, isRiotError } from "@/riot/errors";
 import { LinkedAccountStatus } from "@/generated/prisma/client";
-import { notifyWishlistMatches, notifyRiotLinkExpired } from "@/notifications";
+import { notifyWishlistMatches, notifyRiotLinkExpired, pruneNotificationHistory } from "@/notifications";
 import { LimitExceededError, MAX_LINKED_RIOT_ACCOUNTS_PER_USER } from "@/lib/limits";
 
 // The seam between the isolated Riot client (src/riot/, no database access)
@@ -282,6 +282,8 @@ export interface DueCheckSummary {
   failed: number;
   /** Links deleted for going unused - see STALE_LINK_DAYS. */
   expired: number;
+  /** Dedupe rows dropped for being past any window that could read them. */
+  pruned: number;
 }
 
 // How long a link may sit unused before it is dropped. A stored Riot
@@ -399,6 +401,7 @@ async function expireStaleLinks(): Promise<number> {
 export async function runDueShopChecks(limit = 25): Promise<DueCheckSummary> {
   // Before polling, so a stale link is never woken up just to be dropped.
   const expired = await expireStaleLinks();
+  const pruned = await pruneNotificationHistory().catch(() => 0);
 
   const due = await prisma.linkedRiotAccount.findMany({
     where: {
@@ -427,7 +430,7 @@ export async function runDueShopChecks(limit = 25): Promise<DueCheckSummary> {
     }
   }
 
-  return { attempted: due.length, succeeded, failed, expired };
+  return { attempted: due.length, succeeded, failed, expired, pruned };
 }
 
 async function recordFailure(linkedAccountId: string, err: unknown): Promise<void> {
