@@ -11,7 +11,8 @@
     "test": "tsx --env-file-if-exists=.env.local --test \"src/**/*.test.ts\"",
     "sync": "tsx --env-file=.env.local src/scripts/sync.ts",
     "check-shops": "tsx --env-file=.env.local src/scripts/checkShops.ts",
-    "check-env": "tsx --env-file-if-exists=.env.local src/scripts/checkEnv.ts"
+    "check-env": "tsx --env-file-if-exists=.env.local src/scripts/checkEnv.ts",
+    "test-notification": "tsx --env-file=.env.local src/scripts/testNotification.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

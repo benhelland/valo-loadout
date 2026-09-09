@@ -101,3 +101,18 @@ export function buildLinkExpiredMessage(input: {
     ),
   };
 }
+
+/**
+ * Plain-language explanation of a failed delivery, shown on /account and
+ * printed by the test-notification script. DMS_CLOSED is the only reason the
+ * user can act on, so it is the only one that gets an instruction.
+ */
+export function deliveryFailureExplanation(reason: string | null): string {
+  if (reason === "DMS_CLOSED") {
+    return (
+      "Discord wouldn't let us DM you. Turn Direct Messages back on for this app's server " +
+      "(Server Settings → Privacy Settings → Direct Messages). The next check that reaches you clears this."
+    );
+  }
+  return "We couldn't reach you on Discord last time. We'll try again on the next shop check.";
+}

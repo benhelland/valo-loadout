@@ -10,16 +10,8 @@ import { UnlinkRiotAccountButton } from "@/components/account/UnlinkRiotAccountB
 import { CheckShopNowButton } from "@/components/account/CheckShopNowButton";
 import { LinkRiotAccountForm } from "@/components/account/LinkRiotAccountForm";
 import { NotificationToggle } from "@/components/account/NotificationToggle";
+import { deliveryFailureExplanation } from "@/notifications/messages";
 import { isNotificationDeliveryConfigured } from "@/discord/bot";
-
-// DMS_CLOSED is the only failure the user can act on, so it is the only one
-// that gets an instruction.
-const DELIVERY_FAILURE_COPY: Record<string, string> = {
-  DMS_CLOSED:
-    "Discord wouldn't let us DM you. Turn Direct Messages back on for this app's server (Server Settings → Privacy Settings → Direct Messages). The next check that reaches you clears this.",
-};
-const DELIVERY_FAILURE_FALLBACK =
-  "We couldn't reach you on Discord last time. We'll try again on the next shop check.";
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   ACTIVE: { label: "Active", tone: "text-green-400" },
@@ -78,7 +70,7 @@ export default async function AccountPage() {
 
         {notifications?.notificationFailedAt ? (
           <p className="clip-notch-sm mt-4 border border-amber-500/40 bg-background p-3 text-xs text-amber-300">
-            {DELIVERY_FAILURE_COPY[notifications.notificationFailureReason ?? ""] ?? DELIVERY_FAILURE_FALLBACK}
+            {deliveryFailureExplanation(notifications.notificationFailureReason)}
           </p>
         ) : null}
       </section>
