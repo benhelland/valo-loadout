@@ -155,6 +155,25 @@ export type DeliveryFailureReason =
 export type DeliveryResult = { ok: true } | { ok: false; reason: DeliveryFailureReason };
 
 /**
+ * The subset of Discord's embed object this app sends. Built in
+ * src/notifications/messages.ts, which is also where the length caps Discord
+ * enforces on these fields are applied.
+ */
+export interface DiscordEmbed {
+  title?: string;
+  url?: string;
+  description?: string;
+  color?: number;
+  thumbnail?: { url: string };
+  footer?: { text: string };
+}
+
+export interface DiscordMessagePayload {
+  content?: string;
+  embeds?: DiscordEmbed[];
+}
+
+/**
  * Adds a user to this app's Discord server using the access token from their
  * most recent Discord sign-in (must carry the `guilds.join` scope - see
  * src/auth.ts). Safe to call on every sign-in: Discord returns 204 if
@@ -190,7 +209,10 @@ async function classifyFailure(response: Response): Promise<DeliveryFailureReaso
  * error. DMS_CLOSED is separated from the rest because it is the only
  * failure the user themselves can fix.
  */
-export async function sendDirectMessage(discordUserId: string, content: string): Promise<DeliveryResult> {
+export async function sendDirectMessage(
+  discordUserId: string,
+  payload: DiscordMessagePayload,
+): Promise<DeliveryResult> {
   const botToken = getBotToken();
   if (!botToken) return { ok: false, reason: "NOT_CONFIGURED" };
 
@@ -214,7 +236,7 @@ export async function sendDirectMessage(discordUserId: string, content: string):
 
   const messageResponse = await discordFetch(botToken, `/channels/${channelId}/messages`, {
     method: "POST",
-    body: { content },
+    body: payload,
   });
   if (!messageResponse) return { ok: false, reason: "UNKNOWN" };
   if (!messageResponse.ok) {

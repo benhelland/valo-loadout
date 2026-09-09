@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { NotificationChannel } from "@/generated/prisma/client";
 import { sendDirectMessage } from "@/discord/bot";
+import { buildWishlistMatchMessage, buildLinkExpiredMessage } from "@/notifications/messages";
 import { siteUrl } from "@/lib/siteUrl";
 
 // The seam between the Discord bot client (src/discord/, no database access)
@@ -31,11 +32,6 @@ async function getDiscordUserId(userId: string): Promise<string | null> {
   return account?.providerAccountId ?? null;
 }
 
-function joinNames(names: string[]): string {
-  if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
-
 /**
  * Checks skins just seen in a user's shop against their wishlist and DMs
  * them once per skin per cycle, batched into a single message rather than
@@ -48,7 +44,7 @@ export async function notifyWishlistMatches(userId: string, skinIds: string[]): 
 
   const matches = await prisma.wishlistItem.findMany({
     where: { userId, skinId: { in: skinIds } },
-    include: { skin: { select: { id: true, displayName: true } } },
+    include: { skin: { select: { id: true, displayName: true, displayIconUrl: true, priceVp: true } } },
   });
   if (matches.length === 0) return;
 
@@ -69,10 +65,13 @@ export async function notifyWishlistMatches(userId: string, skinIds: string[]): 
   const discordUserId = await getDiscordUserId(userId);
   if (!discordUserId) return; // shouldn't happen (sign-in is Discord-only) but never assume
 
-  const list = joinNames(toNotify.map((m) => m.skin.displayName));
-  const content = `🎯 **${list}** just showed up in your daily shop - it's on your wishlist. ${APP_URL}/account`;
+  const payload = buildWishlistMatchMessage({
+    skins: toNotify.map((m) => m.skin),
+    accountLabel: null,
+    appUrl: APP_URL,
+  });
 
-  const result = await sendDirectMessage(discordUserId, content);
+  const result = await sendDirectMessage(discordUserId, payload);
   if (!result.ok) return; // don't record dedup rows for a message that never actually sent
 
   await prisma.notificationSent
@@ -102,10 +101,12 @@ export async function notifyRiotLinkExpired(linkedAccountId: string): Promise<vo
   const discordUserId = await getDiscordUserId(account.userId);
   if (!discordUserId) return;
 
-  const who = account.riotGameName ? `${account.riotGameName}#${account.riotTagLine ?? "?"}` : "Your Riot account";
-  const content = `⚠️ ${who}'s login expired, so Valoadout can't check your shop anymore. Re-link it to keep wishlist notifications going: ${APP_URL}/account`;
+  const payload = buildLinkExpiredMessage({
+    accountLabel: account.riotGameName ? `${account.riotGameName}#${account.riotTagLine ?? "?"}` : null,
+    appUrl: APP_URL,
+  });
 
-  const result = await sendDirectMessage(discordUserId, content);
+  const result = await sendDirectMessage(discordUserId, payload);
   if (!result.ok) return;
 
   await prisma.linkedRiotAccount

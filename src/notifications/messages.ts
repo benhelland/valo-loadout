@@ -1,0 +1,103 @@
+import type { DiscordEmbed, DiscordMessagePayload } from "@/discord/bot";
+
+// Pure formatting for the DMs this app sends. No Prisma, no fetch, no env
+// reads - the app URL is passed in - so the payloads are testable without a
+// database or a bot token (src/notifications/messages.test.ts).
+//
+// Discord rejects an oversized or malformed embed with a 400 and no other
+// signal: the message simply never arrives. Every cap below is Discord's, and
+// applying them here is what keeps that failure impossible rather than merely
+// unlikely.
+const MAX_CONTENT = 2000;
+const MAX_TITLE = 256;
+const MAX_DESCRIPTION = 4096;
+const MAX_FOOTER = 2048;
+const MAX_TOTAL_EMBED_CHARS = 6000;
+
+// The daily shop has exactly four offers, so this can never bite in practice.
+// It exists so a caller passing a larger list cannot build an oversized
+// payload. Discord's own ceiling is 10 embeds.
+const MAX_SKIN_EMBEDS = 4;
+
+// --accent from src/app/globals.css.
+const ACCENT_COLOR = 0xff4655;
+
+function truncate(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+function embedLength(embed: DiscordEmbed): number {
+  return (embed.title?.length ?? 0) + (embed.description?.length ?? 0) + (embed.footer?.text.length ?? 0);
+}
+
+/**
+ * Drops trailing embeds until the message is inside Discord's combined
+ * character budget. Fewer skins shown beats a message Discord refuses.
+ */
+function fitTotalBudget(embeds: DiscordEmbed[]): DiscordEmbed[] {
+  const kept: DiscordEmbed[] = [];
+  let total = 0;
+  for (const embed of embeds) {
+    const length = embedLength(embed);
+    if (total + length > MAX_TOTAL_EMBED_CHARS) break;
+    kept.push(embed);
+    total += length;
+  }
+  return kept;
+}
+
+export interface WishlistMatchSkin {
+  id: string;
+  displayName: string;
+  displayIconUrl: string | null;
+  priceVp: number | null;
+}
+
+export function buildWishlistMatchMessage(input: {
+  skins: WishlistMatchSkin[];
+  /** "Name#Tag" of the account whose shop matched, when known. */
+  accountLabel: string | null;
+  appUrl: string;
+}): DiscordMessagePayload {
+  const skins = input.skins.slice(0, MAX_SKIN_EMBEDS);
+  const footer = input.accountLabel ? { text: truncate(`Shop for ${input.accountLabel}`, MAX_FOOTER) } : undefined;
+
+  const embeds = skins.map((skin) => {
+    const embed: DiscordEmbed = {
+      title: truncate(skin.displayName, MAX_TITLE),
+      url: `${input.appUrl}/skins/${skin.id}`,
+      color: ACCENT_COLOR,
+      footer,
+    };
+    // Discord rejects the whole message on an invalid embed URL, so a missing
+    // icon has to degrade to a text-only embed rather than a null thumbnail.
+    if (skin.displayIconUrl) embed.thumbnail = { url: skin.displayIconUrl };
+    if (skin.priceVp !== null) {
+      embed.description = truncate(`**${skin.priceVp.toLocaleString("en-US")} VP**`, MAX_DESCRIPTION);
+    }
+    return embed;
+  });
+
+  const noun = skins.length === 1 ? "skin" : "skins";
+  const verb = skins.length === 1 ? "is" : "are";
+  return {
+    // A summary line as well as the embeds, so the message still says
+    // something if a client collapses them.
+    content: truncate(`🎯 ${skins.length} wishlist ${noun} ${verb} in today's shop.`, MAX_CONTENT),
+    embeds: fitTotalBudget(embeds),
+  };
+}
+
+export function buildLinkExpiredMessage(input: {
+  accountLabel: string | null;
+  appUrl: string;
+}): DiscordMessagePayload {
+  const who = input.accountLabel ? `${input.accountLabel}'s` : "Your Riot account's";
+  return {
+    content: truncate(
+      `⚠️ ${who} login expired, so Valoadout can't check your shop anymore. ` +
+        `Re-link it to keep wishlist notifications going: ${input.appUrl}/account`,
+      MAX_CONTENT,
+    ),
+  };
+}
