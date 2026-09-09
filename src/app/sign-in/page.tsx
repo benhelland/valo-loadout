@@ -77,7 +77,12 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
         </form>
 
         <p className="mt-6 text-[11px] text-muted">
-          We only ever see your Discord username and avatar - never your password, never your messages.
+          We only ever see your Discord username and avatar - never your password, never your messages. You sign in on
+          Discord&rsquo;s own site; this page never asks for a password.
+        </p>
+
+        <p className="mt-3 text-[11px] text-muted">
+          Valoadout is an independent fan project, not affiliated with or endorsed by Discord Inc. or Riot Games, Inc.
         </p>
       </div>
     </div>

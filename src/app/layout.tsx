@@ -47,9 +47,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="border-t border-border">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 text-xs text-muted">
             <p>
-              Valoadout is not affiliated with or endorsed by Riot Games, Inc. VALORANT and all
-              associated logos, names, and assets are trademarks or registered trademarks of Riot
-              Games, Inc.
+              Valoadout is an independent fan project, not affiliated with or endorsed by Riot Games, Inc.
+              or Discord Inc. VALORANT and all associated logos, names, and assets are trademarks or
+              registered trademarks of Riot Games, Inc. Discord is a trademark of Discord Inc.
             </p>
             <p className="mt-1">
               Skin and cosmetic data courtesy of{" "}

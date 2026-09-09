@@ -22,6 +22,12 @@ export function LinkRiotAccountForm({ authorizeUrl }: { authorizeUrl: string }) 
 
   return (
     <div>
+      <p className="clip-notch-sm mt-4 border border-border bg-background p-3 text-xs text-muted">
+        <span className="font-semibold uppercase tracking-wider text-foreground">This is not a Riot login.</span>{" "}
+        Valoadout is an independent fan project, not affiliated with or endorsed by Riot Games, Inc. You sign in on
+        Riot&rsquo;s own site and we never see, ask for, or store your Riot password.
+      </p>
+
       <ol className="mt-4 space-y-3 text-xs text-muted">
         <li>
           <span className="font-semibold text-foreground">1.</span> Sign in on Riot&rsquo;s own site:
@@ -49,8 +55,11 @@ export function LinkRiotAccountForm({ authorizeUrl }: { authorizeUrl: string }) 
       <form onSubmit={handleSubmit} className="mt-4">
         <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
           Redirect address
+          {/* Deliberately not type="password": a password field on a page
+              about signing in to Riot reads as credential phishing to Safe
+              Browsing, and the value is a single-use code spent on submit. */}
           <input
-            type="password"
+            type="text"
             value={redirectUrl}
             onChange={(e) => setRedirectUrl(e.target.value)}
             autoComplete="off"
