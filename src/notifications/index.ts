@@ -72,8 +72,8 @@ export async function notifyWishlistMatches(userId: string, skinIds: string[]): 
   const list = joinNames(toNotify.map((m) => m.skin.displayName));
   const content = `🎯 **${list}** just showed up in your daily shop - it's on your wishlist. ${APP_URL}/account`;
 
-  const delivered = await sendDirectMessage(discordUserId, content);
-  if (!delivered) return; // don't record dedup rows for a message that never actually sent
+  const result = await sendDirectMessage(discordUserId, content);
+  if (!result.ok) return; // don't record dedup rows for a message that never actually sent
 
   await prisma.notificationSent
     .createMany({ data: toNotify.map((m) => ({ userId, skinId: m.skinId, channel: NotificationChannel.DISCORD_DM })) })
@@ -105,8 +105,8 @@ export async function notifyRiotLinkExpired(linkedAccountId: string): Promise<vo
   const who = account.riotGameName ? `${account.riotGameName}#${account.riotTagLine ?? "?"}` : "Your Riot account";
   const content = `⚠️ ${who}'s login expired, so Valoadout can't check your shop anymore. Re-link it to keep wishlist notifications going: ${APP_URL}/account`;
 
-  const delivered = await sendDirectMessage(discordUserId, content);
-  if (!delivered) return;
+  const result = await sendDirectMessage(discordUserId, content);
+  if (!result.ok) return;
 
   await prisma.linkedRiotAccount
     .update({ where: { id: linkedAccountId }, data: { expiryNotifiedAt: new Date() } })
