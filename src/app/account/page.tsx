@@ -4,10 +4,13 @@ import { auth } from "@/auth";
 import { buildAuthorizeUrl } from "@/riot/oauth";
 import { getCurrentUserId } from "@/lib/auth";
 import { getAccountOverview } from "@/queries/account";
+import { getNotificationStatus } from "@/queries/notifications";
 import { maskEmail } from "@/lib/maskEmail";
 import { UnlinkRiotAccountButton } from "@/components/account/UnlinkRiotAccountButton";
 import { CheckShopNowButton } from "@/components/account/CheckShopNowButton";
 import { LinkRiotAccountForm } from "@/components/account/LinkRiotAccountForm";
+import { NotificationToggle } from "@/components/account/NotificationToggle";
+import { deliveryFailureExplanation } from "@/notifications/messages";
 import { isNotificationDeliveryConfigured } from "@/discord/bot";
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
@@ -23,6 +26,7 @@ export default async function AccountPage() {
   const userId = await getCurrentUserId();
   const session = await auth();
   const { linkedAccounts, recentByAccount } = await getAccountOverview(userId);
+  const notifications = await getNotificationStatus(userId);
   const deliveryConfigured = isNotificationDeliveryConfigured();
 
   return (
@@ -50,6 +54,25 @@ export default async function AccountPage() {
             {session?.user?.email ? <p className="mt-1 text-xs text-muted">{maskEmail(session.user.email)}</p> : null}
           </div>
         </div>
+      </section>
+
+      <section className="clip-notch mt-6 border border-border bg-surface p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-display text-2xl uppercase tracking-wide leading-none">Wishlist Notifications</h2>
+            <p className="mt-2 text-sm text-muted">
+              A Discord DM when a wishlisted skin turns up in a linked account&rsquo;s daily shop. Warnings
+              about a Riot link that has stopped working are sent either way.
+            </p>
+          </div>
+          <NotificationToggle enabled={notifications?.wishlistNotificationsEnabled ?? true} />
+        </div>
+
+        {notifications?.notificationFailedAt ? (
+          <p className="clip-notch-sm mt-4 border border-amber-500/40 bg-background p-3 text-xs text-amber-300">
+            {deliveryFailureExplanation(notifications.notificationFailureReason)}
+          </p>
+        ) : null}
       </section>
 
       <section className="clip-notch mt-6 border border-border bg-surface p-6">

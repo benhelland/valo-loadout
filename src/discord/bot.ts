@@ -7,18 +7,81 @@
 //   - joinGuild: adds a signed-in user to this app's own Discord server, so
 //     the bot has somewhere to share a mutual guild with them. This is the
 //     whole reason this module exists instead of just DMing by user id - a
-//     bot cannot open a DM with a user it shares no server with (confirmed
-//     against Discord's own docs before building this), so "automatic,
-//     zero-setup" notifications require putting the user in a shared guild
-//     first, done silently as part of the Discord sign-in they already do.
+//     bot cannot open a DM with a user it shares no server with, so
+//     "automatic, zero-setup" notifications require putting the user in a
+//     shared guild first, done silently as part of the Discord sign-in they
+//     already do.
 //   - sendDirectMessage: opens/reuses a DM channel and posts into it.
 //
 // Neither function ever throws. A Discord outage, an unconfigured bot token,
 // or a user who left the server must never break sign-in or a shop check -
-// callers get a boolean (or nothing) and decide what, if anything, to do
+// callers get a result they can act on and decide what, if anything, to do
 // about a failure.
 
 const API_BASE = "https://discord.com/api/v10";
+
+// --- Rate limiting -------------------------------------------------------
+//
+// Two guards, as in src/riot/http.ts: MIN_INTERVAL_MS serialises outbound
+// calls so a burst can never leave here faster than one at a time, one per
+// interval, and the call cap is a circuit breaker for a runaway loop.
+// Opening a DM channel is one of Discord's more aggressively limited routes
+// and a shop-check batch opens one per notified user back to back, so the
+// interval is wider than Riot's.
+//
+// The cap is per WINDOW, not per process. joinGuild runs on every sign-in, so
+// this budget is spent by ordinary traffic inside a long-lived server rather
+// than only by a cron run; a lifetime counter would eventually refuse every
+// call forever, and the visible symptom - users never added to the guild,
+// then DMs failing 50007 - looks exactly like a user's own privacy setting.
+const MIN_INTERVAL_MS = 300;
+const MAX_CALLS_PER_WINDOW = 500;
+const CALL_WINDOW_MS = 60 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 15_000;
+
+// A 429 is retried once, and only when Discord's own `retry_after` is under
+// this. Beyond it, waiting parks a whole cron run for a message that is
+// disposable - the next shop check will try again.
+const MAX_RETRY_AFTER_MS = 5_000;
+
+// Both mean the user's own Discord settings are what stopped the DM. 50007 is
+// the generic "cannot send messages to this user"; 50278 ("no mutual guilds")
+// is what Discord returns when the user has DMs from this server's members
+// switched off, or has left the server.
+const DMS_CLOSED_CODES = new Set([50007, 50278]);
+
+let callCount = 0;
+let windowStartedAt = 0;
+let queueTail: Promise<void> = Promise.resolve();
+let lastCallAt = 0;
+
+function throttle<T>(fn: () => Promise<T>): Promise<T> {
+  const result = queueTail.then(async () => {
+    const waitFor = lastCallAt + MIN_INTERVAL_MS - Date.now();
+    if (waitFor > 0) await new Promise((resolve) => setTimeout(resolve, waitFor));
+    lastCallAt = Date.now();
+    return fn();
+  });
+  // The next caller waits for this request to finish, not merely for its
+  // start slot, so at most one is ever in flight. Swallowing the rejection
+  // keeps one failure from wedging the queue for every later caller.
+  queueTail = result.then(
+    () => {},
+    () => {},
+  );
+  return result;
+}
+
+function reserveCall(): boolean {
+  const now = Date.now();
+  if (now - windowStartedAt >= CALL_WINDOW_MS) {
+    windowStartedAt = now;
+    callCount = 0;
+  }
+  if (callCount >= MAX_CALLS_PER_WINDOW) return false;
+  callCount++;
+  return true;
+}
 
 function getBotToken(): string | null {
   const token = process.env.DISCORD_BOT_TOKEN;
@@ -28,6 +91,63 @@ function getBotToken(): string | null {
 function getGuildId(): string | null {
   const id = process.env.DISCORD_GUILD_ID;
   return id && id.length > 0 ? id : null;
+}
+
+/** Body field of a JSON response, or null if the body isn't readable. */
+async function readNumberField(response: Response, field: string): Promise<number | null> {
+  try {
+    // Cloned so the caller can still read the body off the original.
+    const body = (await response.clone().json()) as Record<string, unknown>;
+    const value = body[field];
+    return typeof value === "number" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The only place this app calls Discord, so the throttle, budget and 429
+ * handling cannot be skipped by a new call site. Returns null when no
+ * response was obtained at all (network error, timeout, budget exhausted);
+ * an HTTP error is returned as its Response for the caller to classify.
+ */
+async function discordFetch(
+  botToken: string,
+  path: string,
+  init: { method: string; body?: unknown },
+): Promise<Response | null> {
+  if (!reserveCall()) {
+    console.error("[discord] outbound request budget exhausted - not calling Discord again this hour");
+    return null;
+  }
+
+  return throttle(async () => {
+    const send = () =>
+      fetch(`${API_BASE}${path}`, {
+        method: init.method,
+        headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
+        body: init.body === undefined ? undefined : JSON.stringify(init.body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+
+    try {
+      const response = await send();
+      if (response.status !== 429) return response;
+
+      const retryAfterSeconds = await readNumberField(response, "retry_after");
+      const retryAfterMs = retryAfterSeconds === null ? null : retryAfterSeconds * 1000;
+      if (retryAfterMs === null || retryAfterMs > MAX_RETRY_AFTER_MS || !reserveCall()) return response;
+
+      await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
+      return await send();
+    } catch (err) {
+      // The message is ours, not the underlying error's, so a request header
+      // cannot travel into a log line.
+      const reason = err instanceof Error && err.name === "TimeoutError" ? "timed out" : "network error";
+      console.error(`[discord] request failed (${reason})`);
+      return null;
+    }
+  });
 }
 
 /**
@@ -46,6 +166,33 @@ export function isNotificationDeliveryConfigured(): boolean {
   return getBotToken() !== null && getGuildId() !== null;
 }
 
+export type DeliveryFailureReason =
+  | "NOT_CONFIGURED"
+  | "DMS_CLOSED"
+  | "RATE_LIMITED"
+  | "UNKNOWN";
+
+export type DeliveryResult = { ok: true } | { ok: false; reason: DeliveryFailureReason };
+
+/**
+ * The subset of Discord's embed object this app sends. Built in
+ * src/notifications/messages.ts, which is also where the length caps Discord
+ * enforces on these fields are applied.
+ */
+export interface DiscordEmbed {
+  title?: string;
+  url?: string;
+  description?: string;
+  color?: number;
+  thumbnail?: { url: string };
+  footer?: { text: string };
+}
+
+export interface DiscordMessagePayload {
+  content?: string;
+  embeds?: DiscordEmbed[];
+}
+
 /**
  * Adds a user to this app's Discord server using the access token from their
  * most recent Discord sign-in (must carry the `guilds.join` scope - see
@@ -57,66 +204,64 @@ export function isNotificationDeliveryConfigured(): boolean {
 export async function joinGuild(discordUserId: string, userAccessToken: string): Promise<void> {
   const botToken = getBotToken();
   const guildId = getGuildId();
-  if (!botToken || !guildId) {
-    // Not configured - notifications are simply off for now. Never block
-    // sign-in on this.
-    return;
-  }
+  if (!botToken || !guildId) return;
 
-  try {
-    const response = await fetch(`${API_BASE}/guilds/${guildId}/members/${discordUserId}`, {
-      method: "PUT",
-      headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ access_token: userAccessToken }),
-    });
-    // 201 = newly added, 204 = already a member. Anything else is worth a
-    // log line (e.g. the bot lacks CREATE_INSTANT_INVITE in the guild) but
-    // still shouldn't be surfaced to the signing-in user.
-    if (!response.ok && response.status !== 204) {
-      console.error(`[discord] failed to add user to guild: ${response.status}`);
-    }
-  } catch (err) {
-    console.error("[discord] joinGuild request failed", err);
+  const response = await discordFetch(botToken, `/guilds/${guildId}/members/${discordUserId}`, {
+    method: "PUT",
+    body: { access_token: userAccessToken },
+  });
+  // 201 = newly added, 204 = already a member. Anything else is worth a log
+  // line (e.g. the bot lacks CREATE_INSTANT_INVITE in the guild) but still
+  // shouldn't be surfaced to the signing-in user.
+  if (response && !response.ok && response.status !== 204) {
+    console.error(`[discord] failed to add user to guild: ${response.status}`);
   }
 }
 
+async function classifyFailure(response: Response): Promise<DeliveryFailureReason> {
+  if (response.status === 429) return "RATE_LIMITED";
+  const code = await readNumberField(response, "code");
+  return code !== null && DMS_CLOSED_CODES.has(code) ? "DMS_CLOSED" : "UNKNOWN";
+}
+
 /**
- * Sends a DM. Returns whether it was actually delivered - false (never a
- * throw) if the bot isn't configured, shares no guild with the user, or
- * Discord otherwise rejects the message (e.g. the user has DMs from server
- * members disabled).
+ * Sends a DM. Never throws - an undelivered message is a result, not an
+ * error. DMS_CLOSED is separated from the rest because it is the only
+ * failure the user themselves can fix.
  */
-export async function sendDirectMessage(discordUserId: string, content: string): Promise<boolean> {
+export async function sendDirectMessage(
+  discordUserId: string,
+  payload: DiscordMessagePayload,
+): Promise<DeliveryResult> {
   const botToken = getBotToken();
-  if (!botToken) return false;
+  if (!botToken) return { ok: false, reason: "NOT_CONFIGURED" };
 
-  try {
-    const channelResponse = await fetch(`${API_BASE}/users/@me/channels`, {
-      method: "POST",
-      headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient_id: discordUserId }),
-    });
-    if (!channelResponse.ok) {
-      console.error(`[discord] failed to open DM channel: ${channelResponse.status}`);
-      return false;
-    }
-    const channel = (await channelResponse.json()) as { id: string };
-
-    const messageResponse = await fetch(`${API_BASE}/channels/${channel.id}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bot ${botToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    });
-    if (!messageResponse.ok) {
-      // 403 (Discord error code 50007, "Cannot send messages to this user")
-      // is the expected shape when the user left the guild or disabled DMs -
-      // an undelivered message, not an application error.
-      console.error(`[discord] failed to send DM: ${messageResponse.status}`);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error("[discord] sendDirectMessage request failed", err);
-    return false;
+  const channelResponse = await discordFetch(botToken, "/users/@me/channels", {
+    method: "POST",
+    body: { recipient_id: discordUserId },
+  });
+  if (!channelResponse) return { ok: false, reason: "UNKNOWN" };
+  if (!channelResponse.ok) {
+    console.error(`[discord] failed to open DM channel: ${channelResponse.status}`);
+    return { ok: false, reason: await classifyFailure(channelResponse) };
   }
+
+  let channelId: string;
+  try {
+    channelId = ((await channelResponse.json()) as { id: string }).id;
+  } catch {
+    console.error("[discord] DM channel response was not readable JSON");
+    return { ok: false, reason: "UNKNOWN" };
+  }
+
+  const messageResponse = await discordFetch(botToken, `/channels/${channelId}/messages`, {
+    method: "POST",
+    body: payload,
+  });
+  if (!messageResponse) return { ok: false, reason: "UNKNOWN" };
+  if (!messageResponse.ok) {
+    console.error(`[discord] failed to send DM: ${messageResponse.status}`);
+    return { ok: false, reason: await classifyFailure(messageResponse) };
+  }
+  return { ok: true };
 }
