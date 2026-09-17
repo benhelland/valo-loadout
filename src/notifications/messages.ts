@@ -123,8 +123,9 @@ export function buildLinkExpiredMessage(input: {
 export function deliveryFailureExplanation(reason: string | null): string {
   if (reason === "DMS_CLOSED") {
     return (
-      "Discord wouldn't let us DM you. Turn Direct Messages back on for this app's server " +
-      "(Server Settings → Privacy Settings → Direct Messages). The next check that reaches you clears this."
+      "Discord wouldn't let us DM you. Turn Direct Messages on for this app's server " +
+      "(Server Settings → Privacy Settings → Direct Messages), or sign in again if you've left it. " +
+      "The next check that reaches you clears this."
     );
   }
   return "We couldn't reach you on Discord last time. We'll try again on the next shop check.";

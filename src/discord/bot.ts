@@ -44,9 +44,11 @@ const REQUEST_TIMEOUT_MS = 15_000;
 // disposable - the next shop check will try again.
 const MAX_RETRY_AFTER_MS = 5_000;
 
-// "Cannot send messages to this user": DMs from server members are off, or
-// the user is no longer in the guild.
-const DMS_CLOSED_CODE = 50007;
+// Both mean the user's own Discord settings are what stopped the DM. 50007 is
+// the generic "cannot send messages to this user"; 50278 ("no mutual guilds")
+// is what Discord returns when the user has DMs from this server's members
+// switched off, or has left the server.
+const DMS_CLOSED_CODES = new Set([50007, 50278]);
 
 let callCount = 0;
 let windowStartedAt = 0;
@@ -219,7 +221,7 @@ export async function joinGuild(discordUserId: string, userAccessToken: string):
 async function classifyFailure(response: Response): Promise<DeliveryFailureReason> {
   if (response.status === 429) return "RATE_LIMITED";
   const code = await readNumberField(response, "code");
-  return code === DMS_CLOSED_CODE ? "DMS_CLOSED" : "UNKNOWN";
+  return code !== null && DMS_CLOSED_CODES.has(code) ? "DMS_CLOSED" : "UNKNOWN";
 }
 
 /**
