@@ -1,0 +1,27 @@
+name: Check shops
+
+# Two runs: nextPollAt carries up to 30 minutes of jitter past the reset, and
+# GitHub starts scheduled runs late under load.
+on:
+  schedule:
+    - cron: "5,40 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the cron route
+        run: |
+          status=$(curl -sS -o body.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            --max-time 120 \
+            "${APP_URL}/api/cron/check-shops")
+          echo "HTTP ${status}"
+          cat body.json
+          echo
+          test "${status}" = "200"
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL }}
