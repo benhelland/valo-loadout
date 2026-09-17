@@ -6,7 +6,7 @@ Guidance for Claude when working in this repo. Read this first, every session.
 
 **Valoadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
 
-**Status: Phases 1–3 feature-complete.** The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. Two things are built but not yet verified against live conditions: Discord notification delivery, which no-ops until a bot token and guild id are supplied, and whether Riot's Cloudflare permits the poller from a datacenter IP. See `docs/ROADMAP.md` Phase 3.
+**Status: Phases 1–3 feature-complete.** The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. Discord notification delivery is verified against a real bot and server, and no-ops until a bot token and guild id are supplied. One thing is built but not yet verified against live conditions: whether Riot's Cloudflare permits the poller from a datacenter IP. See `docs/ROADMAP.md` Phase 3.
 
 Don't assume any framework, package, or file structure beyond what's written in these docs — propose a change to the docs before writing code that contradicts them.
 

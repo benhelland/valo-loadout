@@ -256,7 +256,7 @@ Delivery is a **Discord bot DM**, not a per-user webhook. A webhook URL is a man
 
 **All outbound Discord traffic goes through one seam.** `discordFetch` in `src/discord/bot.ts` serialises calls behind a 300ms minimum interval so only one is ever in flight, caps calls per rolling hour, applies a 15s timeout, and retries a 429 once when Discord's own `retry_after` is small enough to be worth waiting for. Opening a DM channel is one of Discord's more aggressively limited routes and a shop-check batch opens one per notified user back to back, so the interval is wider than the Riot client's.
 
-`sendDirectMessage` returns a `DeliveryResult` rather than a boolean, because the failures are not interchangeable: `DMS_CLOSED` (Discord error code 50007) is the only one the *user* can fix, so it is the only one that produces an instruction.
+`sendDirectMessage` returns a `DeliveryResult` rather than a boolean, because the failures are not interchangeable: `DMS_CLOSED` (Discord error codes 50007 and 50278 - the user has DMs from this server's members off, or has left the server) is the only one the *user* can fix, so it is the only one that produces an instruction.
 
 **Wishlist-match dispatch** (`notifyWishlistMatches`, `src/notifications/index.ts`) is called at the end of `runShopCheck`, after that check's own data is durably persisted — a Discord failure must never turn a successful shop read into a reported failure. It cross-references the shop's skin ids against `wishlist_items`, dedupes against `notifications_sent`, and batches every new match into a single DM rather than one per skin.
 
