@@ -6,7 +6,7 @@ Guidance for Claude when working in this repo. Read this first, every session.
 
 **Valoadout** — a webapp for VALORANT cosmetics. Build your ideal loadout across every weapon, wishlist skins you want, browse every skin and animation ever released in a UI that actually shows them off, and get notified when a wishlisted skin shows up in your daily store.
 
-**Status: Phases 1–3 feature-complete.** The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. Discord notification delivery is verified against a real bot and server, and no-ops until a bot token and guild id are supplied. One thing is built but not yet verified against live conditions: whether Riot's Cloudflare permits the poller from a datacenter IP. See `docs/ROADMAP.md` Phase 3.
+**Status: Phases 1–3 feature-complete.** The gallery, loadout builder, sharing, Discord auth, the Riot store-check subsystem, the wishlist and notification dispatch all exist, and the store-check subsystem is verified end-to-end against live Riot. Discord notification delivery is verified against a real bot and server, and no-ops until a bot token and guild id are supplied. The shop poller runs on Vercel, woken by a scheduled GitHub Actions workflow after each daily store reset; Riot's store endpoints accept requests from Vercel's datacenter IPs. See `docs/ROADMAP.md` Phase 3.
 
 Don't assume any framework, package, or file structure beyond what's written in these docs — propose a change to the docs before writing code that contradicts them.
 
@@ -106,4 +106,3 @@ needs the history has `git log`; a reader of the file needs the invariant.
 ## Open questions
 
 - Whether skin "animation" playback means the hosted showcase clips valorant-api.com exposes for some tiers, or something more produced. Start with what the API gives for free; treat anything fancier as a stretch goal.
-- **Where the shop-check poller runs.** Vercel Cron is ruled out on the free tier: Hobby accounts allow only once-daily schedules, and once daily is too coarse here because shop resets are per-account and spread across the day. The open choice is a scheduled GitHub Actions workflow versus `npm run check-shops` on a non-datacenter machine, and it can't be settled until the datacenter-IP question is answered. See `docs/ARCHITECTURE.md` → "Store-check subsystem".

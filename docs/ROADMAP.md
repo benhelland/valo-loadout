@@ -39,7 +39,7 @@ The riskiest and most differentiated piece. Read `RISKS.md` before touching this
 - [x] Wishlist-match detection and notification dispatch via Discord bot DM, plus a reactive "your Riot link expired" DM
 - [x] Verified end-to-end against live Riot — a real account linked, returned its daily shop, all offers resolved to catalog skins, and the refresh-token grant plus rotation lock were exercised separately
 - [x] Discord delivery verified against a real bot and server: sign-in joins the guild, wishlist-match and expiry DMs deliver with thumbnails, closed DMs surface as `DMS_CLOSED` on `/account` and clear on the next delivery, dedupe holds across repeated checks, and the opt-out mutes. `npm run test-notification -- --discord-id <id>` renders the DM without sending; `--send` delivers it. Without `DISCORD_BOT_TOKEN`/`DISCORD_GUILD_ID`, `joinGuild`/`sendDirectMessage` no-op safely
-- [ ] **Determine whether the poller works from a datacenter IP.** Every call so far has come from a residential connection, and Cloudflare is hardest on datacenter IPs — which is what both Vercel Cron and GitHub Actions are. Until that's tested, `npm run check-shops` is the known-good trigger. The real `EXPIRED` and `CAPTCHA_BLOCKED` paths are also untested against live conditions
+- [x] The poller runs from Vercel's datacenter IPs, woken by a scheduled GitHub Actions workflow after each daily reset (`ARCHITECTURE.md` → "Store-check subsystem"). The `EXPIRED` path is verified against live Riot; `CAPTCHA_BLOCKED` is not
 
 ## Phase 4 — Polish and stretch
 
