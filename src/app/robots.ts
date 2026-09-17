@@ -16,6 +16,9 @@ export default function robots(): MetadataRoute.Robots {
           // worth indexing (the gallery itself, each skin, the buddy list)
           // are all reachable without a query string.
           "/*?",
+          // The buddy picker in pick mode, spelled without a wildcard for
+          // crawlers that only match on a literal prefix.
+          "/buddies?",
           // Share links. Loadout slugs are deliberately unguessable so a link
           // can be revoked; indexing them would undo that. Combo links are
           // stateless and effectively infinite.
