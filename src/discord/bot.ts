@@ -218,6 +218,23 @@ export async function joinGuild(discordUserId: string, userAccessToken: string):
   }
 }
 
+/**
+ * Whether the bot shares its guild with the user, which is what a DM needs.
+ * Null when it cannot be determined - delivery unconfigured, or Discord
+ * unreachable - so a caller does not show a false warning.
+ */
+export async function isGuildMember(discordUserId: string): Promise<boolean | null> {
+  const botToken = getBotToken();
+  const guildId = getGuildId();
+  if (!botToken || !guildId) return null;
+
+  const response = await discordFetch(botToken, `/guilds/${guildId}/members/${discordUserId}`, { method: "GET" });
+  if (!response) return null;
+  if (response.ok) return true;
+  if (response.status === 404) return false;
+  return null;
+}
+
 async function classifyFailure(response: Response): Promise<DeliveryFailureReason> {
   if (response.status === 429) return "RATE_LIMITED";
   const code = await readNumberField(response, "code");
