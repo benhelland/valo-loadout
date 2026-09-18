@@ -82,6 +82,11 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
         </p>
 
         <p className="mt-3 text-[11px] text-muted">
+          Signing in also adds you to Valoadout&rsquo;s Discord server. A bot can only DM people it shares a server
+          with, so that is what lets it reach you. There is nothing to do there.
+        </p>
+
+        <p className="mt-3 text-[11px] text-muted">
           Valoadout is an independent fan project, not affiliated with or endorsed by Discord Inc. or Riot Games, Inc.
         </p>
       </div>

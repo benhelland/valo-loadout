@@ -11,7 +11,7 @@ import { CheckShopNowButton } from "@/components/account/CheckShopNowButton";
 import { LinkRiotAccountForm } from "@/components/account/LinkRiotAccountForm";
 import { NotificationToggle } from "@/components/account/NotificationToggle";
 import { deliveryFailureExplanation } from "@/notifications/messages";
-import { isNotificationDeliveryConfigured } from "@/discord/bot";
+import { isNotificationDeliveryConfigured, isGuildMember } from "@/discord/bot";
 
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   ACTIVE: { label: "Active", tone: "text-green-400" },
@@ -27,6 +27,7 @@ export default async function AccountPage() {
   const session = await auth();
   const { linkedAccounts, recentByAccount } = await getAccountOverview(userId);
   const notifications = await getNotificationStatus(userId);
+  const inGuild = notifications?.discordUserId ? await isGuildMember(notifications.discordUserId) : null;
   const deliveryConfigured = isNotificationDeliveryConfigured();
 
   return (
@@ -68,7 +69,12 @@ export default async function AccountPage() {
           <NotificationToggle enabled={notifications?.wishlistNotificationsEnabled ?? true} />
         </div>
 
-        {notifications?.notificationFailedAt ? (
+        {inGuild === false ? (
+          <p className="clip-notch-sm mt-4 border border-amber-500/40 bg-background p-3 text-xs text-amber-300">
+            You&rsquo;re not in Valoadout&rsquo;s Discord server, so the bot can&rsquo;t DM you. Sign out and back in
+            with Discord to rejoin - that&rsquo;s all it takes.
+          </p>
+        ) : notifications?.notificationFailedAt ? (
           <p className="clip-notch-sm mt-4 border border-amber-500/40 bg-background p-3 text-xs text-amber-300">
             {deliveryFailureExplanation(notifications.notificationFailureReason)}
           </p>

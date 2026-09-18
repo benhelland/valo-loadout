@@ -9,15 +9,20 @@ export interface NotificationStatus {
   notificationFailedAt: Date | null;
   /** A DeliveryFailureReason - see src/discord/bot.ts. */
   notificationFailureReason: string | null;
+  discordUserId: string | null;
 }
 
 export async function getNotificationStatus(userId: string): Promise<NotificationStatus | null> {
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       wishlistNotificationsEnabled: true,
       notificationFailedAt: true,
       notificationFailureReason: true,
+      accounts: { where: { provider: "discord" }, select: { providerAccountId: true }, take: 1 },
     },
   });
+  if (!user) return null;
+  const { accounts, ...status } = user;
+  return { ...status, discordUserId: accounts[0]?.providerAccountId ?? null };
 }
